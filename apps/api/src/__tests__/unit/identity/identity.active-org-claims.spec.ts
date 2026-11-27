@@ -15,7 +15,10 @@ function createHarness() {
       permissions: { findMany: vi.fn() },
     },
   };
-  const mockDb = { db } as any;
+  const mockDb = {
+    db,
+    withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()),
+  } as any;
   const redis = { client: { set: vi.fn(), get: vi.fn(), del: vi.fn() } } as any;
   const jwt = { sign: vi.fn().mockReturnValue('signed.token'), verify: vi.fn() } as any;
   const rateLimit = { checkAndIncrement: vi.fn(), resetAttempts: vi.fn() } as any;
@@ -43,7 +46,7 @@ describe('IdentityService active organization claims', () => {
       orgId: 'org-1',
     });
 
-    await expect(harness.service.switchOrg('user-1', 'org-1')).rejects.toThrow(ForbiddenException);
+    await expect(harness.service.switchOrg('user-1', 'org-1', { role: 'BUYER', activeOrg: null }, 'session-1')).rejects.toThrow(ForbiddenException);
     expect(harness.jwt.sign).not.toHaveBeenCalled();
   });
 
@@ -55,7 +58,7 @@ describe('IdentityService active organization claims', () => {
     });
     harness.db.query.organizations.findFirst.mockResolvedValue(null);
 
-    await expect(harness.service.switchOrg('user-1', 'org-1')).rejects.toThrow(ForbiddenException);
+    await expect(harness.service.switchOrg('user-1', 'org-1', { role: 'BUYER', activeOrg: null }, 'session-1')).rejects.toThrow(ForbiddenException);
     expect(harness.jwt.sign).not.toHaveBeenCalled();
   });
 
@@ -74,11 +77,28 @@ describe('IdentityService active organization claims', () => {
     harness.db.query.roles.findFirst.mockResolvedValue({ id: 'role-owner', key: 'MERCHANT_OWNER' });
     harness.db.query.rolePermissions.findMany.mockResolvedValue([]);
 
-    await harness.service.switchOrg('user-1', 'org-1');
+    await harness.service.switchOrg('user-1', 'org-1', { role: 'BUYER', activeOrg: null }, 'session-1');
 
     const signed = harness.jwt.sign.mock.calls[0][0];
     expect(signed.activeOrg).toBe('org-1');
     expect(signed.role).toBe('MERCHANT_OWNER');
+  });
+
+  it('skips an inactive first organization and selects the next active membership', async () => {
+    harness.db.query.organizationMembers.findMany.mockResolvedValue([
+      { id: 'membership-old', orgId: 'org-inactive', status: 'ACTIVE', roleId: 'role-old' },
+      { id: 'membership-current', orgId: 'org-current', status: 'ACTIVE', roleId: 'role-current' },
+    ]);
+    harness.db.query.organizations.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'org-current', isActive: true });
+    harness.db.query.roles.findFirst.mockResolvedValue({ id: 'role-current', key: 'MERCHANT_OWNER' });
+    harness.db.query.rolePermissions.findMany.mockResolvedValue([]);
+
+    const claims = await (harness.service as any).buildClaims('user-1');
+
+    expect(claims).toMatchObject({ activeOrgId: 'org-current', roleKey: 'MERCHANT_OWNER' });
+    expect(harness.db.query.organizations.findFirst).toHaveBeenCalledTimes(2);
   });
 
   it('does not choose a suspended membership when building default claims', async () => {

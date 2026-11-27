@@ -43,10 +43,12 @@ import { randomUUID } from 'node:crypto';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
+const orgA = randomUUID();
 
 async function applyAllMigrations(pool: Pool) {
-  const files = fs.readdirSync(MIGRATIONS_DIR)
-    .filter(f => f.endsWith('.sql') && !EXCLUDED.has(f))
+  const files = fs
+    .readdirSync(MIGRATIONS_DIR)
+    .filter((f) => f.endsWith('.sql') && !EXCLUDED.has(f))
     .sort();
   for (const file of files) {
     const content = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
@@ -61,8 +63,13 @@ class SuccessCancelProvider extends ShippingProvider {
   readonly key = 'success-cancel';
   readonly name = 'Success Cancel';
   readonly capabilities: ProviderCapabilities = {
-    canCreateShipment: true, canCancel: false, canCancelPickup: true,
-    canGenerateLabel: false, canTrack: false, canValidateAddress: false, canReceiveWebhooks: false,
+    canCreateShipment: true,
+    canCancel: false,
+    canCancelPickup: true,
+    canGenerateLabel: false,
+    canTrack: false,
+    canValidateAddress: false,
+    canReceiveWebhooks: false,
   };
   callCount = 0;
   async createShipment(_r: CreateShipmentRequest): Promise<CreateShipmentResult> {
@@ -79,8 +86,13 @@ class FailCancelProvider extends ShippingProvider {
   readonly key = 'fail-cancel';
   readonly name = 'Fail Cancel';
   readonly capabilities: ProviderCapabilities = {
-    canCreateShipment: true, canCancel: false, canCancelPickup: true,
-    canGenerateLabel: false, canTrack: false, canValidateAddress: false, canReceiveWebhooks: false,
+    canCreateShipment: true,
+    canCancel: false,
+    canCancelPickup: true,
+    canGenerateLabel: false,
+    canTrack: false,
+    canValidateAddress: false,
+    canReceiveWebhooks: false,
   };
   callCount = 0;
   async createShipment(_r: CreateShipmentRequest): Promise<CreateShipmentResult> {
@@ -97,8 +109,13 @@ class TimeoutCancelProvider extends ShippingProvider {
   readonly key = 'timeout-cancel';
   readonly name = 'Timeout Cancel';
   readonly capabilities: ProviderCapabilities = {
-    canCreateShipment: true, canCancel: false, canCancelPickup: true,
-    canGenerateLabel: false, canTrack: false, canValidateAddress: false, canReceiveWebhooks: false,
+    canCreateShipment: true,
+    canCancel: false,
+    canCancelPickup: true,
+    canGenerateLabel: false,
+    canTrack: false,
+    canValidateAddress: false,
+    canReceiveWebhooks: false,
   };
   callCount = 0;
   async createShipment(_r: CreateShipmentRequest): Promise<CreateShipmentResult> {
@@ -134,6 +151,11 @@ function createWorkerWithProvider(
     { tryResolve: vi.fn(async () => null) } as any, // emailResolver
     { classify: vi.fn(() => ({ isFinal: false, safeMessage: '', nextAttemptAt: null })) } as any, // retryPolicy
     { canRequest: vi.fn(() => true), recordSuccess: vi.fn(), recordFailure: vi.fn() } as any, // circuitBreaker
+    {} as any, // storage — unused by cancellation handlers
+    {
+      getStoreTenantContextForSystem: vi.fn(async (storeId: string) => ({ id: storeId, orgId: orgA })),
+    } as any, // merchant — authoritative store ownership
+    {} as any, // webhook routing — unused by cancellation handlers
   );
 }
 
@@ -155,7 +177,6 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
   const FALLBACK_PG_USER = process.env['TEST_PG_USER'] ?? 'scs';
   const FALLBACK_PG_PASSWORD = process.env['TEST_PG_PASSWORD'] ?? 'scs_dev_2026';
 
-  const orgA = randomUUID();
   const merchantA = randomUUID();
   const buyerA = randomUUID();
   const storeA = randomUUID();
@@ -193,7 +214,11 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
 
     // Seed RBAC
     const client = await pool.connect();
-    try { await seedPlatformRbac(client); } finally { client.release(); }
+    try {
+      await seedPlatformRbac(client);
+    } finally {
+      client.release();
+    }
 
     // Create fixtures
     const rolesRes = await pool.query('SELECT id, key FROM roles');
@@ -216,13 +241,13 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
       [randomUUID(), orgA, merchantA, roleById.get('MERCHANT_OWNER')],
     );
     await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-a-b331', 'Store A', 'APPROVED')`,
+      `INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-a-b331', 'Store A', 'ACTIVE', 'VERIFIED')`,
       [storeA, orgA],
     );
-    await pool.query(
-      `INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, 'Main WH')`,
-      [warehouseA, storeA],
-    );
+    await pool.query(`INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, 'Main WH')`, [
+      warehouseA,
+      storeA,
+    ]);
     await pool.query(
       `INSERT INTO products (id, store_id, slug, title, status) VALUES ($1, $2, 'b331-product-a', 'B331 Product A', 'ACTIVE')`,
       [productIdA, storeA],
@@ -249,7 +274,9 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
   }, 180_000);
 
   afterAll(async () => {
-    try { await pool?.query(`DROP DATABASE IF EXISTS ${testDbName}`); } catch {}
+    try {
+      await pool?.query(`DROP DATABASE IF EXISTS ${testDbName}`);
+    } catch {}
     await pool?.end();
     await adminPool?.query(`DROP DATABASE IF EXISTS ${testDbName}`).catch(() => {});
     await adminPool?.end();
@@ -258,12 +285,15 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
 
   // ── Helper: create an order at ACCEPTED status with a shipment ────────
 
-  async function createOrderWithShipment(providerKey: string | null = 'success-cancel', carrierPickupId: string | null = 'PU-TEST'): Promise<{ orderId: string; shipmentId: string }> {
+  async function createOrderWithShipment(
+    providerKey: string | null = 'success-cancel',
+    carrierPickupId: string | null = 'PU-TEST',
+  ): Promise<{ orderId: string; shipmentId: string }> {
     const cartId = randomUUID();
-    await pool.query(
-      `INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`,
-      [cartId, buyerA],
-    );
+    await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [
+      cartId,
+      buyerA,
+    ]);
     await pool.query(
       `INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id) VALUES ($1, $2, $3, $4, 2, 1000, 2000, $5)`,
       [randomUUID(), cartId, storeA, variantA, offerA],
@@ -273,7 +303,7 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
       buyerId: buyerA,
       deliveryAddress: {},
       idempotencyKey: `b331-${randomUUID()}`,
-    });
+    }, { sub: buyerA, role: 'BUYER', activeOrg: orgA });
     const orderId = co.subOrders[0]!.id;
     const caller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
 
@@ -309,11 +339,13 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
 
   // ── Helper: create a shipment with direct SQL for worker tests ────────
 
-  async function createShipmentDirect(overrides: {
-    providerKey?: string | null;
-    carrierPickupId?: string | null;
-    cancelStatus?: string;
-  } = {}): Promise<{ orderId: string; shipmentId: string }> {
+  async function createShipmentDirect(
+    overrides: {
+      providerKey?: string | null;
+      carrierPickupId?: string | null;
+      cancelStatus?: string;
+    } = {},
+  ): Promise<{ orderId: string; shipmentId: string }> {
     const orderId = await createMinimalOrder();
     const shipmentId = randomUUID();
     const providerKey = overrides.providerKey ?? 'success-cancel';
@@ -322,7 +354,15 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
     await pool.query(
       `INSERT INTO shipments (id, order_id, store_id, status, shipping_provider_key, carrier_pickup_id, carrier_cancel_status, carrier_cancel_idempotency_key, created_at, updated_at)
        VALUES ($1, $2, $3, 'PREPARING', $4, $5, $6, $7, NOW(), NOW())`,
-      [shipmentId, orderId, storeA, providerKey, carrierPickupId, cancelStatus, `carrier-cancel:${shipmentId}`],
+      [
+        shipmentId,
+        orderId,
+        storeA,
+        providerKey,
+        carrierPickupId,
+        cancelStatus,
+        `carrier-cancel:${shipmentId}`,
+      ],
     );
     return { orderId, shipmentId };
   }
@@ -430,7 +470,10 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
   // ═══════════════════════════════════════════════════════════════════
 
   it('D: unsupported provider → NOT_REQUIRED (no HTTP call)', async () => {
-    const { shipmentId } = await createShipmentDirect({ providerKey: 'manual-driver', carrierPickupId: null });
+    const { shipmentId } = await createShipmentDirect({
+      providerKey: 'manual-driver',
+      carrierPickupId: null,
+    });
     const eventId = randomUUID();
     await pool.query(
       `INSERT INTO outbox_events (id, event_type, aggregate_id, payload, metadata, status, created_at)
@@ -439,24 +482,35 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
     );
 
     // Use ManualDeliveryProvider (canCancelPickup = false)
-    const { ManualDeliveryProvider } = await import('../../modules/shipping/providers/manual-delivery.provider');
+    const { ManualDeliveryProvider } =
+      await import('../../modules/shipping/providers/manual-delivery.provider');
     const manualProvider = new ManualDeliveryProvider();
     const registry = new ShippingProviderRegistry();
     registry.register(manualProvider);
     const worker = new (ShippingCarrierWorker as any)(
-      dbService, registry, {} as any, {} as any,
-      { incrementCounter: vi.fn() } as any, { tryResolve: vi.fn() } as any,
-      { classify: vi.fn() } as any, { canRequest: vi.fn(() => true), recordSuccess: vi.fn(), recordFailure: vi.fn() } as any,
+      dbService,
+      registry,
+      {} as any,
+      {} as any,
+      { incrementCounter: vi.fn() } as any,
+      { tryResolve: vi.fn() } as any,
+      { classify: vi.fn() } as any,
+      { canRequest: vi.fn(() => true), recordSuccess: vi.fn(), recordFailure: vi.fn() } as any,
+      {} as any,
+      { getStoreTenantContextForSystem: vi.fn(async (storeId: string) => ({ id: storeId, orgId: orgA })) } as any,
+      {} as any,
     );
 
     await (worker as any).handleCancel({
-      id: eventId, eventType: 'shipping.carrier.cancel', aggregateId: shipmentId,
+      id: eventId,
+      eventType: 'shipping.carrier.cancel',
+      aggregateId: shipmentId,
       metadata: { storeId: storeA },
     });
 
-    const shipRow = await pool.query(
-      `SELECT carrier_cancel_status FROM shipments WHERE id = $1`, [shipmentId],
-    );
+    const shipRow = await pool.query(`SELECT carrier_cancel_status FROM shipments WHERE id = $1`, [
+      shipmentId,
+    ]);
     expect(shipRow.rows[0].carrier_cancel_status).toBe('NOT_REQUIRED');
   });
 
@@ -465,7 +519,10 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
   // ═══════════════════════════════════════════════════════════════════
 
   it('E: business failure → PENDING → FAILED', async () => {
-    const { shipmentId } = await createShipmentDirect({ providerKey: 'fail-cancel', carrierPickupId: 'PU-200' });
+    const { shipmentId } = await createShipmentDirect({
+      providerKey: 'fail-cancel',
+      carrierPickupId: 'PU-200',
+    });
     const eventId = randomUUID();
     await pool.query(
       `INSERT INTO outbox_events (id, event_type, aggregate_id, payload, metadata, status, created_at)
@@ -477,7 +534,9 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
     const worker = createWorkerWithProvider(dbService, provider);
 
     await (worker as any).handleCancel({
-      id: eventId, eventType: 'shipping.carrier.cancel', aggregateId: shipmentId,
+      id: eventId,
+      eventType: 'shipping.carrier.cancel',
+      aggregateId: shipmentId,
       metadata: { storeId: storeA },
     });
 
@@ -503,14 +562,18 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
 
     // First execution
     await (worker as any).handleCancel({
-      id: randomUUID(), eventType: 'shipping.carrier.cancel', aggregateId: shipmentId,
+      id: randomUUID(),
+      eventType: 'shipping.carrier.cancel',
+      aggregateId: shipmentId,
       metadata: { storeId: storeA },
     });
     expect(provider.callCount).toBe(1);
 
     // Second execution (duplicate) — should skip because SUCCEEDED
     await (worker as any).handleCancel({
-      id: randomUUID(), eventType: 'shipping.carrier.cancel', aggregateId: shipmentId,
+      id: randomUUID(),
+      eventType: 'shipping.carrier.cancel',
+      aggregateId: shipmentId,
       metadata: { storeId: storeA },
     });
     expect(provider.callCount).toBe(1); // Still 1 — idempotent guard
@@ -521,13 +584,18 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
   // ═══════════════════════════════════════════════════════════════════
 
   it('G: already SUCCEEDED shipment — provider not called', async () => {
-    const { shipmentId } = await createShipmentDirect({ carrierPickupId: 'PU-400', cancelStatus: 'SUCCEEDED' });
+    const { shipmentId } = await createShipmentDirect({
+      carrierPickupId: 'PU-400',
+      cancelStatus: 'SUCCEEDED',
+    });
 
     const provider = new SuccessCancelProvider();
     const worker = createWorkerWithProvider(dbService, provider);
 
     await (worker as any).handleCancel({
-      id: randomUUID(), eventType: 'shipping.carrier.cancel', aggregateId: shipmentId,
+      id: randomUUID(),
+      eventType: 'shipping.carrier.cancel',
+      aggregateId: shipmentId,
       metadata: { storeId: storeA },
     });
 
@@ -547,10 +615,12 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
     // Event claims to be from a different store
     await expect(
       (worker as any).handleCancel({
-        id: randomUUID(), eventType: 'shipping.carrier.cancel', aggregateId: shipmentId,
+        id: randomUUID(),
+        eventType: 'shipping.carrier.cancel',
+        aggregateId: shipmentId,
         metadata: { storeId: 'different-store-id' },
       }),
-    ).rejects.toThrow(/Tenant mismatch/);
+    ).rejects.toThrow(/outbox event store does not match its shipment/i);
 
     expect(provider.callCount).toBe(0);
   });
@@ -569,14 +639,16 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
     const results = await Promise.allSettled(
       Array.from({ length: 100 }, (_, i) =>
         (worker as any).handleCancel({
-          id: randomUUID(), eventType: 'shipping.carrier.cancel', aggregateId: shipmentId,
+          id: randomUUID(),
+          eventType: 'shipping.carrier.cancel',
+          aggregateId: shipmentId,
           metadata: { storeId: storeA },
         }),
       ),
     );
 
     // All should resolve (no throws)
-    const fulfilled = results.filter(r => r.status === 'fulfilled').length;
+    const fulfilled = results.filter((r) => r.status === 'fulfilled').length;
     expect(fulfilled).toBe(100);
 
     // Final state must be SUCCEEDED (convergence)
@@ -585,9 +657,9 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
     // handleCancel() calls without claiming may race, but the idempotent
     // guard ensures that once SUCCEEDED, no further provider calls occur.
     // Test F verifies the sequential idempotent guard.
-    const shipRow = await pool.query(
-      `SELECT carrier_cancel_status FROM shipments WHERE id = $1`, [shipmentId],
-    );
+    const shipRow = await pool.query(`SELECT carrier_cancel_status FROM shipments WHERE id = $1`, [
+      shipmentId,
+    ]);
     expect(shipRow.rows[0].carrier_cancel_status).toBe('SUCCEEDED');
   });
 
@@ -601,22 +673,32 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
     // Worker with no provider registered → throws "Provider not found"
     const emptyRegistry = new ShippingProviderRegistry();
     const brokenWorker = new (ShippingCarrierWorker as any)(
-      dbService, emptyRegistry, {} as any, {} as any,
-      { incrementCounter: vi.fn() } as any, { tryResolve: vi.fn() } as any,
-      { classify: vi.fn() } as any, { canRequest: vi.fn(() => true) } as any,
+      dbService,
+      emptyRegistry,
+      {} as any,
+      {} as any,
+      { incrementCounter: vi.fn() } as any,
+      { tryResolve: vi.fn() } as any,
+      { classify: vi.fn() } as any,
+      { canRequest: vi.fn(() => true) } as any,
+      {} as any,
+      { getStoreTenantContextForSystem: vi.fn(async (storeId: string) => ({ id: storeId, orgId: orgA })) } as any,
+      {} as any,
     );
 
     await expect(
       (brokenWorker as any).handleCancel({
-        id: randomUUID(), eventType: 'shipping.carrier.cancel', aggregateId: shipmentId,
+        id: randomUUID(),
+        eventType: 'shipping.carrier.cancel',
+        aggregateId: shipmentId,
         metadata: { storeId: storeA },
       }),
     ).rejects.toThrow(/not found/);
 
     // Shipment should still be PENDING (not corrupted)
-    const shipRow = await pool.query(
-      `SELECT carrier_cancel_status FROM shipments WHERE id = $1`, [shipmentId],
-    );
+    const shipRow = await pool.query(`SELECT carrier_cancel_status FROM shipments WHERE id = $1`, [
+      shipmentId,
+    ]);
     expect(shipRow.rows[0].carrier_cancel_status).toBe('PENDING');
   });
 
@@ -625,13 +707,18 @@ describe('M7.3-B.3.3.1 — Cancellation Execution Foundation (PostgreSQL)', () =
   // ═══════════════════════════════════════════════════════════════════
 
   it('K: timeout cannot produce carrierCancelStatus = SUCCEEDED', async () => {
-    const { shipmentId } = await createShipmentDirect({ providerKey: 'timeout-cancel', carrierPickupId: 'PU-800' });
+    const { shipmentId } = await createShipmentDirect({
+      providerKey: 'timeout-cancel',
+      carrierPickupId: 'PU-800',
+    });
 
     const provider = new TimeoutCancelProvider();
     const worker = createWorkerWithProvider(dbService, provider);
 
     await (worker as any).handleCancel({
-      id: randomUUID(), eventType: 'shipping.carrier.cancel', aggregateId: shipmentId,
+      id: randomUUID(),
+      eventType: 'shipping.carrier.cancel',
+      aggregateId: shipmentId,
       metadata: { storeId: storeA },
     });
 

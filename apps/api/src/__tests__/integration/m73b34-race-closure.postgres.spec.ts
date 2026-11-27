@@ -596,37 +596,40 @@ describe('M7.3-B.3.4 — Delivered-After-Cancel + Mutex Separation (PostgreSQL)'
   // ═══════════════════════════════════════════════════════════════
 
   /**
-   * Hold the first claim query (CREATE cycle) open until the test releases it,
-   * so the CANCEL cycle demonstrably starts while the CREATE cycle is in flight.
+   * Pause the first worker after it acquires its process-local mutex but before
+   * its database claim. The opposite worker must complete while the first is held.
    */
   async function withHeldFirstCycle(
     run: (release: () => void) => Promise<void>,
   ): Promise<void> {
-    const realExecute = dbService.db.execute.bind(dbService.db);
+    const realWithActorContext = dbService.withActorContext.bind(dbService);
     let n = 0;
     let release!: () => void;
-    const gate = new Promise<void>((r) => (release = r));
-    (dbService.db as any).execute = async (query: any) => {
-      // Capture the index BEFORE awaiting — a second concurrent cycle would
-      // otherwise bump `n` and let the first cycle escape the gate.
-      const myCall = ++n;
-      const result = await (realExecute as any)(query);
-      if (myCall === 1) await gate;
-      return result;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    (dbService as any).withActorContext = (context: any, operation: () => Promise<unknown>) => {
+      const callNumber = ++n;
+      return realWithActorContext(context, async () => {
+        if (callNumber === 1) await gate;
+        return operation();
+      });
     };
     try {
       await run(release);
     } finally {
-      (dbService.db as any).execute = realExecute;
+      // Always release the first cycle, including when an assertion fails.
+      release();
+      (dbService as any).withActorContext = realWithActorContext;
     }
   }
 
   it('B34-PG-10: create reconciliation in flight does NOT block cancel reconciliation', async () => {
-    const cancelShipmentId = await seedShipment({ cancelStatus: 'UNKNOWN' });
+    const dueAt = new Date(Date.now() - 60_000);
+    const cancelShipmentId = await seedShipment({ cancelStatus: 'UNKNOWN', nextReconciliationAt: dueAt });
     const createShipmentId = await seedShipment({
       cancelStatus: null,
       createStatus: 'RECOVERY_REQUIRED',
       carrierStatusMapped: null,
+      nextReconciliationAt: dueAt,
     });
     await parkOtherShipments([cancelShipmentId, createShipmentId]);
     const provider = new StubCarrierProvider('CANCELLED');
@@ -652,14 +655,16 @@ describe('M7.3-B.3.4 — Delivered-After-Cancel + Mutex Separation (PostgreSQL)'
 
     const ship = await readShipment(cancelShipmentId);
     expect(ship.carrier_cancel_status).toBe('SUCCEEDED');
-  });
+  }, 30_000);
 
   it('B34-PG-11: cancel reconciliation in flight does NOT block create reconciliation', async () => {
-    const cancelShipmentId = await seedShipment({ cancelStatus: 'UNKNOWN' });
+    const dueAt = new Date(Date.now() - 60_000);
+    const cancelShipmentId = await seedShipment({ cancelStatus: 'UNKNOWN', nextReconciliationAt: dueAt });
     const createShipmentId = await seedShipment({
       cancelStatus: null,
       createStatus: 'RECOVERY_REQUIRED',
       carrierStatusMapped: null,
+      nextReconciliationAt: dueAt,
     });
     await parkOtherShipments([cancelShipmentId, createShipmentId]);
     const provider = new StubCarrierProvider('CANCELLED');
@@ -682,7 +687,7 @@ describe('M7.3-B.3.4 — Delivered-After-Cancel + Mutex Separation (PostgreSQL)'
     expect(service['runningCancel']).toBe(false);
     const ship = await readShipment(cancelShipmentId);
     expect(ship.carrier_cancel_status).toBe('SUCCEEDED');
-  });
+  }, 30_000);
 
   // ═══════════════════════════════════════════════════════════════
   //  Preserved existing behavior

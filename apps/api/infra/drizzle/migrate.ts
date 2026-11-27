@@ -20,13 +20,15 @@
  *
  * Now every migration runs as one transaction that also inserts its own `_migration_log`
  * row, with `ON_ERROR_STOP=1`. Either the file applies completely and is logged, or it is
- * rolled back and the runner exits non-zero — matching `migrate-pg.ts`, so the two runners
- * finally share one contract.
+ * rolled back and the runner exits non-zero. A transaction-level advisory lock and
+ * in-transaction ledger recheck prevent duplicate application when this local runner
+ * overlaps the API's development bootstrap or another migration process.
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { execFileSync, execSync } from 'node:child_process';
+import { DEV_MIGRATION_EXCLUSIONS } from './migration-config';
 
 const CONTAINER = 'scs-postgres';
 const DB_USER = 'scs';
@@ -36,19 +38,17 @@ const DB_NAME = 'scs_platform';
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../infra/drizzle/migrations');
 
 /**
- * Migrations that need an extension absent from `postgis/postgis:16-3.4`, skipped with a
- * loud warning. Mirrored from `migrate-pg.ts` so a fresh database reaches the same schema
- * through either path; previously the CI runner skipped these two while this one "applied"
- * them and failed silently. Installing pg_partman in the image makes them apply.
+ * The local Docker image does not include pg_partman. Keep these migrations pending
+ * and report the omission loudly; do not write them to _migration_log. The DATABASE_URL
+ * migration runner is the complete-target path and intentionally attempts all migrations,
+ * so its database must provide pg_partman before it is used for a full release schema.
  */
-const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
-const SKIP_REASON = 'requires the pg_partman extension, not present in postgis/postgis:16-3.4';
 
 function psql(query: string): string {
   return execFileSync(
     'docker',
     [
-      'exec', CONTAINER, 'psql', '-U', DB_USER, '-d', DB_NAME,
+      'exec', CONTAINER, 'psql', '-X', '-U', DB_USER, '-d', DB_NAME,
       // -v ON_ERROR_STOP=1 makes a failed statement exit non-zero, which is the only
       // way the caller can tell success from a partially applied script.
       '-v', 'ON_ERROR_STOP=1', '-t', '-A', '-c', query,
@@ -64,24 +64,41 @@ function psql(query: string): string {
  * structurally impossible to record a migration that did not fully apply — the property
  * the old `psql -f` + separate INSERT could not guarantee.
  */
-function psqlFile(sqlContent: string, file: string): void {
-  const tmpFile = '/tmp/_migrate.sql';
+function psqlFile(sqlContent: string, file: string): boolean {
+  const tmpFile =
+    '/tmp/_migrate-' + process.pid + '-' + file.replace(/[^a-zA-Z0-9_.-]/g, '_') + '.sql';
   const script = `BEGIN;
+SELECT pg_advisory_xact_lock(5456723, 1);
+SELECT EXISTS (SELECT 1 FROM _migration_log WHERE name = '${file}') AS migration_already_applied \\gset
+\\if :migration_already_applied
+\\echo SCS_MIGRATION_ALREADY_APPLIED
+COMMIT;
+\\else
 ${sqlContent}
 INSERT INTO _migration_log (name) VALUES ('${file}');
 COMMIT;
+\\endif
 `;
-  // Pipe SQL content into a file inside the container
+  // Pipe SQL content into a file inside the container.
   execSync(
     `docker exec -i ${CONTAINER} bash -c "cat > ${tmpFile}"`,
     { input: script, encoding: 'utf-8' },
   );
-  // Execute the SQL file. ON_ERROR_STOP makes psql abort and roll back on the first
-  // error; an aborted transaction leaves no log row, so the migration is retried next run.
-  execFileSync('docker', [
-    'exec', CONTAINER, 'psql', '-U', DB_USER, '-d', DB_NAME,
-    '-v', 'ON_ERROR_STOP=1', '-f', tmpFile,
-  ], { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+  // ON_ERROR_STOP aborts and rolls back the transaction on the first error.
+  let output = '';
+  try {
+    output = execFileSync('docker', [
+      'exec', CONTAINER, 'psql', '-X', '-U', DB_USER, '-d', DB_NAME,
+      '-v', 'ON_ERROR_STOP=1', '-f', tmpFile,
+    ], { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+  } finally {
+    try {
+      execFileSync('docker', ['exec', CONTAINER, 'rm', '-f', tmpFile], { stdio: 'pipe' });
+    } catch {
+      // A stale temporary SQL file is harmless; preserve the migration result.
+    }
+  }
+  return !output.includes('SCS_MIGRATION_ALREADY_APPLIED');
 }
 
 async function main() {
@@ -102,14 +119,27 @@ async function main() {
   }
 
   // Ensure migration tracking table exists
-  psql(`CREATE TABLE IF NOT EXISTS _migration_log (
-    name TEXT PRIMARY KEY,
-    applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
-  )`);
+  psql(`BEGIN;
+    SELECT pg_advisory_xact_lock(5456723, 1);
+    CREATE TABLE IF NOT EXISTS _migration_log (
+      name TEXT PRIMARY KEY,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    COMMIT;
+  `);
 
   // Get already-applied migrations
   const appliedRaw = psql('SELECT name FROM _migration_log ORDER BY name');
   const applied = new Set(appliedRaw.split('\n').filter(Boolean));
+  const staleExcluded = [...DEV_MIGRATION_EXCLUSIONS.keys()].filter((file) => applied.has(file));
+  if (staleExcluded.length > 0) {
+    console.error(
+      '❌ Local migration ledger contains pg_partman-dependent migrations that this image skips: ' +
+        staleExcluded.join(', ') +
+        '. The database may contain partial migration state; recreate the local database explicitly.',
+    );
+    process.exit(1);
+  }
 
   // Read migration files from disk
   if (!fs.existsSync(MIGRATIONS_DIR)) {
@@ -122,10 +152,10 @@ async function main() {
     .filter((f: string) => f.endsWith('.sql'))
     .sort();
 
-  const skipped = files.filter((f) => EXCLUDED.has(f));
+  const skipped = files.filter((f) => DEV_MIGRATION_EXCLUSIONS.has(f));
   for (const file of skipped) {
-    // Loud, not silent: an unapplied migration is a real gap in the schema.
-    console.warn(`   ⚠ SKIPPED ${file} — ${SKIP_REASON}`);
+    // Loud, not silent: an unapplied migration is a real gap in the local schema.
+    console.warn('   ⚠ SKIPPED ' + file + ' — ' + DEV_MIGRATION_EXCLUSIONS.get(file));
   }
 
   if (files.length === 0) {
@@ -134,8 +164,9 @@ async function main() {
   }
 
   let count = 0;
+  let alreadyApplied = applied.size;
   for (const file of files) {
-    if (EXCLUDED.has(file)) continue;
+    if (DEV_MIGRATION_EXCLUSIONS.has(file)) continue;
     if (applied.has(file)) {
       console.log(`   ✓ ${file} (already applied)`);
       continue;
@@ -147,9 +178,14 @@ async function main() {
     try {
       // The log INSERT happens inside psqlFile's transaction, so a failure here means
       // nothing was committed and nothing was recorded.
-      psqlFile(content, file);
-      console.log(`   ✅ ${file} applied`);
-      count++;
+      const appliedNow = psqlFile(content, file);
+      if (appliedNow) {
+        console.log(`   ✅ ${file} applied`);
+        count++;
+      } else {
+        console.log(`   ✓ ${file} (applied by another migration runner)`);
+        alreadyApplied++;
+      }
     } catch (err: any) {
       console.error(`\n❌ Migration ${file} FAILED (rolled back, not logged):`);
       console.error(`   ${err.stderr || err.message}`);
@@ -157,12 +193,16 @@ async function main() {
     }
   }
 
-  console.log(`\n🎉 Done — ${count} migration(s) applied, ${applied.size} already up-to-date.`);
-  console.log(`   Total migrations: ${files.length} (${skipped.length} skipped: ${SKIP_REASON})`);
+  console.log(`\n🎉 Done — ${count} migration(s) applied, ${alreadyApplied} already up-to-date.`);
+  console.log(`   Total migration files: ${files.length} (${skipped.length} skipped)`);
   if (skipped.length > 0) {
+    const skipDetails = skipped
+      .map((file) => file + ': ' + DEV_MIGRATION_EXCLUSIONS.get(file))
+      .join('; ');
     console.warn(
-      `   ⚠ ${skipped.length} migration(s) were NOT applied. The schema is incomplete for\n` +
-        `     analytics partitioning. Install pg_partman, then re-run pnpm db:migrate.`,
+      `   ⚠ ${skipped.length} migration(s) were NOT applied. The local schema is incomplete for\n` +
+        `     analytics partitioning/retention: ${skipDetails}. Install pg_partman and use the\n` +
+        `     DATABASE_URL migration runner against the intended target before relying on it.`,
     );
   }
 }

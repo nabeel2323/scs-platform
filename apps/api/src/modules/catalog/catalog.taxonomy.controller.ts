@@ -9,7 +9,10 @@ import {
   Body,
   Query,
   UseGuards,
+  UseInterceptors,
   ParseUUIDPipe,
+  ForbiddenException,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   CatalogTaxonomyService,
@@ -23,7 +26,8 @@ import { CatalogService } from './catalog.service';
 import { ConditionalRulesService, ConditionalRule, AttributeValueMap } from './conditional-rules.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { RequirePermission } from '../../common/guards/current-user.decorator';
+import { CurrentUser, RequirePermission } from '../../common/guards/current-user.decorator';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 
 /**
  * Catalog taxonomy API — attributes, options, groups, product types (§32–§34).
@@ -35,12 +39,34 @@ import { RequirePermission } from '../../common/guards/current-user.decorator';
  */
 @Controller()
 @UseGuards(JwtAuthGuard)
+@UseInterceptors(TenantDatabaseContextInterceptor)
 export class CatalogTaxonomyController {
   constructor(
     private readonly taxonomy: CatalogTaxonomyService,
     private readonly rules: ConditionalRulesService,
     private readonly catalogService: CatalogService,
   ) {}
+
+  private canManageProductTypes(user: { role: string; perms?: string[] }): boolean {
+    return (
+      user.role === 'SUPER_ADMIN' ||
+      user.perms?.includes('catalog:product-types:manage') === true
+    );
+  }
+
+  private async assertProductTypeReadable(
+    user: { role: string; perms?: string[] },
+    productTypeId: string,
+  ): Promise<void> {
+    const productType = await this.taxonomy.getProductType(productTypeId);
+    if (
+      !this.canManageProductTypes(user) &&
+      (productType.status !== 'PUBLISHED' ||
+        !(await this.taxonomy.hasPublicCategoryBinding(productType.categoryId)))
+    ) {
+      throw new NotFoundException('Product type not found');
+    }
+  }
 
   // ── Attributes ───────────────────────────────────────────────
 
@@ -110,8 +136,19 @@ export class CatalogTaxonomyController {
   // ── Product types ────────────────────────────────────────────
 
   @Get('product-types')
-  listProductTypes(@Query('categoryId') categoryId?: string, @Query('status') status?: string) {
-    return this.taxonomy.listProductTypes({ categoryId, status });
+  listProductTypes(
+    @Query('categoryId') categoryId: string | undefined,
+    @Query('status') status: string | undefined,
+    @CurrentUser() user: { role: string; perms?: string[] },
+  ) {
+    if (status && status !== 'PUBLISHED' && !this.canManageProductTypes(user)) {
+      throw new ForbiddenException('Product-type governance permission is required for non-published types');
+    }
+    return this.taxonomy.listProductTypes({
+      categoryId,
+      status,
+      includeInvalidCategoryBindings: this.canManageProductTypes(user),
+    });
   }
 
   /**
@@ -119,7 +156,11 @@ export class CatalogTaxonomyController {
    * Literal path `products` is matched before `:id` by NestJS routing.
    */
   @Get('product-types/products/:productTypeId')
-  getProductsByProductType(@Param('productTypeId', ParseUUIDPipe) productTypeId: string) {
+  async getProductsByProductType(
+    @Param('productTypeId', ParseUUIDPipe) productTypeId: string,
+    @CurrentUser() user: { role: string; perms?: string[] },
+  ) {
+    await this.assertProductTypeReadable(user, productTypeId);
     return this.catalogService.getProductsByProductType(productTypeId);
   }
 
@@ -131,12 +172,20 @@ export class CatalogTaxonomyController {
   }
 
   @Get('product-types/:id')
-  getProductType(@Param('id', ParseUUIDPipe) id: string) {
+  async getProductType(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: { role: string; perms?: string[] },
+  ) {
+    await this.assertProductTypeReadable(user, id);
     return this.taxonomy.getProductType(id);
   }
 
   @Get('product-types/:id/schema')
-  getProductTypeSchema(@Param('id', ParseUUIDPipe) id: string) {
+  async getProductTypeSchema(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: { role: string; perms?: string[] },
+  ) {
+    await this.assertProductTypeReadable(user, id);
     return this.taxonomy.getProductTypeSchema(id);
   }
 

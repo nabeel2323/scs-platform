@@ -41,9 +41,12 @@ import { Reflector } from '@nestjs/core';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { DatabaseService } from '../../common/database/database.service';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 import { RedisService } from '../../common/redis/redis.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { PaymentsService } from '../../modules/payments/payments.service';
+import { IdentityService } from '../../modules/identity/identity.service';
+import { MerchantService } from '../../modules/merchant/merchant.service';
 import { AllExceptionsFilter } from '../../common/filters/all-exceptions.filter';
 import { denylistKey } from '../../common/auth/token-denylist';
 import { AuditService } from '../../modules/audit/audit.service';
@@ -219,6 +222,15 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
       },
     } as unknown as RedisService;
 
+    // PilotControlService resolves org/store identity through the real identity
+    // and merchant services. These methods are read-only DB lookups; construct
+    // the real services with inert dependencies that are not used by getOrg/getStore.
+    const identityService = new IdentityService(
+      database, redis, new JwtService({ secret: process.env['JWT_ACCESS_SECRET']! }),
+      {} as any, {} as any, {} as any, {} as any,
+    );
+    const merchantService = new MerchantService(database, outbox, {} as any);
+
     // ── Constructor metadata for this transform pipeline ──
     // `nest build` runs on the SWC builder, which emits `design:paramtypes`, so the
     // real application resolves every class below by type. Vitest transpiles with
@@ -229,11 +241,12 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     // substitution: no collaborator is faked, these are the production classes.
     const paramTypes: ReadonlyArray<readonly [unknown, readonly unknown[]]> = [
       [AuditService, [DatabaseService]],
+      [TenantDatabaseContextInterceptor, [DatabaseService]],
       [BusinessCalendarService, [DatabaseService]],
       [SettlementAdjustmentService, [DatabaseService, OutboxDispatcher]],
       [ReconciliationService, [DatabaseService]],
       [CommissionReversalService, [DatabaseService, OutboxDispatcher]],
-      [PilotControlService, [DatabaseService, AuditService, OpsAlertService]],
+      [PilotControlService, [DatabaseService, AuditService, OpsAlertService, IdentityService, MerchantService]],
       [ReturnsService, [
         DatabaseService, OutboxDispatcher, PaymentsService, BusinessCalendarService,
         CommissionReversalService, SettlementAdjustmentService, PilotControlService,
@@ -265,6 +278,9 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
         { provide: RedisService, useValue: redis },
         { provide: OutboxDispatcher, useValue: outbox },
         { provide: PaymentsService, useValue: {} },
+        { provide: IdentityService, useValue: identityService },
+        { provide: MerchantService, useValue: merchantService },
+        TenantDatabaseContextInterceptor,
         AuditService,
         BusinessCalendarService,
         SettlementAdjustmentService,
@@ -286,7 +302,7 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
         if (!(exception instanceof HttpException)) {
           console.error(
             '[P4 HTTP exception]',
-            exception instanceof Error ? `${exception.name}: ${exception.message}` : String(exception),
+            exception instanceof Error ? (exception.stack ?? `${exception.name}: ${exception.message}`) : String(exception),
           );
         }
         new AllExceptionsFilter().catch(exception, host);

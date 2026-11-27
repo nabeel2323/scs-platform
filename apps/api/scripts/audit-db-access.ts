@@ -3,12 +3,14 @@
  *
  * Runs through the same DATABASE_URL supplied to the API/migration runner and
  * reports the effective/login roles, role attributes, schema/table/sequence
- * privileges, default ACLs, RLS coverage and active connection identities.
+ * privileges, default ACLs, RLS coverage, non-system functions/triggers and active
+ * connection identities.
  *
  * It never reads application rows, prints connection strings, or mutates schema.
  */
 import * as fs from 'node:fs';
 import { Pool } from 'pg';
+import { setOperatorActorContext } from '../infra/drizzle/operator-actor-context';
 
 type QueryResultRow = Record<string, unknown>;
 
@@ -34,12 +36,14 @@ async function main(): Promise<void> {
   const client = await pool.connect();
   try {
     await client.query('BEGIN READ ONLY');
+    await setOperatorActorContext(client, 'audit', 'audit-cli:db-access');
 
     const identity = await client.query<QueryResultRow>(`
       SELECT current_user AS effective_role,
              session_user AS login_role,
              current_database() AS database_name,
              current_setting('server_version') AS server_version,
+             current_setting('server_version_num')::int AS server_version_num,
              current_setting('application_name') AS application_name,
              current_setting('search_path') AS search_path,
              r.rolsuper AS is_superuser,
@@ -70,6 +74,9 @@ async function main(): Promise<void> {
       ORDER BY rolname
     `);
 
+    const serverVersionNum = Number(identity.rows[0]?.['server_version_num'] ?? 0);
+    const supportsMaintainPrivilege = serverVersionNum >= 170000;
+
     const clientRoles = await client.query<QueryResultRow>(`
       WITH role_names AS (
         SELECT rolname AS role_name
@@ -92,7 +99,11 @@ async function main(): Promise<void> {
              count(*) FILTER (WHERE has_table_privilege(r.role_name, t.oid, 'TRUNCATE'))::int AS truncate_count,
              count(*) FILTER (WHERE has_table_privilege(r.role_name, t.oid, 'REFERENCES'))::int AS references_count,
              count(*) FILTER (WHERE has_table_privilege(r.role_name, t.oid, 'TRIGGER'))::int AS trigger_count,
-             count(*) FILTER (WHERE has_table_privilege(r.role_name, t.oid, 'MAINTAIN'))::int AS maintain_count
+             ${
+               supportsMaintainPrivilege
+                 ? "count(*) FILTER (WHERE has_table_privilege(r.role_name, t.oid, 'MAINTAIN'))::int"
+                 : 'NULL::int'
+             } AS maintain_count
       FROM role_names r CROSS JOIN tables t
       GROUP BY r.role_name
       ORDER BY r.role_name
@@ -182,7 +193,6 @@ async function main(): Promise<void> {
         ON d.refclassid = 'pg_extension'::regclass
        AND d.refobjid = e.oid
        AND d.deptype = 'e'
-      WHERE e.extname IN ('pg_trgm')
       GROUP BY e.extname, n.nspname, owner.rolname, e.extrelocatable
       ORDER BY e.extname
     `);
@@ -225,6 +235,173 @@ async function main(): Promise<void> {
       WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
     `);
 
+    // Enumerate relation kinds separately so the historical 114/116 counts
+    // cannot silently mix tables, views and sequences.
+    const publicRelationCounts = await client.query<QueryResultRow>(`
+      SELECT c.relkind,
+             CASE c.relkind
+               WHEN 'r' THEN 'table'
+               WHEN 'p' THEN 'partitioned_table'
+               WHEN 'v' THEN 'view'
+               WHEN 'm' THEN 'materialized_view'
+               WHEN 'f' THEN 'foreign_table'
+               WHEN 'S' THEN 'sequence'
+               ELSE c.relkind::text
+             END AS relation_kind,
+             count(*)::int AS relation_count
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public'
+        AND c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
+      GROUP BY c.relkind
+      ORDER BY c.relkind
+    `);
+
+    const publicRelationInventory = await client.query<QueryResultRow>(`
+      SELECT n.nspname AS schema_name,
+             c.relname AS relation_name,
+             CASE c.relkind
+               WHEN 'r' THEN 'table'
+               WHEN 'p' THEN 'partitioned_table'
+               WHEN 'v' THEN 'view'
+               WHEN 'm' THEN 'materialized_view'
+               WHEN 'f' THEN 'foreign_table'
+               WHEN 'S' THEN 'sequence'
+               ELSE c.relkind::text
+             END AS relation_kind,
+             pg_get_userbyid(c.relowner) AS owner_role,
+             c.relispartition AS is_partition,
+             c.relrowsecurity AS rls_enabled,
+             c.relforcerowsecurity AS rls_forced,
+             policy_info.policy_count,
+             parent_info.parent_relations,
+             extension_info.extension_names
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      LEFT JOIN LATERAL (
+        SELECT count(*)::int AS policy_count
+        FROM pg_policy p
+        WHERE p.polrelid = c.oid
+      ) policy_info ON true
+      LEFT JOIN LATERAL (
+        SELECT string_agg(
+          parent_ns.nspname || '.' || parent.relname,
+          ', ' ORDER BY parent_ns.nspname, parent.relname
+        ) AS parent_relations
+        FROM pg_inherits inh
+        JOIN pg_class parent ON parent.oid = inh.inhparent
+        JOIN pg_namespace parent_ns ON parent_ns.oid = parent.relnamespace
+        WHERE inh.inhrelid = c.oid
+      ) parent_info ON true
+      LEFT JOIN LATERAL (
+        SELECT string_agg(e.extname, ', ' ORDER BY e.extname) AS extension_names
+        FROM pg_depend d
+        JOIN pg_extension e ON e.oid = d.refobjid
+        WHERE d.classid = 'pg_class'::regclass
+          AND d.objid = c.oid
+          AND d.deptype = 'e'
+      ) extension_info ON true
+      WHERE n.nspname = 'public'
+        AND c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
+      ORDER BY n.nspname, c.relkind, c.relname
+    `);
+
+    const publicPartitionHierarchy = await client.query<QueryResultRow>(`
+      SELECT parent_ns.nspname AS parent_schema,
+             parent.relname AS parent_relation,
+             child_ns.nspname AS child_schema,
+             child.relname AS child_relation,
+             pg_get_expr(child.relpartbound, child.oid) AS partition_bound,
+             child.relrowsecurity AS child_rls_enabled,
+             child.relforcerowsecurity AS child_rls_forced
+      FROM pg_inherits inh
+      JOIN pg_class parent ON parent.oid = inh.inhparent
+      JOIN pg_namespace parent_ns ON parent_ns.oid = parent.relnamespace
+      JOIN pg_class child ON child.oid = inh.inhrelid
+      JOIN pg_namespace child_ns ON child_ns.oid = child.relnamespace
+      WHERE child.relispartition
+        AND (parent_ns.nspname = 'public' OR child_ns.nspname = 'public')
+      ORDER BY parent_ns.nspname, parent.relname, child_ns.nspname, child.relname
+    `);
+
+    const specialObjectSummaries: Record<string, unknown> = {};
+    const migrationLedgerAccess = await client.query<QueryResultRow>(`
+      SELECT to_regclass('public._migration_log') IS NOT NULL AS relation_exists,
+             COALESCE(
+               has_table_privilege(
+                 current_user,
+                 to_regclass('public._migration_log'),
+                 'SELECT'
+               ),
+               false
+             ) AS can_select
+    `);
+    const migrationLedgerExists = Boolean(migrationLedgerAccess.rows[0]?.['relation_exists']);
+    const migrationLedgerCanSelect = Boolean(migrationLedgerAccess.rows[0]?.['can_select']);
+    if (migrationLedgerExists && migrationLedgerCanSelect) {
+      const ledger = await client.query<QueryResultRow>(`
+        SELECT count(*)::int AS row_count,
+               max(name) AS latest_migration_name,
+               max(applied_at) AS latest_applied_at
+        FROM public._migration_log
+      `);
+      specialObjectSummaries['migrationLedger'] = {
+        exists: true,
+        canSelect: true,
+        ...ledger.rows[0],
+      };
+    } else {
+      // The audit deliberately runs under a role without application-table
+      // grants. Report the catalog-visible object and effective privilege,
+      // but never attempt to read its rows without SELECT.
+      specialObjectSummaries['migrationLedger'] = {
+        exists: migrationLedgerExists,
+        canSelect: migrationLedgerCanSelect,
+        row_count: null,
+        latest_migration_name: null,
+        latest_applied_at: null,
+      };
+    }
+
+    const backfillErrorsAccess = await client.query<QueryResultRow>(`
+      SELECT to_regclass('public.backfill_errors') IS NOT NULL AS relation_exists,
+             COALESCE(
+               has_table_privilege(
+                 current_user,
+                 to_regclass('public.backfill_errors'),
+                 'SELECT'
+               ),
+               false
+             ) AS can_select
+    `);
+    const backfillErrorsExists = Boolean(backfillErrorsAccess.rows[0]?.['relation_exists']);
+    const backfillErrorsCanSelect = Boolean(backfillErrorsAccess.rows[0]?.['can_select']);
+    if (backfillErrorsExists && backfillErrorsCanSelect) {
+      const backfillErrors = await client.query<QueryResultRow>(`
+        SELECT count(*)::int AS row_count,
+               count(DISTINCT migration)::int AS migration_count,
+               max(created_at) AS latest_created_at,
+               array_agg(DISTINCT entity_type ORDER BY entity_type) AS entity_types,
+               array_agg(DISTINCT error_type ORDER BY error_type) AS error_types
+        FROM public.backfill_errors
+      `);
+      specialObjectSummaries['backfillErrors'] = {
+        exists: true,
+        canSelect: true,
+        ...backfillErrors.rows[0],
+      };
+    } else {
+      specialObjectSummaries['backfillErrors'] = {
+        exists: backfillErrorsExists,
+        canSelect: backfillErrorsCanSelect,
+        row_count: null,
+        migration_count: null,
+        latest_created_at: null,
+        entity_types: null,
+        error_types: null,
+      };
+    }
+
     const defaultAcls = await client.query<QueryResultRow>(`
       SELECT d.defaclrole::regrole::text AS owner_role,
              n.nspname AS schema_name,
@@ -254,6 +431,150 @@ async function main(): Promise<void> {
       FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
       WHERE n.nspname = 'public'
     `);
+
+    // Inventory functions across every non-system schema, not only public.
+    // This includes extension-owned routines such as pg_partman's functions.
+    const functionInventory = await client.query<QueryResultRow>(`
+      SELECT n.nspname AS schema_name,
+             p.proname AS function_name,
+             pg_get_function_identity_arguments(p.oid) AS identity_arguments,
+             pg_get_userbyid(p.proowner) AS owner_role,
+             l.lanname AS language,
+             p.prosecdef AS security_definer,
+             p.proconfig AS function_settings,
+             has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_executable,
+             has_function_privilege('authenticated', p.oid, 'EXECUTE') AS authenticated_executable,
+             EXISTS (
+               SELECT 1
+               FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) acl
+               WHERE acl.grantee = 0 AND acl.privilege_type = 'EXECUTE'
+             ) AS public_executable
+      FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+      JOIN pg_language l ON l.oid = p.prolang
+      WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
+        AND n.nspname NOT LIKE 'pg_toast%'
+      ORDER BY n.nspname, p.proname, identity_arguments
+    `);
+
+    const triggerInventory = await client.query<QueryResultRow>(`
+      SELECT table_ns.nspname AS table_schema,
+             table_rel.relname AS table_name,
+             tg.tgname AS trigger_name,
+             tg.tgenabled AS enabled_state,
+             tg.tgisinternal AS is_internal,
+             pg_get_triggerdef(tg.oid, true) AS trigger_definition,
+             function_ns.nspname AS function_schema,
+             function_proc.proname AS function_name,
+             function_proc.prosecdef AS function_security_definer,
+             function_proc.proconfig AS function_settings,
+             pg_get_userbyid(function_proc.proowner) AS function_owner
+      FROM pg_trigger tg
+      JOIN pg_class table_rel ON table_rel.oid = tg.tgrelid
+      JOIN pg_namespace table_ns ON table_ns.oid = table_rel.relnamespace
+      JOIN pg_proc function_proc ON function_proc.oid = tg.tgfoid
+      JOIN pg_namespace function_ns ON function_ns.oid = function_proc.pronamespace
+      WHERE table_ns.nspname NOT IN ('pg_catalog', 'information_schema')
+        AND table_ns.nspname NOT LIKE 'pg_toast%'
+      ORDER BY table_ns.nspname, table_rel.relname, tg.tgname
+    `);
+
+    // Report whether pg_partman retention has an actual scheduler. The migration
+    // configures retention but leaves cron.schedule commented out; do not infer that
+    // retention runs merely because part_config contains a retention interval.
+    const partConfigExists = await client.query<QueryResultRow>(`
+      SELECT to_regclass('partman.part_config') IS NOT NULL AS relation_exists
+    `);
+    const hasPartConfig = Boolean(partConfigExists.rows[0]?.['relation_exists']);
+    let partConfigReport: {
+      relation_exists: boolean;
+      can_select: boolean;
+      columns: string[];
+      rows: QueryResultRow[] | null;
+    } = {
+      relation_exists: hasPartConfig,
+      can_select: false,
+      columns: [],
+      rows: null,
+    };
+    if (hasPartConfig) {
+      const access = await client.query<QueryResultRow>(`
+        SELECT COALESCE(
+          has_table_privilege(current_user, to_regclass('partman.part_config'), 'SELECT'),
+          false
+        ) AS can_select
+      `);
+      const canSelect = Boolean(access.rows[0]?.['can_select']);
+      partConfigReport.can_select = canSelect;
+      if (canSelect) {
+        const columnResult = await client.query<QueryResultRow>(`
+          SELECT column_name
+          FROM information_schema.columns
+          WHERE table_schema = 'partman' AND table_name = 'part_config'
+        `);
+        const available = new Set(columnResult.rows.map((row) => String(row['column_name'])));
+        const wanted = [
+          'parent_table',
+          'control',
+          'partition_type',
+          'partition_interval',
+          'premake',
+          'retention',
+          'retention_keep_table',
+          'retention_keep_index',
+          'automatic_maintenance',
+        ];
+        const selected = wanted.filter((column) => available.has(column));
+        partConfigReport.columns = selected;
+        if (selected.length > 0) {
+          const config = await client.query<QueryResultRow>(
+            'SELECT ' + selected.map((column) => '"' + column + '"').join(', ') +
+              ' FROM partman.part_config ORDER BY 1',
+          );
+          partConfigReport.rows = config.rows;
+        } else {
+          partConfigReport.rows = [];
+        }
+      }
+    }
+
+    const cronJobExists = await client.query<QueryResultRow>(`
+      SELECT to_regclass('cron.job') IS NOT NULL AS relation_exists
+    `);
+    const hasCronJobs = Boolean(cronJobExists.rows[0]?.['relation_exists']);
+    let cronJobsReport: {
+      relation_exists: boolean;
+      can_select: boolean;
+      matching_jobs: QueryResultRow[] | null;
+    } = {
+      relation_exists: hasCronJobs,
+      can_select: false,
+      matching_jobs: null,
+    };
+    if (hasCronJobs) {
+      const access = await client.query<QueryResultRow>(`
+        SELECT COALESCE(
+          has_table_privilege(current_user, to_regclass('cron.job'), 'SELECT'),
+          false
+        ) AS can_select
+      `);
+      const canSelect = Boolean(access.rows[0]?.['can_select']);
+      cronJobsReport.can_select = canSelect;
+      if (canSelect) {
+        const jobs = await client.query<QueryResultRow>(`
+          SELECT jobid, schedule, command, database, username, active
+          FROM cron.job
+          WHERE command ILIKE '%partman.run_maintenance%'
+             OR command ILIKE '%run_maintenance_proc%'
+          ORDER BY jobid
+        `);
+        cronJobsReport.matching_jobs = jobs.rows;
+      }
+    }
+    const partmanMaintenance = {
+      partConfig: partConfigReport,
+      cronJobs: cronJobsReport,
+    };
 
     const otherConnections = await client.query<QueryResultRow>(`
       SELECT usename AS login_role,
@@ -333,8 +654,15 @@ async function main(): Promise<void> {
       publicDefaultAclGrants: publicDefaultAclGrants.rows,
       publicSequencePrivileges: sequencePrivileges.rows,
       rowLevelSecurity: rls.rows[0] ?? null,
+      publicRelationCounts: publicRelationCounts.rows,
+      publicRelationInventory: publicRelationInventory.rows,
+      publicPartitionHierarchy: publicPartitionHierarchy.rows,
+      specialObjectSummaries,
       defaultPrivileges: defaultAcls.rows,
       publicFunctions: functions.rows[0] ?? null,
+      functionInventory: functionInventory.rows,
+      triggerInventory: triggerInventory.rows,
+      partmanMaintenance,
       extensionInventory: extensionInventory.rows,
       inheritedRoleMemberships: memberships.rows,
       otherDatabaseConnections: otherConnections.rows,

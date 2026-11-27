@@ -1,19 +1,23 @@
 # SCS Platform — Audit-Driven Remediation & Testability Implementation Plan
 
-| Field | Value |
-|---|---|
-| Document type | Authoritative remediation implementation plan |
-| Version | 1.0 |
-| Created | 18 November 2026 |
-| Baseline | Comprehensive readiness audit dated 18 November 2026 |
-| Repository | `nabeel2323/scs-platform` |
-| Baseline branch / commit | `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36` |
-| Runtime evidence | Render staging addendum, 18 November 2026 |
-| Status | PLANNED — implementation has not started under this plan |
-| Companion | [Implementation Progress Tracker](./IMPLEMENTATION-PROGRESS.md) |
-| Supersedes | Remediation sequencing only; historical milestone records remain intact |
+| Field                    | Value                                                                                                    |
+| ------------------------ | -------------------------------------------------------------------------------------------------------- |
+| Document type            | Authoritative remediation implementation plan                                                            |
+| Version                  | 1.0                                                                                                      |
+| Created                  | 18 November 2026                                                                                         |
+| Baseline                 | Comprehensive readiness audit dated 18 November 2026                                                     |
+| Repository               | `nabeel2323/scs-platform`                                                                                |
+| Baseline branch / commit | `develop` / `9f5bc397467dc92cdc8debd54797b6d730659c36`                                                   |
+| Runtime evidence         | Render staging addendum, 18 November 2026                                                                |
+| Status                   | IN PROGRESS — P0/P1 remediation is underway on PR #138                                                   |
+| Companion                | [Implementation Progress Tracker](./IMPLEMENTATION-PROGRESS.md)                                          |
+| Project handover         | [Project Memory — Start Here](../../project-memory/START-HERE.md)                                        |
+| Active branch / PR       | `remediation/phase-0-1-tenant-security` / [PR #138](https://github.com/nabeel2323/scs-platform/pull/138) |
+| Supersedes               | Remediation sequencing only; historical milestone records remain intact                                  |
 
 > **Purpose.** Close the evidenced readiness gaps in the order that makes the platform safe and practical to test as early as possible. Keep implementation moving with small automated checks, avoid repeated manual end-to-end testing after every fix, and perform one comprehensive release-candidate test campaign after all planned remediation is complete.
+>
+> **Execution snapshot — 21 November 2026:** CI #1176 failed the changed-file Prettier gate on the G-001 controller test and progress tracker; lint/typecheck and Flutter passed, while dependent jobs were skipped. Formatter run #14 subsequently passed, formatted the handover docs, README, remediation plan/progress tracker and controller test, and removed its temporary workflow in cleanup commit `2776f97e902f7569afdc08ba75db8109238e9fcf`. The helper workflow is absent from the final tree. The last inspected app-authored checkpoint commit is `f7f3ff6837f67f17cc00d5129a20f50e608bf3b6`; CI #1180 failed its changed-file Prettier gate on the progress tracker, project-memory release/CI status and work log. Lint/typecheck and Flutter passed; dependent jobs were skipped. Formatter run #15 completed successfully and formatted these Markdown-only issues; the temporary workflow removed itself in cleanup commit `2d416c99700de8b511a7c376085a107cc24a854c`. CI #1183 on cleanup commit has action_required with no jobs; CI #1182 is on the pre-format helper commit. Verify a fresh exact-head CI run after the next app-authored checkpoint commit. G-006 remains CLOSED by CI #718's real PostgreSQL two-session contention evidence. G-001 remains PARTIAL pending complete tenant/role acceptance evidence and independent security review; G-002 remains IN PROGRESS pending live API/migration identities, complete per-table predicates and reviewed least-privilege/RLS design. Do not alter shared grants/default ACLs, enable RLS, apply migration 0070, deploy or activate workers. PR #138 remains draft; Phase 6 is not started.
 
 ---
 
@@ -36,11 +40,11 @@ The remediation programme is not a rewrite and does not restart the old Phase 0�
 
 The user does not want to spend time manually retesting the whole platform after each fix. The programme therefore uses three deliberately different levels:
 
-| Level | When | Required activity | Manual user effort |
-|---|---|---|---|
-| A — change-local checks | During each implementation task | Focused unit tests, affected integration tests, type-check/build/lint as applicable, migration validation | None expected |
-| B — integration checkpoints | At phase boundaries and dependency handoffs | Automated API/database/worker contract checks; one staging health/readiness check when a deployment is authorized | Only if a product decision or access approval is needed |
-| C — comprehensive final campaign | Once, after all planned fixes are implemented and merged into the release candidate | Full automated suites, browser journeys, mobile integration, tenant isolation, concurrency, migration/recovery, provider sandbox, performance and business UAT | One consolidated review of results and exceptions |
+| Level                            | When                                                                                | Required activity                                                                                                                                              | Manual user effort                                      |
+| -------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| A — change-local checks          | During each implementation task                                                     | Focused unit tests, affected integration tests, type-check/build/lint as applicable, migration validation                                                      | None expected                                           |
+| B — integration checkpoints      | At phase boundaries and dependency handoffs                                         | Automated API/database/worker contract checks; one staging health/readiness check when a deployment is authorized                                              | Only if a product decision or access approval is needed |
+| C — comprehensive final campaign | Once, after all planned fixes are implemented and merged into the release candidate | Full automated suites, browser journeys, mobile integration, tenant isolation, concurrency, migration/recovery, provider sandbox, performance and business UAT | One consolidated review of results and exceptions       |
 
 **Important:** “One full test at the end” does not mean shipping untested changes. Each fix must have a narrow automated regression check that proves the defect it changes is corrected. We will not ask the user to repeat long manual test scripts for every individual fix. Full journey testing is intentionally consolidated into the final campaign.
 
@@ -54,30 +58,37 @@ No phase is considered complete merely because code was changed or a build is gr
 
 The authoritative starting gap IDs are those in the November comprehensive readiness audit:
 
-| ID | Priority | Area | Finding |
-|---|---:|---|---|
-| G-001 | P0 | Security | Merchant offer list/analytics lack tenant authorization |
-| G-002 | P1 | Database/security | RLS disabled on public tables; excessive anon/auth grants |
-| G-003 | P1 | Shipping/reliability | Generic outbox dispatcher competes with carrier worker |
-| G-004 | P1 | Catalog/commerce | Search card displays lowest offer but adds owning store without offerId |
-| G-005 | P1 | Checkout/finance | Web checkout combines different currencies into one SAR-formatted estimate |
-| G-006 | P1 | Catalog/commerce | Offer orderIncrement is persisted but not enforced |
-| G-007 | P1 | Mobile/checkout | Mobile checkout omits per-store shipping and payment selection; VAT disclosure conflicts with API |
-| G-008 | P1 | Payments | API accepts DIGITAL but registry has only manual provider |
-| G-009 | P2 | Notifications | General SMS, FCM and WhatsApp channels are stubs but mark SENT |
-| G-010 | P2 | Shipping | Carrier label event handler is a no-op |
-| G-011 | P2 | Orders/workers | AutoCompleteWorker claim does not remove row from eligibility |
-| G-012 | P2 | Payments/finance | Payments are manual; no automatic gateway or payout transfer |
-| G-013 | P2 | Database/performance | 55 foreign-key constraints lack covering indexes |
-| G-014 | P2 | CI/CD | develop branch is unprotected; no repository rulesets |
-| G-015 | P2 | CI/CD | Formatting and boundary lint are non-blocking/miswired |
-| G-016 | P2 | Repository hygiene | Large tracked .m73b6-scratch context tree |
-| G-017 | P2 | Repository hygiene/security | JWT-shaped test artifact committed twice |
-| G-018 | P2 | Documentation | Architecture and readiness documentation has mixed-age baselines |
-| G-019 | P2 | Mobile/promotions | Applied promo cannot be removed from mobile cart |
-| G-020 | P2 | Database/security | normalize_arabic has mutable search_path |
-| G-021 | P3 | Procurement | Formal RFQ / quotation / purchase-order workflow absent |
-| G-022 | P3 | Database | pg_trgm extension installed in public schema |
+| ID    | Priority | Area                              | Finding                                                                                                                                              |
+| ----- | -------: | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| G-001 |       P0 | Security                          | Merchant offer list/analytics lack tenant authorization                                                                                              |
+| G-002 |       P1 | Database/security                 | RLS disabled on public tables; excessive anon/auth grants                                                                                            |
+| G-003 |       P1 | Shipping/reliability              | Generic outbox dispatcher competes with carrier worker                                                                                               |
+| G-004 |       P1 | Catalog/commerce                  | Search card displays lowest offer but adds owning store without offerId                                                                              |
+| G-005 |       P1 | Checkout/finance                  | Web checkout combines different currencies into one SAR-formatted estimate                                                                           |
+| G-006 |       P1 | Catalog/commerce                  | Offer orderIncrement is persisted but not enforced                                                                                                   |
+| G-007 |       P1 | Mobile/checkout                   | Mobile checkout omits per-store shipping and payment selection; VAT disclosure conflicts with API                                                    |
+| G-008 |       P1 | Payments                          | API accepts DIGITAL but registry has only manual provider                                                                                            |
+| G-009 |       P2 | Notifications                     | General SMS, FCM and WhatsApp channels are stubs but mark SENT                                                                                       |
+| G-010 |       P2 | Shipping                          | Carrier label event handler is a no-op                                                                                                               |
+| G-011 |       P2 | Orders/workers                    | AutoCompleteWorker claim does not remove row from eligibility                                                                                        |
+| G-012 |       P2 | Payments/finance                  | Payments are manual; no automatic gateway or payout transfer                                                                                         |
+| G-013 |       P2 | Database/performance              | 55 foreign-key constraints lack covering indexes                                                                                                     |
+| G-014 |       P2 | CI/CD                             | develop branch is unprotected; no repository rulesets                                                                                                |
+| G-015 |       P2 | CI/CD                             | Formatting and boundary lint are non-blocking/miswired                                                                                               |
+| G-016 |       P2 | Repository hygiene                | Large tracked .m73b6-scratch context tree                                                                                                            |
+| G-017 |       P2 | Repository hygiene/security       | JWT-shaped test artifact committed twice                                                                                                             |
+| G-018 |       P2 | Documentation                     | Architecture and readiness documentation has mixed-age baselines                                                                                     |
+| G-019 |       P2 | Mobile/promotions                 | Applied promo cannot be removed from mobile cart                                                                                                     |
+| G-020 |       P2 | Database/security                 | normalize_arabic has mutable search_path                                                                                                             |
+| G-021 |       P3 | Procurement                       | Formal RFQ / quotation / purchase-order workflow absent                                                                                              |
+| G-022 |       P3 | Database                          | pg_trgm extension installed in public schema                                                                                                         |
+| G-023 |       P1 | Merchant onboarding               | Store creation omits initial OWNER store_members row, locking the creator out of store membership administration and store-scoped workflows          |
+| G-024 |       P1 | Catalog requests/security         | Merchant catalog request reads/writes are not consistently scoped to active store membership; requester/reviewer identities are client-controlled    |
+| G-025 |       P1 | Merchant store/warehouse security | Store and warehouse endpoints do not consistently bind the target object to the caller's active store membership                                     |
+| G-026 |       P1 | Pricing/security                  | Price-list and tier endpoints lack object-level store authorization and can mix variants with another store's price list                             |
+| G-027 |       P1 | Inventory/security                | Inventory routes enforce organization scope in several paths but omit active store membership; low-stock listing spans all stores in an organization |
+| G-028 |       P1 | Catalog/public-read boundary      | Buyer-facing product reads can return non-ACTIVE products unless the client voluntarily supplies an ACTIVE filter                                    |
+| G-029 |       P1 | Catalog mutation/security         | Bulk product actions accept a caller-supplied storeId without verifying active membership in that store                                              |
 
 The audit classifies the register as 1 P0, 7 P1, 12 P2 and 2 P3 findings. These IDs are stable references; if implementation discovers a wider root cause, record linked sub-findings rather than silently rewriting the original finding.
 
@@ -92,7 +103,7 @@ The Render staging addendum observed:
 - OutboxDispatcher and ShippingCarrierWorker both register in the API process. The source-level event ownership conflict remains open.
 - ReturnExpirationWorker explicitly did not start protected P13 jobs because `P13_WORKER_ENABLED` was not set, as inferred from startup logs. The exact environment value was not inspected.
 - A prior critical P13 worker-count anomaly was logged while no alert sink was configured.
-- No authenticated buyer/merchant transaction, cross-tenant exploit test, external provider dashboard verification, or backup/restore drill was performed.
+- No authenticated buyer/merchant transaction, cross-tenant exploit test, or external provider dashboard verification was performed. A backup/restore drill is intentionally outside the current development-remediation scope per user direction.
 
 These observations make worker ownership, deployment safety and a controlled staging test harness prerequisites. Do not infer that the service is safe for business writes merely because readiness is green.
 
@@ -115,6 +126,26 @@ Use these labels in every phase report:
 
 All evidence must identify branch/commit, command or test name, environment, date/time and result. Redact secrets, customer data, OTPs and tokens.
 
+### 2.5 Initial baseline reconciliation — 18 November 2026
+
+- Current `develop` HEAD at the start of implementation: `3f7268dbc75828190f16165ca7e8dd4e315c421c`.
+- Compared with audited source baseline `9f5bc397467dc92cdc8debd54797b6d730659c36`, `develop` is 7 commits ahead and 0 behind. The comparison shows only README, the audit report and the two remediation documents changed; no application source files changed after the audit baseline. The audited code findings therefore remain the correct starting source snapshot, subject to revalidation during each fix.
+- New implementation branch: `remediation/phase-0-1-tenant-security`, created from the current `develop` head.
+- Supabase project inspected: `SCS-PlatForm` (`wplsxxevoevzqbgtpctw`), PostgreSQL 17.6.1.166, region `eu-west-1`, status ACTIVE_HEALTHY.
+- Live public-schema inventory: **114/114 tables owned by postgres; 0/114 have RLS enabled**.
+- Effective table privileges: `anon` and `authenticated` have **zero SELECT/INSERT/UPDATE/DELETE privileges on all 114 tables**. They do, however, each hold `TRUNCATE`, `REFERENCES` and `TRIGGER` on all 114 tables (684 grant rows combined). `service_role` has the same three privileges, but no DML privileges in this inventory.
+- Default privileges for objects created by `postgres` in `public` also grant `TRUNCATE`, `REFERENCES`, `TRIGGER` and `MAINTAIN` to `anon`, `authenticated` and `service_role` on future tables created by that role. This means the excessive grants can recur on future tables created by that role. A separate default ACL owned by `supabase_admin` grants all table privileges to the API roles; do not alter that Supabase-managed ACL until object ownership and migration execution paths are fully understood.
+- The application database service uses `DATABASE_URL` through node-postgres/Drizzle, not a Supabase client SDK. The live `pg_stat_activity` sample did not show a clearly identifiable active Render API session, so the actual deployed API database username remains **NOT VERIFIED**. Do not assume it from the sample.
+- The custom application migration runner uses `public._migration_log`: 69 migration rows were present, latest applied at `2026-11-17 16:07:23 UTC`. Supabase's `list_migrations` returned an empty list, so it is not the authoritative migration ledger for this application.
+- `public.normalize_arabic(text)` is owned by postgres, is not SECURITY DEFINER, and has no function-level `search_path` configuration. Supabase Security Advisor reports `function_search_path_mutable`.
+- `pg_trgm` is installed in `public`; Supabase Security Advisor reports `extension_in_public`.
+- G-001 is reproduced in source: the three merchant offer list/analytics controller routes accept caller-supplied `storeId` and query the service without forwarding or validating the authenticated caller. Their service methods query the supplied store directly.
+- **New finding G-023 (P1):** `MerchantService.createStore` inserted the store and emitted an outbox event but did not insert an initial `store_members` OWNER row. The normal membership-management endpoints require an existing active OWNER/ADMIN membership, so a newly created store could be locked out of self-service member administration until a platform administrator intervened. Migration 0054 only backfills stores that existed when it ran. The remediation now inserts the store, ACTIVE OWNER membership and creation outbox event in one transaction; focused tests passed in CI run #536.
+- **G-003 consumer collision:** `OutboxDispatcher` excludes `shipping.carrier.%`; `ShippingCarrierWorker` claims only that prefix with `FOR UPDATE SKIP LOCKED`; stale-lease recovery is carrier-prefix scoped; unsupported carrier event types retry/dead-letter rather than being acknowledged. The persisted-event PostgreSQL integration test invokes both production pollers and verifies disjoint carrier/non-carrier ownership. This proof and the worker retry tests passed CI #687; G-003 is CLOSED. See [OUTBOX-EVENT-OWNERSHIP-MAP.md](./OUTBOX-EVENT-OWNERSHIP-MAP.md).
+- Current API scripts include root `pnpm lint`, `pnpm typecheck`, `pnpm format:check`, `pnpm boundary-lint`; API scripts include `pnpm --filter @scs/api test:unit`, `test:integration`, `typecheck`, `build`. CI run #536 passed all jobs, including API unit/coverage, integration, migration assertions, web/admin, Flutter, build and container smoke. Formatting remains advisory (`continue-on-error: true`). The E6 job was corrected to invoke the actual root `pnpm boundary-lint` command; it remains advisory until known boundary violations are resolved.
+
+These are live read-only observations, not a migration or configuration change. The exact API DB role, complete schema-to-route access matrix, and the Supabase-managed default ACL implications remain open verification items.
+
 ---
 
 ## 3. Sequencing strategy and dependency graph
@@ -128,15 +159,15 @@ The implementation order is based on four questions:
 
 ### 3.1 Phase sequence
 
-| Order | Phase | Priority | Main outcome | Blocks |
-|---:|---|---|---|---|
-| 0 | Baseline reconciliation & testability foundation | Critical prerequisite | Reproducible local/test environment, safe staging procedure, reliable evidence baseline | All implementation phases |
-| 1 | Tenant security & database access safety | P0/P1 | Secure merchant data boundaries and verified DB role/grant model | Any authenticated business testing |
-| 2 | Commercial correctness & checkout contract | P1 | Correct seller attribution, quantity, currency, payment-method and tax/fulfillment behavior | Buyer/merchant transaction testing |
-| 3 | Event, worker & fulfillment reliability | P1/P2 | No lost carrier events, durable worker claims, safe P13 activation and alerting | Shipping/returns/order lifecycle tests |
-| 4 | Client workflow parity & truthful notifications | P2 | Web/mobile/API parity for agreed buyer/merchant flows; no false delivery states | Complete user-journey testing |
-| 5 | Operational hardening, CI, data hygiene & documentation | P2/P3 | Safe releases, recovery evidence, blocking quality gates and maintainable docs | Final release candidate |
-| 6 | Consolidated full verification & release decision | Release gate | One comprehensive test campaign and evidence-based go/no-go | Production authorization |
+| Order | Phase                                                   | Priority              | Main outcome                                                                                | Blocks                                 |
+| ----: | ------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------- |
+|     0 | Baseline reconciliation & testability foundation        | Critical prerequisite | Reproducible local/test environment, safe staging procedure, reliable evidence baseline     | All implementation phases              |
+|     1 | Tenant security & database access safety                | P0/P1                 | Secure merchant data boundaries and verified DB role/grant model                            | Any authenticated business testing     |
+|     2 | Commercial correctness & checkout contract              | P1                    | Correct seller attribution, quantity, currency, payment-method and tax/fulfillment behavior | Buyer/merchant transaction testing     |
+|     3 | Event, worker & fulfillment reliability                 | P1/P2                 | No lost carrier events, durable worker claims, safe P13 activation and alerting             | Shipping/returns/order lifecycle tests |
+|     4 | Client workflow parity & truthful notifications         | P2                    | Web/mobile/API parity for agreed buyer/merchant flows; no false delivery states             | Complete user-journey testing          |
+|     5 | Operational hardening, CI, data hygiene & documentation | P2/P3                 | Safe releases, recovery evidence, blocking quality gates and maintainable docs              | Final release candidate                |
+|     6 | Consolidated full verification & release decision       | Release gate          | One comprehensive test campaign and evidence-based go/no-go                                 | Production authorization               |
 
 ### 3.2 Critical dependency graph
 
@@ -169,12 +200,13 @@ Phase 3 and non-conflicting Phase 4 tasks may proceed in parallel after Phase 2'
 
 ## 4. Phase 0 — Baseline reconciliation & testability foundation
 
-**Priority:** Critical prerequisite  
+**Priority:** Critical prerequisite
 **Purpose:** Establish a safe, repeatable way to implement and later test fixes without repeatedly asking the user to troubleshoot the environment.
 
 ### Work packages
 
 **0.1 Reconcile the current repository baseline**
+
 - Record current `develop` HEAD and compare it with the audit commit `9f5bc397...`.
 - Re-check whether the 22 findings still reproduce on current HEAD before editing each affected area.
 - Identify existing fixes, later regressions, duplicate work and migrations already applied.
@@ -182,6 +214,7 @@ Phase 3 and non-conflicting Phase 4 tasks may proceed in parallel after Phase 2'
 - Record exact app/package commands from the current manifests rather than assuming the old plan's commands remain accurate.
 
 **0.2 Establish a test execution matrix**
+
 - Inventory existing API unit/integration tests, web/admin tests, Flutter tests, database migration tests, CI workflows and staging smoke checks.
 - Identify which suites require Docker/Testcontainers, Supabase, secrets, provider sandboxes or device/emulator infrastructure.
 - Create a deterministic test-data strategy with isolated buyer, merchant A, merchant B, merchant staff, admin and unauthorized identities.
@@ -189,49 +222,56 @@ Phase 3 and non-conflicting Phase 4 tasks may proceed in parallel after Phase 2'
 - Define the final full-suite command set and expected reports now, but defer the full campaign to Phase 6.
 
 **0.3 Establish staging/deployment safety**
+
 - Document the current Render service, branch, deploy SHA, health endpoint, auto-deploy-disabled behavior and manual deploy approval requirement.
 - Verify startup migration and seed behavior from source and logs. Do not trigger a deployment during this phase without explicit authorization.
-- Define pre-deploy checks: pending migration list, migration lock/compatibility review, backup/restore availability, deploy SHA, readiness and rollback/forward-fix procedure.
+- Define pre-deploy checks: pending migration list, migration lock/compatibility review, deploy SHA, readiness and rollback/forward-fix procedure. Backup/restore exercises are deferred and are not a prerequisite for this development-remediation cycle.
 - Define how workers are disabled/enabled safely per environment. Do not turn on P13 or other financial workers just to make a test pass.
 - Add a runbook for test data creation/cleanup and a hard separation between staging and production.
 
 **0.4 Focused security evidence preparation**
+
 - Inventory all route-level tenant guards and database connection roles used by the API.
 - Trace OTP generation, persistence, delivery and every logger/exception path. Do not send OTPs in this phase.
 - Capture baseline DB schema/table count, grants, RLS flags, policies, functions, extensions and migration ledger.
 
 ### Acceptance criteria
+
 - Current baseline commit and all known findings are reconciled into the tracker.
 - Test matrix lists executable commands, prerequisites and owners for API, web, admin, mobile and DB.
-- Safe staging/deploy/migration/backup procedure is documented.
+- Safe staging/deploy/migration procedure is documented.
 - Test identities and fixtures are isolated and repeatable.
+- Backup/restore drill remains deferred until a separate pre-production decision.
 - Database and OTP evidence discrepancies are explicitly resolved or recorded as blockers.
 - No production data writes, staging business transactions, worker activation or deploy is performed as part of read-only discovery.
 
 ### Deliverables
+
 - Baseline reconciliation note.
 - Test matrix and final campaign manifest.
-- Staging deployment/migration/backup runbook.
+- Staging deployment/migration runbook (excluding backup/restore exercise, deferred).
 - Security and database access inventory.
 
 ---
 
 ## 5. Phase 1 — Tenant security & database access safety
 
-**Priority:** P0 / P1  
+**Priority:** P0 / P1
 **Release significance:** This phase establishes the minimum safe platform boundary for authenticated testing.
 
 ### 1.1 Close G-001 — merchant offer authorization (P0)
+
 - Trace `GET /v1/merchant/offers`, `/analytics`, `/analytics/trend` and every related controller/service/query.
 - Derive store/organization scope from authenticated membership, not a caller-supplied store ID alone.
-- Verify owner, manager/staff roles, active organization, revoked membership, inactive store and admin exception behavior.
+- Verify owner/staff roles, active organization, revoked membership, inactive store and admin read-governance behavior. Merchant create/propose/pricing-update/withdraw routes must reject every non-merchant role even if a merchant permission is accidentally assigned; platform administration remains on the dedicated governance routes.
 - Apply consistent object-level authorization to list, detail, analytics, exports and mutations where relevant.
 - Avoid leaking whether a foreign store or offer exists; choose consistent 403/404 behavior based on the established API policy.
 - Audit adjacent `storeId`/`orgId` read endpoints for the same pattern; add linked findings for newly discovered omissions.
 
-**Acceptance:** foreign merchant IDs cannot return offer, pricing, sales or analytics data; authorized merchant access remains functional; route-level tests cover owner, staff, same-tenant unauthorized role, buyer, foreign merchant and admin policy.
+**Acceptance:** foreign merchant IDs cannot return offer, pricing, sales or analytics data; authorized merchant access remains functional; route-level tests cover owner, staff, same-tenant unauthorized role, buyer, foreign merchant and admin read policy; non-merchant roles cannot mutate merchant offers even when a merchant write permission is present. Buyer-facing offer responses use explicit allowlisted fields and exclude merchant-private metadata, actor IDs and internal resource references. Create and update paths must verify that price-list and warehouse references belong to the offer's store.
 
 ### 1.2 Close G-002 — database privileges and RLS architecture
+
 - Identify the exact runtime DB role used by the API, migrations, admin tools and any client-side Supabase access.
 - Classify every table: server-private, tenant-scoped, public-read, intentionally client-accessible, audit/financial sensitive, queue/system.
 - Reconcile 111 vs 114 table counts against the current live schema and migration ledger.
@@ -245,6 +285,7 @@ Phase 3 and non-conflicting Phase 4 tasks may proceed in parallel after Phase 2'
 **Acceptance:** least-privilege matrix reviewed; no unintended client privilege remains; RLS is enabled/policy-tested where required by the access architecture; backend paths continue to work; cross-tenant reads/writes are denied at the appropriate layer.
 
 ### 1.3 Close G-020 — normalize_arabic search_path
+
 - Inspect function owner, schema, callers, extension dependencies and privileges.
 - Set a safe explicit search_path or schema-qualify references in a reviewed migration.
 - Verify behavior and function resolution under the real application roles.
@@ -252,6 +293,7 @@ Phase 3 and non-conflicting Phase 4 tasks may proceed in parallel after Phase 2'
 **Acceptance:** function cannot be redirected through an attacker-controlled schema; Arabic search normalization regression tests pass.
 
 ### 1.4 OTP logging and secret hygiene safeguard
+
 - Resolve the earlier OTP plaintext report against current source and a bounded authorized staging log sample.
 - Redact OTP values, full email/phone identifiers, authorization headers, cookies and provider secrets on both success and failure/exception paths.
 - Confirm error serialization does not leak provider payloads or verification secrets.
@@ -260,17 +302,55 @@ Phase 3 and non-conflicting Phase 4 tasks may proceed in parallel after Phase 2'
 
 **Acceptance:** source and tests demonstrate redaction across all identified paths; a bounded staging check finds no sensitive values in relevant logs. If evidence is unavailable, mark NOT VERIFIED.
 
+### 1.5 Close G-023 — create the initial store owner atomically
+
+- On successful store creation, insert the store, its creator's ACTIVE OWNER row in `store_members`, and the `merchant.store.created` outbox event in one database transaction.
+- Preserve the existing organization membership check and generated store identity.
+- Ensure outbox failure aborts the transaction so no partially created store or missing owner relationship remains.
+- Add regression tests proving the owner row is written for the same store and that the outbox event uses the same transaction.
+
+**Acceptance:** every newly created store has exactly one active OWNER membership for its creator; the owner can use store-scoped merchant routes and manage store members; the store, owner row and outbox event are atomic.
+
+### 1.6 Adjacent tenant-scope findings discovered during P1-04
+
+The source audit linked to G-001 identified additional object-level authorization gaps. The detailed endpoint inventory and evidence are recorded in [P1-04 Adjacent Tenant-Scope Audit](./P1-04-ADJACENT-TENANT-SCOPE-AUDIT.md).
+
+- **G-024 — Catalog requests:** scope merchant request listing and creation to the authenticated user's active store membership. Derive requester and reviewer identities from the JWT, never from request bodies.
+- **G-025 — Store/warehouse management:** check both active-organization ownership and active store membership before store updates, warehouse creation/listing/updates, and store verification submission.
+- **G-026 — Pricing:** scope price-list and tier reads/writes to the owning store; verify that a tier's variant belongs to the same store as its price list.
+- **G-027 — Inventory:** extend store-membership checks through warehouse, variant and inventory-item access paths; restrict unqualified low-stock reads to stores where the caller is an active member.
+- **G-028 — Product read boundary:** preserve buyer access to ACTIVE products while requiring owning-store membership for non-ACTIVE product details, variants, media and variant matrices. Store grids, canonical category listings/counts, identifier matching and canonical selector search must enforce ACTIVE + platform-level canonical scope server-side; do not rely on client-supplied filters.
+- **G-029 — Bulk catalog mutation:** require active store membership before bulk delete/archive/draft operations.
+
+**Implementation status:** G-024–G-026 passed focused unit/coverage CI #551; G-027 passed all jobs in CI #554. G-028 passed 19 focused publication-boundary tests and full applicable API suites in CI #647; G-029 passed its focused tests in CI #592. G-003 production-poller ownership integration and worker refinements passed CI #687. No staging deploy or live database migration has been performed.
+
+### 1.7 Close G-030 — merchant payment and settlement listing tenant isolation (P0)
+
+A source audit found that merchant payment and settlement listing routes did not enforce the authenticated caller's active organization scope. The previous `listPayments` implementation built store/buyer order filters but failed to apply them to the payment query, and merchant routes called unscoped list methods without passing caller context.
+
+- Add dedicated merchant listing service methods that join payments/settlements through orders and stores, constrained to the caller's active organization. The seeded MERCHANT_OWNER and MERCHANT_STAFF roles have organization-wide `merchant:orders:read`; store_members is not the authorization boundary for this read capability.
+- A caller-supplied `storeId` narrows the active-organization scope and must belong to that organization; it never grants cross-organization access.
+- Pass the verified JWT caller context from both merchant controller routes.
+- Correct the admin/service `listPayments` store/buyer filter path so matching order IDs are applied to the payment query.
+- Add two-tenant PostgreSQL integration coverage for merchant A/B, same-org non-member, foreign store ID and admin filters, plus controller tests proving caller context is forwarded.
+
+**Acceptance:** merchant A cannot list merchant B payments or settlements; same-organization users with the seeded merchant read permission remain scoped to their organization even without a store_members row; missing active organization is denied; foreign store IDs are denied; platform staff behavior remains intentional; store/buyer filters return only matching payments. Full CI and the real PostgreSQL integration suite must pass before closure.
+
+**Current implementation state:** service/controller changes and PostgreSQL/controller regression tests are committed on the remediation branch; latest-head CI is pending. Do not treat this P0 as closed until the integration and unit suites pass.
+
 ### Phase 1 exit gate — AUTHORIZED BUSINESS TESTING
-Only after the P0 is closed, the DB access model is verified, and the test identities/fixtures are ready may controlled staging buyer/merchant write tests be considered. This is permission to begin limited testing, not production approval.
+
+Only after the P0 is closed, G-023 is fixed, the DB access model is verified, and the test identities/fixtures are ready may controlled staging buyer/merchant write tests be considered. This is permission to begin limited testing, not production approval.
 
 ---
 
 ## 6. Phase 2 — Commercial correctness & checkout contract
 
-**Priority:** P1  
+**Priority:** P1
 **Purpose:** Make prices, seller identity, quantity, currency, payment method and tax/fulfillment terms consistent between the API and all clients.
 
 ### 2.1 Close G-004 — search offer attribution
+
 - Establish one authoritative offer identity in search result DTOs.
 - Display the seller/offer whose price is shown.
 - Add to cart using that exact offer/store reference, or require explicit seller selection on product detail.
@@ -280,56 +360,76 @@ Only after the P0 is closed, the DB access model is verified, and the test ident
 **Acceptance:** search display seller/offer, cart seller/offer, price snapshot and checkout seller are identical for selected line; tests include multiple sellers and stale/inactive offers.
 
 ### 2.2 Close G-006 — MOQ and orderIncrement
-- Agree the business formula for increments relative to MOQ (for example, quantity >= MOQ and (quantity - MOQ) divisible by increment) before coding.
-- Enforce server-side at add-to-cart, quantity update and final checkout to prevent API bypass/stale carts.
-- Re-read authoritative offer terms within the transaction or validate the snapshot policy.
-- Return structured validation errors and expose the rule in web/mobile quantity controls.
 
-**Acceptance:** valid/invalid boundary cases, increment changes after cart creation, concurrency and stale offer tests pass.
+- **Business rule agreed:** a quantity is valid when `quantity >= MOQ` and `(quantity - MOQ) % orderIncrement === 0`; MOQ is the first permitted quantity and increments are measured from MOQ, not from zero.
+- **Implemented on the remediation branch:** shared quantity validation is enforced for cart add/batch add, quantity updates, cart validation and checkout. Selected-offer price resolution also rejects quantities that violate the offer terms, preventing a pricing-path bypass.
+- Checkout re-reads and locks the authoritative offer/variant terms inside its transaction before final validation; the cart update path rejects negative, fractional, non-finite and unsafe-integer quantities, while zero remains the explicit remove operation.
+- Web and mobile quantity controls expose the MOQ/increment step. The product-card pricing response now exposes the selected offer's `orderIncrement`.
+- Focused regression coverage was added for pricing rejection, invalid cart quantity updates and zero-as-remove semantics. Full CI #703 passed on commit `8b77243c3fc015bf19f66d0cd71b613398311a70`, including API unit/coverage, integration, lint/typecheck, web/admin, Flutter, migration apply, contract/codegen, build and container smoke.
+- **Stale-term/lock regression coverage added:** unit tests simulate MOQ and orderIncrement changes after cart creation, verify checkout re-reads the updated offer inside its transaction using `FOR UPDATE`, and confirm rejection occurs before order insertion.
+- **Remaining acceptance review:** this is a deterministic race-window/locking test, not a real multi-connection PostgreSQL contention test. Keep full competing cart-update/checkout concurrency stress verification in Phase 6 before claiming production concurrency proof.
+- Validation currently uses the service's request-validation errors; do not describe them as a stable machine-readable error-code contract until that is explicitly implemented and tested.
+
+**Acceptance:** valid/invalid MOQ boundaries and increment steps; authoritative offer-term changes after cart creation; checkout transaction re-read/locking; deterministic race-window regression test; full concurrent DB contention verification in Phase 6; consistent web/mobile controls.
 
 ### 2.3 Close G-005 — mixed-currency checkout
-- Do not add minor units across currencies.
-- Show per-supplier/per-currency subtotals and shipping totals.
-- Only show a grand total if a real, sourced and disclosed FX conversion policy is implemented; otherwise explicitly show that no cross-currency grand total is available.
-- Ensure all currency formatting uses the actual ISO currency, exponent/minor-unit rules and no SAR fallback for unknown/mixed currency.
 
-**Acceptance:** two or more currencies never produce a misleading single total; same-currency totals remain correct; API, web and order summary agree.
+- **Implemented and verified in CI #687:** checkout groups item line totals by normalized currency and adds only the selected shipping method's fee in that method's own currency.
+- Pickup adds no delivery fee. Missing item/shipping currencies mark the estimate incomplete; the UI does not silently fall back to SAR.
+- A single estimated total is displayed only when all amounts have one known currency; mixed currencies are displayed as separate subtotals, without an invented FX conversion.
+- Five focused tests cover same-currency totals, mixed supplier currencies, shipping-method currency, missing currency and pickup behavior.
+
+**Acceptance:** two or more currencies never produce a misleading single total; same-currency totals remain correct; no unknown currency is silently formatted as SAR. Web/admin tests and lint/typecheck passed CI #687.
 
 ### 2.4 Close G-008 — unsupported DIGITAL payment
-- Until a real digital gateway is implemented and approved, reject DIGITAL at the API boundary.
-- Align DTOs, generated clients, web/mobile controls, admin configuration and documentation with supported manual methods.
+
+- **Implemented — CI verification pending:** define `SUPPORTED_PAYMENT_METHODS` from the actually registered manual-verification provider (`BANK_TRANSFER`, `CASH_ON_DELIVERY`, `VOUCHER`). Keep `DIGITAL` in the persisted `PAYMENT_METHODS` vocabulary only for historical rows and the existing database CHECK constraint.
+- Reject unsupported methods in `OrdersService.checkout` before opening the order transaction, and repeat the guard in `PaymentsService.createPaymentInTransaction` before resolving a provider or inserting payment records.
+- Buyer web/mobile choices remain aligned with the supported manual methods; the web DIGITAL option is disabled and mobile does not offer it.
+- No migration is needed: the database constraint may continue to read historical DIGITAL values, while the API rejects new DIGITAL payment attempts.
+- **Verified in CI #714:** focused tests prove DIGITAL remains only in persisted historical vocabulary, is absent from the supported whitelist, checkout rejects it before transaction entry, and PaymentsService rejects it before provider resolution/payment writes. Web disables the option and mobile omits it.
 - If gateway scope is later approved, treat it as a separate architecture project: intent/auth/capture, signed webhooks, idempotency, reconciliation, refunds, failure recovery and provider sandbox verification.
 
-**Acceptance:** unsupported methods fail explicitly and consistently; no order can be marked paid without a valid provider/manual verification path.
+**Acceptance — CLOSED in CI #714:** unsupported methods fail explicitly at checkout and payment-record creation; checkout does not start its transaction for DIGITAL, and PaymentsService does not resolve a provider or write a payment record. Existing DIGITAL rows remain readable under the persisted enum/check constraint.
 
 ### 2.5 Close the commercial portion of G-007 — mobile checkout contract
-- Align mobile with the canonical checkout API for per-store shipping selections, payment selection and tax treatment.
-- Make VAT/fees visible before order submission using the same backend calculation and wording.
-- Do not silently default to COD or a global shipping method when the buyer expects per-store selection.
-- If the initial release intentionally restricts choices, disclose the restriction consistently and validate it server-side.
 
-**Acceptance:** mobile request and review screen reflect the exact choices and totals persisted by the API; no contradictory VAT disclosure.
+- **Implemented and CI-verified in CI #711:** mobile requests a shipping estimate per supplier, requires an explicit delivery/pickup selection per supplier, and submits the chosen supported payment method with checkout.
+- Added `POST /v1/checkout/preview`, which reuses the backend checkout financial calculation for promotion discounts, authoritative shipping fees and configured VAT. Checkout revalidates and recalculates the totals before persistence; the preview is explicitly an estimate, not a reservation or payment.
+- The shipping estimate response now exposes each method's actual `fulfillmentMethod`, so clients do not infer platform/merchant delivery from the method's display type.
+- Mobile and web review screens display supplier-level item subtotal, discount, delivery fee, VAT and tax-inclusive total from the same API response. Order confirmation displays the persisted delivery and VAT values. Web's former VAT disclosure that omitted tax from the displayed totals was removed.
+- When delivery estimates are unavailable, mobile/web preserve pickup as a safe option; delivery choices are shown only when the address is eligible.
+- API client tests cover shipping estimate, preview payload and checkout selections; API preview tests cover server VAT/totals and missing per-store selection. CI #711 passed all executed jobs.
+- **Remaining Phase 6 validation:** run the full browser/mobile buyer journey and verify order detail/tracking per-suborder fulfillment. Do not mark the full Phase 4 finding closed solely from component/unit CI.
+
+**Acceptance:** mobile request and review screen reflect the exact choices and totals persisted by the API; no contradictory VAT disclosure; final server recalculation remains authoritative; Phase 6 journey UAT confirms order detail/tracking parity.
 
 ### Phase 2 exit gate
+
 API contract, generated clients and web/mobile commercial calculations agree. Targeted tests cover each corrected rule. No full browser/mobile journey campaign yet.
 
 ---
 
 ## 7. Phase 3 — Event, worker & fulfillment reliability
 
-**Priority:** P1 / P2  
+**Priority:** P1 / P2
 **Purpose:** Prevent silent event loss, duplicate side effects and disabled/unguarded lifecycle jobs.
 
 ### 3.1 Close G-003 — outbox consumer ownership
+
 - Define exactly one authoritative consumer/dispatcher for each event type.
-- Generic dispatcher must not claim and mark carrier events dispatched without performing their required handler/provider action.
-- Choose explicit routing, separate queues or event-type predicates; document ownership and retry semantics.
+- **Implemented:** generic dispatcher query excludes `shipping.carrier.%`; dedicated worker claims only that prefix with `FOR UPDATE SKIP LOCKED`; stale-lease recovery is scoped to the same prefix; unknown carrier events fail into retry/dead-letter handling.
+- Source-level event family ownership map is documented in [OUTBOX-EVENT-OWNERSHIP-MAP.md](./OUTBOX-EVENT-OWNERSHIP-MAP.md). It distinguishes the generic log sink from domain side effects.
+- Generic-dispatcher exclusion, carrier-only claim and stale-lease recovery, and unsupported-event retry behavior passed CI #687.
+- PostgreSQL Testcontainers integration proof invokes both production pollers against persisted carrier/non-carrier events and verifies the generic dispatcher leaves carrier events pending while the carrier worker claims and retries the unsupported carrier event without acknowledging it.
+- The claim-row SQL aliases explicitly map snake_case database fields to the camelCase properties consumed by the worker; the integration test verifies the real event type reaches retry classification.
 - Preserve at-least-once delivery with idempotent consumers and durable state transitions.
 - Add observability for pending age, attempts, terminal failures and queue lag.
 
-**Acceptance:** integration test inserts each relevant event class and proves it is consumed by exactly the intended handler; carrier events cannot be marked complete without provider success; retries/dead-letter behavior is deterministic.
+**Acceptance:** integration test inserts representative event classes and proves exclusive poller ownership; carrier events cannot be acknowledged by the generic dispatcher; retry/dead-letter behavior is deterministic. This ownership acceptance is verified by CI #687. Provider label generation remains G-010 and is not closed by this finding.
 
 ### 3.2 Close G-010 — carrier label handler
+
 - Connect worker handler to the existing provider label-generation implementation.
 - Persist provider response, label reference/object metadata, tracking reference and shipment state atomically where possible.
 - Handle provider timeout, duplicate event, retry and terminal failure safely.
@@ -338,6 +438,7 @@ API contract, generated clients and web/mobile commercial calculations agree. Ta
 **Acceptance:** successful label path, timeout/retry, duplicate delivery and terminal failure tests pass; provider evidence is clearly labeled sandbox/live.
 
 ### 3.3 Close G-011 — durable AutoCompleteWorker claim
+
 - Replace timestamp-only claim behavior with a durable lease/processing state or atomic claim token.
 - Define lease owner, expiry, heartbeat/reclaim and idempotent completion behavior.
 - Test two or more worker instances racing with buyer confirmation and order status changes.
@@ -345,6 +446,7 @@ API contract, generated clients and web/mobile commercial calculations agree. Ta
 **Acceptance:** one logical completion; no duplicate financial/notification side effects; expired leases recover; worker concurrency tests pass.
 
 ### 3.4 P13 worker activation and alerting
+
 - Inspect worker registration, feature/env flags, lease-holder model, expected holder count and deployment topology.
 - Determine whether P13 workers should run inside the API process or as a separate worker service. Do not assume one Render instance proves correct topology.
 - Define explicit staging and production activation values through reviewed configuration, not ad hoc changes.
@@ -355,59 +457,70 @@ API contract, generated clients and web/mobile commercial calculations agree. Ta
 **Acceptance:** expected holder count is explained and observed; alerts reach a tested sink; P13 jobs run only when intentionally enabled; multi-instance lease tests pass.
 
 ### Phase 3 exit gate
+
 Carrier, outbox and order-worker processing are proven with automated integration/concurrency tests. No unresolved event ownership ambiguity. Protected P13 jobs have a documented and verified activation plan.
 
 ---
 
 ## 8. Phase 4 — Client workflow parity & truthful notifications
 
-**Priority:** P2  
+**Priority:** P2
 **Purpose:** Complete the agreed user-facing workflow without promising behavior the backend does not deliver.
 
 ### 4.1 Complete G-007 mobile parity
-- Complete per-store shipping/payment choices and tax/fee review in mobile.
-- Align validation, error display, loading/retry and order confirmation with web/API.
-- Confirm order detail and tracking show per-sub-order fulfillment accurately.
+
+- **Implementation complete — CI #711 passed:** mobile collects per-supplier shipping/pickup choices, sends the selected payment method, and displays server-calculated supplier totals including discounts, delivery fees and VAT.
+- Added API-backed checkout preview using the same pricing/financial helper as order creation; final checkout recalculates mutable terms before persisting.
+- Added actual `fulfillmentMethod` to shipping estimate results and aligned web/mobile behavior, including pickup fallback when delivery estimates are unavailable.
+- Mobile API tests cover estimate, preview and checkout request payloads. Flutter analysis/tests, API unit/coverage, API integration, web/admin, build, contract/codegen, migration and container smoke all passed CI #711.
+- **Phase 6 UAT remains:** verify complete buyer journey, per-suborder order details and tracking; verify stale fee/method changes are communicated correctly.
 
 ### 4.2 Close G-019 — remove applied promotion on mobile
+
 - Expose the supported remove-promotion operation in mobile client/UI.
 - Keep cart recalculation authoritative on the API.
 - Handle expired/invalid promo, partial cart changes and network retry.
 
 ### 4.3 Close G-009 — truthful notification status
+
 - Keep in-app notification path distinct from external provider channels.
 - For SMS, FCM and WhatsApp, either implement a real provider adapter with delivery-state semantics, retry/backoff and receipts, or mark the channel unavailable/not configured. Never mark a simulated provider operation SENT.
 - Define what SENT, ACCEPTED, DELIVERED, FAILED and NOT_CONFIGURED mean.
 - Add provider sandbox tests and ensure provider acceptance is not represented as inbox/device delivery.
 
 ### 4.4 Admin and merchant workflow verification
+
 - Inspect all in-scope admin list/detail/create/edit/archive/review actions and ensure permissions match the API.
 - Fix only gaps that prevent the agreed pilot workflows; create separate findings for additional missing screens.
 - Verify error, empty, loading, permission-denied and destructive-action states.
 - Keep UI work aligned with the existing design system and accessibility/RTL requirements.
 
 ### Phase 4 exit gate
+
 The agreed buyer and merchant operations are supported across API/web/mobile with truthful status and error behavior. Automated focused tests pass; full journey UAT remains reserved for Phase 6.
 
 ---
 
 ## 9. Phase 5 — Operational hardening, CI, data hygiene & documentation
 
-**Priority:** P2 / P3  
+**Priority:** P2 / P3
 **Purpose:** Make the final release reproducible, reviewable and recoverable.
 
 ### 5.1 Close G-014 — branch protection
+
 - Add repository rulesets/protection for develop and release branches.
 - Require PR review and mandatory relevant CI checks; block force-push/deletion.
 - Confirm branch policy does not prevent authorized emergency recovery.
 
 ### 5.2 Close G-015 — blocking quality gates
-- Correct the boundary-lint workflow to invoke the actual root boundary-lint script.
+
+- **Implemented (awaiting latest-head CI):** boundary-lint workflow invokes the actual root `pnpm boundary-lint` script rather than API ESLint.
 - Remove `continue-on-error` from formatting and architecture checks after existing violations are addressed.
 - Ensure CI reports the real command, scope and exit code.
 - Keep fast affected-package checks on PRs; schedule/trigger full suites at the release candidate.
 
 ### 5.3 Close G-016 and G-017 — repository hygiene
+
 - Classify the tracked `.m73b6-scratch` tree and determine which artifacts are legitimate audit evidence.
 - Scan for secrets, tokens, customer data and duplicated source snapshots.
 - Remove unnecessary tracked artifacts and add ignore rules.
@@ -415,39 +528,62 @@ The agreed buyer and merchant operations are supported across API/web/mobile wit
 - Do not rewrite shared history without an agreed repository recovery procedure.
 
 ### 5.4 Close G-018 — documentation baseline
+
 - Mark old September roadmap statuses as historical.
 - Keep this remediation plan and progress tracker authoritative for current gap closure.
 - Update API, admin, merchant, buyer, mobile, deployment, migration, permissions, worker, backup/restore and troubleshooting docs alongside relevant implementation.
 - Documentation must describe implemented and verified behavior, include version/commit metadata and avoid aspirational claims.
 
 ### 5.5 Close G-013 — FK indexes
+
 - Use workload evidence, query plans and lock/maintenance cost to prioritize the 55 unindexed foreign keys.
 - Add only justified indexes, preferably in safe batches/concurrent index strategy where supported by the migration system.
 - Measure before/after plans and ensure migration rollback/forward-fix strategy.
 
 ### 5.6 Close G-022 — extension schema
+
 - Review `pg_trgm` schema placement, dependencies, function/operator resolution and Supabase migration conventions.
 - Move/relocate only if supported and safe; schema-qualify references and test search behavior.
 - Do not make a cosmetic schema move that breaks operator lookup.
 
 ### 5.7 Payments scope decision (G-012)
+
 - Record whether the first release explicitly supports manual bank transfer/COD/voucher only, or requires a digital gateway.
 - For a manual-payment pilot, document operational controls, reconciliation, refund approval, settlement and payout responsibilities; label automated money movement as out of scope.
 - Do not implement a gateway implicitly inside a defect fix. A gateway requires separate product/provider/security approval and its own plan.
 
+#### FIN-002 — Settlement calculation idempotency (implementation finding)
+
+Repeated settlement calculation must not create a second payable record after an existing settlement has been paid. The calculation path must serialize against refund requests/approvals on the payment row, reuse an existing active PENDING/CALCULATED/DUE settlement for identical retries, and reject recalculation once PAID/ADJUSTMENT history exists. Subsequent financial corrections must use the explicit settlement-adjustment workflow. PostgreSQL acceptance scenarios FIN-DSH-13–15 cover concurrent calls and post-PAID rejection; implementation is present, tests pending the consolidated Phase 3 campaign. This correctness fix does not authorize automatic gateway or payout behavior and does not change G-012's product decision.
+
+#### FIN-002 — Settlement calculation idempotency and confirmed-funds guard
+
+Repeated settlement calculation must not create a second payable record after an existing settlement has been paid. The calculation path must serialize against refund requests/approvals on the payment row, reuse an existing active PENDING/CALCULATED/DUE settlement for identical retries, and reject recalculation once PAID/ADJUSTMENT history exists. It must also reject settlement calculation until payment status is CONFIRMED, CAPTURED, PARTIALLY_REFUNDED or REFUNDED; order amount alone is not evidence of received funds. Subsequent financial corrections must use the explicit settlement-adjustment workflow. PostgreSQL acceptance scenarios FIN-DSH-13/14/15/15 cover concurrent calls, post-PAID rejection and pre-confirmation denial. Implementation is present; tests await the consolidated Phase 3 campaign. This does not authorize automatic gateway or payout behavior and does not change G-012's product decision.
+
+#### FIN-002 — Settlement calculation idempotency and confirmed-funds guard
+
+Repeated settlement calculation must not create a second payable record after an existing settlement has been paid. The calculation path must serialize against refund requests/approvals on the payment row, reuse an existing active PENDING/CALCULATED/DUE settlement for identical retries, and reject recalculation once PAID/ADJUSTMENT history exists. It must also reject settlement calculation until payment status is CONFIRMED, CAPTURED, PARTIALLY_REFUNDED or REFUNDED; order amount alone is not evidence of received funds. Subsequent financial corrections must use the explicit settlement-adjustment workflow. PostgreSQL acceptance scenarios FIN-DSH-13/14/15 cover concurrent calls, post-PAID rejection and pre-confirmation denial. Implementation is present; tests await the consolidated Phase 3 campaign. This does not authorize automatic gateway or payout behavior and does not change G-012's product decision.
+
+#### FIN-003 — Payment minor-unit amount validation
+
+Manual payment verification, COD cash confirmation, refund requests and settlement calculation must reject zero, negative, fractional and unsafe numeric values before financial state changes or BIGINT persistence. Amounts are positive safe integers in minor units. This guard does not impose an amount ceiling or change existing actual-received-amount semantics; any policy for underpayment, overpayment or exact equality remains a separate product/finance decision. PostgreSQL acceptance case FIN-DSH-16 covers invalid inputs and unchanged payment state. Implementation is present; test pending the consolidated Phase 3 campaign. No gateway/payout scope change.
+
 ### 5.8 Procurement scope decision (G-021)
+
 - Obtain a business decision whether RFQ, quotation, negotiation, purchase order approvals and credit terms are required for the intended release.
 - If required, create a separate bounded project plan and architecture audit; do not mix it into stabilization unless it blocks the agreed launch.
 - If deferred, mark explicitly DEFERRED with rationale and roadmap owner.
 
 ### 5.9 Backup/restore and deployment controls
-- Prove a recoverable backup exists and complete a restore drill in an isolated environment.
+
+- Backup/restore proof and restore drills are deferred by user direction and are not a current Phase 5 exit condition.
 - Document migration ordering, seed behavior, startup behavior, rollback/forward-fix, worker activation and health checks.
 - Verify deployment SHA and readiness after an authorized staging deployment.
 - Confirm alerting, log retention, secret rotation ownership and incident runbooks.
 
 ### Phase 5 exit gate
-Quality gates are meaningful and blocking; repository hygiene decisions are evidenced; documentation is current; backup/restore and deploy safety are demonstrated; P2/P3 deferrals have explicit owners and rationale.
+
+Quality gates are meaningful and blocking; repository hygiene decisions are evidenced; documentation is current; deploy/migration behavior is documented; P2/P3 deferrals have explicit owners and rationale. Backup/restore drills remain deferred.
 
 ---
 
@@ -469,9 +605,10 @@ This is the **one comprehensive platform test campaign**. It is not run repeated
 8. **External integrations:** OTP email, approved notification providers, carrier sandbox, payment sandbox only if in scope. Record provider acceptance separately from final delivery/settlement.
 9. **Mobile:** supported flavors, auth persistence, cart/checkout parity, offline/retry behavior, order status, promo removal, accessibility and RTL.
 10. **Performance/reliability:** k6 scenarios for readiness/auth/search/cart/checkout/order reads; error rate, p95 latency, saturation and queue lag thresholds defined before run.
-11. **Recovery:** backup restore, migration recovery, secret rotation procedure, rollback/forward-fix and alert delivery.
+11. **Recovery:** migration recovery, secret rotation procedure, rollback/forward-fix and alert delivery. Backup restore testing is deferred and not part of this campaign.
 
 ### 6.2 Test data and safety
+
 - Use isolated synthetic accounts, organizations, stores, products and payment references.
 - Include at least two independent merchants and buyer organizations to prove tenant boundaries.
 - Never use real payment capture, live shipment creation or customer notifications without explicit approval.
@@ -480,28 +617,29 @@ This is the **one comprehensive platform test campaign**. It is not run repeated
 
 ### 6.3 Release gates
 
-| Gate | Required result |
-|---|---|
-| P0 security | PASS; no known cross-tenant data access |
-| P1 correctness | PASS or explicit product-approved release restriction; no misleading totals or unsupported methods |
-| Database access | PASS; role/grant/RLS design verified against actual access paths |
-| Migration safety | PASS; clean and upgrade paths verified |
-| Worker/event reliability | PASS; ownership, idempotency, leases and alerts verified |
-| Buyer/merchant/admin journeys | PASS for agreed in-scope scenarios |
-| Mobile parity | PASS for supported release scope |
-| External providers | PASS in sandbox or explicitly disabled and truthfully represented |
-| CI/repository controls | PASS; required checks block merge |
-| Backup/restore | PASS with recorded restore evidence |
-| Performance | PASS against pre-agreed thresholds |
-| Documentation | PASS; user/admin/deployment/troubleshooting docs match tested behavior |
+| Gate                          | Required result                                                                                    |
+| ----------------------------- | -------------------------------------------------------------------------------------------------- |
+| P0 security                   | PASS; no known cross-tenant data access                                                            |
+| P1 correctness                | PASS or explicit product-approved release restriction; no misleading totals or unsupported methods |
+| Database access               | PASS; role/grant/RLS design verified against actual access paths                                   |
+| Migration safety              | PASS; clean and upgrade paths verified                                                             |
+| Worker/event reliability      | PASS; ownership, idempotency, leases and alerts verified                                           |
+| Buyer/merchant/admin journeys | PASS for agreed in-scope scenarios                                                                 |
+| Mobile parity                 | PASS for supported release scope                                                                   |
+| External providers            | PASS in sandbox or explicitly disabled and truthfully represented                                  |
+| CI/repository controls        | PASS; required checks block merge                                                                  |
+| Backup/restore                | DEFERRED BY USER DIRECTION; excluded from this release campaign                                    |
+| Performance                   | PASS against pre-agreed thresholds                                                                 |
+| Documentation                 | PASS; user/admin/deployment/troubleshooting docs match tested behavior                             |
 
 **Go/no-go rule:** any P0 failure, tenant-isolation failure, data corruption, financial inconsistency, lost order/carrier event, unsafe migration, or inability to restore is NO-GO. P1/P2/P3 items may only be deferred with explicit scope, risk, owner and mitigation; a deferral must not conceal a security or financial correctness failure.
 
 ### 6.4 Final deliverables
+
 - Full test campaign report with command-by-command results and commit SHA.
 - Buyer, merchant and admin UAT result summary.
 - Tenant-isolation and concurrency evidence.
-- Migration, backup/restore and deployment evidence.
+- Migration and deployment evidence; backup/restore evidence is deferred.
 - Provider sandbox evidence and explicit non-configured channels.
 - Updated gap register: CLOSED / PARTIAL / DEFERRED / NOT APPLICABLE, each with evidence.
 - Final release recommendation: GO / CONDITIONAL GO / NO-GO.
@@ -569,6 +707,824 @@ These two files are the authoritative working references for this remediation pr
 
 ## 14. Current recommendation
 
-Start with **Phase 0**, then Phase 1. Do not begin broad buyer/merchant staging testing until the P0 authorization gap and database access model are closed. Once Phase 1 passes, allow narrow controlled business tests while implementation continues. Keep full manual journey testing consolidated in Phase 6.
+Continue with the explicit G-006 stale-offer/concurrency acceptance review before closing G-006. G-008 is CLOSED with CI #714 evidence. G-007 implementation is CI-verified; its full journey UAT remains in Phase 6. G-002 effective database-role/access-path verification remains a pre-production gate; do not apply migration 0070, change grants or enable RLS until the access model is verified. Keep full manual journey testing consolidated in Phase 6.
 
-**Current overall status: PLANNED. No remediation implementation is claimed by this document.**
+**Current overall status: IN PROGRESS.** CI #711 passed every executed job on `347289796961a8f80368e20a0fa7fa33d7a8c999`: API unit/coverage (4,444 passed; 110 skipped), API integration, web/admin, lint/typecheck/format, Flutter, boundary lint, isolated full migration apply, contract/codegen, production build and container smoke. k6 smoke and staging release were skipped. G-003, G-004 and G-005 are CLOSED with CI evidence; G-011, G-028 and G-029 remain closed on their prior verified runs. G-006 implementation is CI-verified but its explicit stale-offer/concurrency acceptance review remains open. G-007 implementation is CI-verified; full journey UAT is reserved for Phase 6. G-002 remains partial pending actual API/migration role verification; G-008 is CLOSED with CI #714 evidence. No staging/production deployment or live database migration has been performed.
+
+---
+
+## 14. Execution update — 19 November 2026
+
+This section supplements the original plan without rewriting historical audit findings or acceptance criteria.
+
+### Verified since the plan was opened
+
+- CI #718 passed all 10 executed jobs on `783c03814d1527184c0eb69c2df1c396944056cc`. k6 smoke and staging release were skipped; this is CI evidence only, not staging or production release evidence.
+- G-006 is CLOSED. The changed-offer-term test and the true PostgreSQL two-session offer-row contention test passed in CI #718. The test holds a seller MOQ update uncommitted, confirms buyer checkout waits on the row lock, commits the seller edit, verifies checkout re-reads the changed terms and creates no invalid order, then restores the fixture terms.
+- The OTP timeout/redaction regression suite also passed in CI #718; the broader forensic review of all provider/logging paths remains a Phase 0 task.
+
+### G-002 database evidence update
+
+- A 19-Nov read-only recheck found 114 public tables with RLS enabled/forced on 0.
+- Effective privileges across those 114 tables show anon/authenticated/service_role have no SELECT/INSERT/UPDATE/DELETE, but each has TRUNCATE/REFERENCES/TRIGGER/MAINTAIN. The Security Advisor's critical RLS-disabled finding remains valid; its generic assertion of unrestricted read/write is broader than the effective DML grants observed in this snapshot.
+- `postgres` default ACLs repeat non-DML grants for anon/authenticated/service_role. `supabase_admin` default ACLs include broader DML grants and must not be changed without a separate ownership/platform review.
+- The SQL inspection connection is `postgres`; this does not prove the Render API or staging migration role. No attributable SCS API connection appeared in the observed `pg_stat_activity` sample.
+- The custom application migration ledger remains at 69 entries through 0069. Migration 0070 and 0071 have not been applied to the shared database.
+- The API uses a direct node-postgres/Drizzle pool from `DATABASE_URL`; the staging release workflow maps `STAGING_DATABASE_URL` into that variable for the migration runner. The exact login/effective roles remain a required verification.
+
+### Added read-only verification capability
+
+- `apps/api/scripts/audit-db-access.ts` and `pnpm --filter @scs/api db:audit-access` report the login/effective role, role attributes, table and sequence privileges, schema access, RLS coverage, default ACLs and public function exposure. The utility does not read application rows, print DSNs or mutate the database.
+- `.github/workflows/db-access-audit.yml` is a manual staging-environment workflow. It runs only the read-only audit; it does not migrate, deploy, or write application data. GitHub requires a `workflow_dispatch` workflow to exist on the repository default branch before it can be dispatched; once promoted there, it checks out `develop` for the audit code.
+- Full evidence is recorded in [DB-ACCESS-VERIFICATION-2026-11-19.md](./DB-ACCESS-VERIFICATION-2026-11-19.md).
+
+### Revised immediate sequence
+
+1. Validate the new utility/workflow in CI and make the workflow available from the default branch through the normal review/merge path.
+2. Run the read-only audit against the configured staging migration connection and record the effective role without exposing its DSN.
+3. Obtain equivalent runtime identity evidence for the Render API process without printing or retrieving environment-variable values.
+4. Complete table-by-table access classification and the full grants/default-ACL/function/view/sequence inventory.
+5. Design and test the least-privilege API/migration role contract, including owner/BYPASSRLS behavior and compatibility with direct Drizzle access.
+6. Add isolated role-switching and cross-tenant database negative tests before preparing any staged grant/RLS migration.
+7. Continue remaining Phase 0–5 work packages; run the consolidated Phase 6 campaign only after implementation and documented deferrals are ready.
+
+**Safety boundary remains unchanged:** no live grant changes, RLS enablement, migration application, Render configuration change, worker activation, or deployment is authorized by this implementation update.
+
+---
+
+## 15. Execution update — G-009 truthful notification states
+
+The general notification dispatcher previously returned fabricated provider IDs and marked SMS, FCM/PUSH and WhatsApp rows as SENT despite placeholder implementations. This has been corrected using the explicitly permitted NOT_CONFIGURED behavior in the Phase 4 acceptance criteria:
+
+- SMS primary/fallback stubs no longer simulate success; notification rows are marked NOT_CONFIGURED with `SMS_PROVIDER_NOT_CONFIGURED`.
+- PUSH no longer returns a fabricated FCM ID; rows are marked NOT_CONFIGURED with `PUSH_NO_ACTIVE_DEVICE_TOKEN` or `PUSH_PROVIDER_NOT_CONFIGURED`.
+- WhatsApp no longer marks placeholder sends SENT; rows are marked NOT_CONFIGURED with `WHATSAPP_PROVIDER_NOT_CONFIGURED`.
+- IN_APP remains persisted and available through the in-app API. Its SENT state means the notification item was persisted; realtime delivery remains best-effort and is not proof of device receipt.
+- Four focused unit regression tests were added for SMS, push with/without active tokens, and WhatsApp. Provider sandbox/retry testing remains partial until a real provider adapter and approved sandbox credentials exist.
+- Notification provider-selection and troubleshooting documentation now distinguish OTP provider configuration from general outbound notification adapters.
+
+CI verification is pending on the current PR head. No external notification provider was invoked, no customer notification was sent, and no provider credentials were changed.
+
+---
+
+## 17. Execution update — G-010 carrier label persistence
+
+The shipping.carrier.label worker previously logged that label generation was not implemented and then allowed the outbox event to be acknowledged. It now invokes the registered provider's generateLabel operation, fails closed for missing/unsupported providers, validates the returned URL with the provider-specific HTTPS/host/DNS SSRF allowlist, rejects redirects, applies a bounded timeout and 10 MiB size limit, verifies PDF content type/signature, and stores the PDF in the private S3 uploads bucket. The outbox event UUID is reused as the S3 object key suffix and shipment_labels primary key so retries do not create duplicate rows or objects. Shipment label list/detail read models include short-lived presigned download URLs for managed labels. Four mocked unit tests cover success, SSRF rejection, idempotency and invalid PDF payloads. Real Aramex sandbox verification remains unavailable pending authorized credentials; no live shipment or provider call was made. CI verification is pending.
+
+The label request is reachable through authenticated `POST /v1/shipments/:id/labels` (permission `fulfillment:labels:write`). The route checks tenant ownership, requires an existing carrier shipment and a provider with label capability, serializes concurrent requests by locking the shipment row, and returns an existing active label or pending request rather than enqueueing duplicates. The worker uses the outbox event UUID for retry-idempotent S3 and database persistence. The route does not call the carrier synchronously.
+
+### CI #729 correction
+
+The first attempt to include the new read-only audit utility in API typecheck used a broad scripts glob and exposed unrelated pre-existing M5/M6 manual-tooling type errors. The tsconfig now includes only `scripts/audit-db-access.ts`; the manual tools remain outside the production API typecheck scope. CI #729's Flutter analyze/tests passed; the API typecheck failure prevented the remaining dependent test jobs from running. Re-run full CI after this correction before treating G-009/G-010 as verified.
+
+---
+
+## 18. Execution update — G-019 mobile promotion removal
+
+The mobile cart previously allowed a buyer to apply a promotion but offered no way to remove it. Added authenticated DELETE /v1/cart/promo, which clears both promoCode and the resolved promotionId on the caller's active cart and returns refreshed cart state. Flutter ApiService and the cart screen expose a busy-safe Remove action with error feedback. Backend and mobile API regression tests were added. CI verification is pending. No live cart or promotion was modified.
+
+---
+
+## 19. Phase 0 testability and deployment documentation update
+
+Added three living remediation artifacts:
+
+- [TEST-CAMPAIGN-MANIFEST.md](./TEST-CAMPAIGN-MANIFEST.md) records exact root/API/web/admin/mobile/contract/container/E2E/k6/migration commands, prerequisites, CI gate behavior, the Phase 6 sequence and the shared-database safety restrictions.
+- [SYNTHETIC-TEST-IDENTITY-MATRIX.md](./SYNTHETIC-TEST-IDENTITY-MATRIX.md) defines the two-buyer/two-merchant tenant matrix, owner/staff/admin/moderator/suspended/inactive/unauthenticated identities, minimum fixture data and negative authorization cases. A shared fixture factory and cross-suite adoption remain required before P0-05 can be closed.
+- [DEPLOYMENT-MIGRATION-RUNBOOK.md](../deployment/REMEDIATION-DEPLOYMENT-AND-MIGRATION-RUNBOOK.md) documents API startup behavior, the advisory-locked migration runner, transactional migration ledger, RBAC-only idempotent seed, release workflow, manual-dispatch mutation warning, Render exact-SHA deployment and forward-fix policy.
+
+P0-03 is complete because the audit-baseline comparison found no code fixes hidden in the seven intervening commits (documentation only). P0-04, P0-06 and P0-08 are complete by source review/documentation. P0-05 remains partial until reusable fixture factories are adopted. P0-07 remains partial until the current Render workspace/service configuration is rechecked; the documented auto-deploy-disabled observation is historical, not a fresh live assertion.
+
+---
+
+## 20. G-016/G-017 repository artifact cleanup
+
+Removed the 1,277-file `.m73b6-scratch` tree (approximately 37.9 MB), its 19.1 MB P4.18 archive and duplicated context, plus the root `test-token.txt`. Added ignore rules to prevent reintroduction. A targeted scan of visible text artifacts found only localhost/CI PostgreSQL URLs and an expired short-lived HS256 test JWT; no private-key, AWS access-key or GitHub-token pattern was found. The token contained no signing secret and is expired, so secret rotation is not indicated. The GitHub connector could not independently extract the binary tar contents; current-tree artifacts are removed, but historical Git objects remain. No history rewrite was performed.
+
+### G-015 boundary-lint execution correction
+
+The E6 checker had not actually executed: the root script invoked missing `ts-node`, and its module-root path was wrong. The command now uses the API workspace's installed `tsx`, and the checker resolves `apps/api/src/modules`. Keep the CI step advisory until the corrected checker reports zero violations and remaining cross-module imports are remediated; only then make the job blocking.
+
+---
+
+## 21. Phase 5 operational-hardening status — 19 November 2026
+
+- Repository formatting is configured as a blocking CI gate after passing CI #738.
+- The E6 boundary checker is now correctly invoked with the API workspace's `tsx`; a reviewed 193-entry legacy baseline blocks new cross-module imports. Three PR-introduced violations were fixed through public module APIs. The remaining 193 imports are tracked debt, not claimed as compliant.
+- The 1,277-file / approximately 37.9 MB `.m73b6-scratch` tree and expired JWT test artifact were removed from the current tree; history remains unchanged.
+- G-014 branch protection remains blocked by repository-admin access. G-018 documentation reconciliation is partial. G-013 has 71 current FK-index candidates versus the earlier 55 count; no blanket indexes will be added. G-022 has a relocatable `pg_trgm` extension and five dependent GIN indexes; actual API/migration roles must be confirmed before any relocation.
+- Payment-gateway and RFQ/quotation/PO scope decisions remain open; current recommendation is manual payment verification for this release and defer RFQ/PO to a separate milestone. Backup/restore remains deferred by user direction until pre-production review.
+
+---
+
+## 22. G-013 foreign-key index review — 19 November 2026
+
+The read-only live inventory reports 71 foreign-key constraints without a matching valid leading-column index, compared with the earlier advisor count of 55. Only four candidate tables have non-zero estimated rows (sessions 19, device_credentials 6, role_permissions 4, organization_members 3); all are small. Cumulative scan counters on currently empty tables do not justify index creation. The current pg_stat_statements sample does not identify representative high-volume application joins. No indexes were added. Defer DDL until representative staging data is loaded and exact query plans demonstrate a benefit, then measure read gains and write/storage overhead. See `FOREIGN-KEY-INDEX-REVIEW-2026-11-19.md`.
+
+---
+
+## 23. G-022 pg_trgm relocation review — 19 November 2026
+
+The extension is relocatable, but it is owned by the Supabase-managed `supabase_admin` superuser. The connected `postgres` role is not a member and cannot `SET ROLE` to the owner. Five application GIN indexes use `gin_trgm_ops`, and catalog search calls `similarity()` without schema qualification. Although the `extensions` schema exists and the current `postgres` search_path includes it, the Render API/migration role is not verified. Do not change extension ownership or attempt relocation from the current connection. Require a Supabase owner-supported path, isolated migration test, and runtime role/search_path confirmation. See `PG-TRGM-RELOCATION-REVIEW-2026-11-19.md`.
+
+---
+
+## 24. Database ACL and search-path reconciliation — 19 November 2026
+
+The latest read-only catalog review found no direct table grants to the PUBLIC pseudo-role across the 114 public tables and no PUBLIC default-ACL grants. The explicit client-role grants remain excessive: anon, authenticated and service_role have no table CRUD, but retain TRUNCATE, REFERENCES, TRIGGER and MAINTAIN on all 114 tables. Migration 0070 is CI-verified but not applied to the shared database. `normalize_arabic(text)` remains unpinned live; it is not SECURITY DEFINER and its body uses pg_catalog built-ins only. G-020 therefore remains partial until the controlled migration is applied.
+
+The `pg_trgm` extension is relocatable but owned by Supabase-managed `supabase_admin`; the connected `postgres` role cannot assume that owner. Five application GIN indexes use `gin_trgm_ops`, and catalog search calls `similarity()` unqualified. G-022 is blocked until an owner-supported relocation path and actual API/migration search paths are verified. No live database changes were made.
+
+---
+
+## 25. Worker topology and protected-job review — 19 November 2026
+
+Read-only Render metadata confirms one API web service, one configured instance, no dedicated worker service, and auto-deploy disabled. Runtime logs show OutboxDispatcher (1s), ShippingCarrierWorker (5s), AutoCompleteWorker (60s), and P13Monitor (60s, log-only) embedded in the API process. ReturnExpirationWorker is disabled because `P13_WORKER_ENABLED` is unset.
+
+Source review confirms carrier events and auto-complete orders use atomic database claims; P13 return expiration additionally requires explicit enablement, a durable epoch-fenced lease and a readable/unpaused control before work, and rechecks ownership/pause before each item. Its only automatic business action is escalation to admin review, not approval, rejection, refund or terminal expiry. The P13 monitor has no external alert webhook; safe activation remains blocked pending a signed sink and a deliberate single-holder rollout.
+
+The generic OutboxDispatcher currently logs and marks non-carrier events dispatched without an atomic claim. That is not an external side effect today, but it is a horizontal-scaling constraint: do not scale the API beyond one instance or add side-effecting consumers to this dispatcher until atomic claim/lease semantics and multi-instance tests exist. No runtime or database changes were made. See `STAGING-RUNTIME-TOPOLOGY-2026-11-19.md`.
+
+---
+
+## 26. Reusable synthetic tenant fixture foundation
+
+P0-05 now has a shared PostgreSQL identity fixture factory at `apps/api/src/__tests__/helpers/tenant-fixtures.ts`. It creates two organizations, two buyers, two merchant owners, two active stores and their owner memberships in one transaction using fresh UUIDs and synthetic phone identifiers. P311 financial tenant isolation, P4 HTTP authorization and Phase 1 marketplace integration suites now consume this common identity graph while retaining their domain-specific order, financial, catalog and warehouse fixtures. The helper is restricted to disposable integration-test databases; no shared Supabase data is used. CI verification is pending.
+
+---
+
+## 27. Current-head CI verification — 19 November 2026
+
+CI #762 passed all 10 executable jobs on PR #138 head `f8a765d0a70a9f110b7a5408d869a1424d8382b1`: lint/typecheck/changed-file formatting, Flutter analyze/tests, API unit/coverage, API PostgreSQL integration, web/admin tests, E6 boundary lint, isolated migration full apply with public-schema privilege and function-search_path assertions, contract/codegen, production build, and container build/smoke. k6 smoke and staging release were skipped. P0-05 synthetic two-tenant fixture adoption and G-006 two-session offer-lock contention/cleanup are verified by this run. No shared Supabase mutation or staging deployment occurred. G-002 remains blocked on actual Render API/migration DB role evidence and table classification.
+
+## 28. G-002 live inventory and access-intent classification — 19 November 2026
+
+A fresh read-only Supabase catalog review was completed after the current-head CI investigation. The resulting 114-relation inventory is recorded in [DATABASE-TABLE-ACCESS-CLASSIFICATION-2026-11-19.md](./DATABASE-TABLE-ACCESS-CLASSIFICATION-2026-11-19.md).
+
+Evidence from the connected project:
+
+- 114 public table relations: 1 partitioned analytics parent, 12 monthly partitions, 1 default partition and 100 ordinary tables.
+- RLS enabled: 0; RLS forced: 0; public policies in `pg_policies`: 0.
+- No public views, materialized views or foreign tables were returned by the inspected relation inventory.
+- Effective `anon`, `authenticated` and `service_role` privileges show zero SELECT/INSERT/UPDATE/DELETE across all 114 relations, but all three retain TRUNCATE/REFERENCES/TRIGGER/MAINTAIN across all 114.
+- `authenticator` is a member of `anon`, `authenticated` and `service_role`. The PostgREST role-switching path therefore remains relevant even though the login identity differs.
+- The connected inspection session is `postgres` with BYPASSRLS. This does not identify the Render API or migration role.
+- No row-level policies currently exist. The API's source-level access path is direct node-postgres/Drizzle, with tenant enforcement in application services and controllers.
+
+The table-by-table domain and access-intent inventory is complete. It is not yet a row-policy design: exact tenant ownership predicates, exposed Data API schema configuration and all service/query paths still need review. Buyer-facing catalog visibility remains an API-level contract, not a direct table grant.
+
+**Architecture gate:** do not blindly enable RLS. A BYPASSRLS runtime role would bypass the policies; a non-BYPASSRLS role would be denied by default with zero policies. A correct tenant-aware RLS design requires trusted transaction-local request context, complete transaction coverage across the shared Drizzle pool, safe reset on connection reuse, and explicit treatment of background workers and system jobs. The actual Render API and migration roles remain unverified. The GitHub connector available in this session does not expose workflow-dispatch, and the Render connector does not reveal environment-variable values or usernames. Do not reveal or retrieve DSNs.
+
+**Updated work-package state:**
+
+- P1-06: PARTIAL — source connection paths and read-only audit utility verified; actual API and migration role identities remain unverified.
+- P1-07: PARTIAL — all 114 relations inventoried and domain/access intent classified; exact row ownership/policy predicates remain open.
+- P1-08: PARTIAL — effective table grants and role memberships refreshed; full function/default-ACL/sequence/schema matrix remains open.
+- P1-09: BLOCKED — least-privilege/RLS design must wait for actual roles and transaction-scoped tenant-context feasibility.
+- P1-10: PARTIAL — isolated migration validation only; no shared-database migration or grant change.
+
+No live database mutation, migration, grant change, RLS change, Render configuration change, worker activation or deployment was performed.
+
+## 29. RLS architecture proposal and release-gate reconciliation — 19 November 2026
+
+Added [G-002 RLS Architecture Proposal](./G-002-RLS-ARCHITECTURE-PROPOSAL.md) after the fresh live inventory. It records the current direct Drizzle access model, target role separation, transaction-local tenant-context candidate, worker requirements, policy families, risks of blanket RLS and the isolated-test sequence. This is a design proposal only; no production SQL or executable RLS policy was generated.
+
+The staging read-only database audit workflow was updated to support a push trigger on the remediation branch, using the exact branch commit and the existing `staging` GitHub environment. The attempted run did not execute its job (the job remained waiting/approval-gated and the run concluded failure). Do not bypass environment protection. The API/migration usernames remain unverified; P1-06 and P1-09 remain blocked.
+
+The Phase 6 release-gate table previously contradicted the explicit Phase 5 and test-campaign statements deferring backup/restore drills by user direction. The gate is now consistently marked **DEFERRED BY USER DIRECTION** and excluded from this campaign. No backup/restore claim is made.
+
+G-010 received additional focused regression coverage for HTTP 5xx retry classification, HTTP 4xx terminal classification and abort-driven download timeout, supplementing success, SSRF, duplicate, PDF validation and storage-failure tests. The expanded tests await latest-head CI; no real Aramex sandbox request was made.
+
+## 30. Documentation readiness reconciliation — 19 November 2026
+
+The G-018 review identified legacy documents that could be mistaken for current release certification. Added current-readiness notices to the User Guide, Developer Guide and Testing Guide. The Testing Guide's statement that all Phase 1 P0/P1 gaps were closed and that the platform was ready for pilot was replaced with the verified current state: PR #138 remains draft, G-002 is a pre-production gate, and Phase 6 has not started.
+
+Also:
+
+- Marked the 25-Sep Capability Matrix as a historical, non-recertified baseline; its checkmarks are not current release evidence.
+- Updated the pilot Go/No-Go checklist to state that backup/restore drills are deferred by user direction and excluded from the current campaign.
+- Marked SLO values as proposed targets rather than measured production SLOs; noted that Kubernetes/pod metrics must be adapted to the currently observed Render topology.
+- Added operational safety warnings to the playbooks so their SQL and business-side-effect steps are not interpreted as permission to mutate the shared database or trigger live workflows.
+
+G-018 remains **PARTIAL**. This is a targeted correction of the most misleading readiness claims, not a complete audit of all 533 files under `docs/`. Remaining API/admin/merchant/buyer/mobile/permissions/worker/troubleshooting guides must be reconciled with current routes and verified behavior in their owning implementation work packages.
+
+## 31. Newly discovered P0 — G-030 merchant financial listing isolation
+
+The ongoing financial-service source review found a tenant-isolation defect in `GET /v1/merchant/payments` and `GET /v1/merchant/settlements`. Merchant routes called list methods without authenticated caller context; the payment list's store/buyer filter construction was not applied to the final query. Treat this as a P0 release gate, not a documentation-only issue.
+
+The remediation branch now:
+
+- passes the authenticated JWT caller context into dedicated merchant listing methods;
+- scopes payment rows through payment → order → store → active organization;
+- scopes settlement rows through settlement → store → active organization;
+- validates explicit store IDs against organization ownership;
+- applies admin store/buyer filters to matching payment order IDs;
+- adds two-tenant PostgreSQL tests and controller forwarding tests.
+
+**Status:** implementation committed; current-head CI pending. P0 remains open until test evidence is green.
+
+## 32. Current-head verification and G-030 closure — 19 November 2026
+
+Current branch head `d965e73da727aa136fa4af859f7f423de04d00d7` passed CI run **#832**. The following executable jobs completed successfully: lint/typecheck and changed-file formatting, Flutter analysis/tests, API unit/coverage, PostgreSQL integration, E6 boundary lint, web/admin tests, isolated full migration apply, contract/codegen, build, and container build/smoke. The k6 smoke and staging release jobs were skipped by workflow conditions and are not claimed as passed.
+
+**G-030 is CLOSED for implementation and automated regression coverage.** The dedicated merchant payment and settlement listing paths now bind records to the authenticated active organization, validate explicit store filters, preserve the seeded organization-wide merchant read permission, and have two-tenant PostgreSQL and controller tests. See [the G-030 evidence report](./G-030-MERCHANT-FINANCIAL-LISTING-TENANT-ISOLATION.md).
+
+**G-010 timeout regression is test-harness verified** in the same current-head CI: the expected 15-second timeout rejection is observed before fake timers advance, and the complete API unit/coverage job passed. The production worker change remains subject to its own operational/activation criteria in Phase 3; this does not close the wider P13 worker activation gate.
+
+The one-time progress formatter workflow has been deleted. No formatter automation with repository write permission remains.
+
+### Phase 5 control evidence and remaining limitations
+
+- A read of repository rulesets returned an empty list. The branch-protection endpoint for `develop` returned HTTP 403 (resource not accessible to this integration). Therefore G-014 remains **UNVERIFIED/OPEN**; do not infer that branch protection is absent or present from the inaccessible endpoint.
+- No shared database role/grant change or RLS enablement has been performed. G-002 remains **BLOCKED** pending a verified effective API/migration role inventory and an approved tenant-isolation architecture.
+- The full release campaign remains pending: k6/performance, staging release and safe staging E2E were not executed by CI #832.
+- No production deployment, shared-database migration, staging write or financial-data mutation was performed.
+
+The next execution order is: complete the evidence-based G-002 role/access review without changing grants; resolve G-014 through an authorized repository administrator or an available read-only policy view; continue the remaining Phase 3/4/5 findings with focused regression tests; then run the consolidated Phase 6 campaign only after the prerequisite release gates are met.
+
+## 33. Current-head CI #843 and expanded G-002 ACL investigation — 19 November 2026
+
+CI run #843 passed all 10 executable jobs on branch head 58053f61e9d3679e81b999e2a9f24f4c8ad4f5ab. Lint/typecheck/format, Flutter, API unit/coverage, PostgreSQL integration, web/admin, E6 boundary lint, isolated full migration apply, contract/codegen, build and container smoke all passed. k6 and staging release were skipped.
+
+A fresh read-only Supabase MCP inspection of the SCS-PlatForm PostgreSQL 17.6 project added important G-002 evidence:
+
+- 114/114 public tables have RLS disabled.
+- aclexplode confirms direct MAINTAIN, REFERENCES, TRIGGER and TRUNCATE grants to anon, authenticated and service_role on all 114 tables; effective SELECT/INSERT/UPDATE/DELETE counts remain zero for these three roles.
+- postgres-owned public-table default ACLs repeat those four grants for future objects created by postgres. Supabase-managed supabase_admin defaults are separate and must not be modified as part of this remediation.
+- authenticator can SET ROLE to anon/authenticated/service_role, but INHERIT is false on each membership edge. The MCP inspection connection is postgres with BYPASSRLS and is not proof of the Render API or migration identity.
+- No direct table ACL grants to PUBLIC were found. The findings are excessive direct grants and default-ACL recurrence; no specific public HTTP exploit path has been demonstrated.
+
+The read-only audit utility was enhanced to emit direct table/sequence ACL grants to the API roles, include authenticator in the privilege inventory and report transitive role-membership edges correctly. The previous recursive report query only joined root-to-first-edge and could omit deeper memberships; the corrected recursive query was separately executed against the live catalog and returned the expected transitive graph.
+
+The standalone read-only GitHub audit run #3 failed on a push event before producing usable database identity evidence. It must not be treated as an audit success. No attempt was made to bypass the staging environment approval gate. The API/migration DATABASE_URL identities remain unverified.
+
+**Current status:** G-030 remains closed by CI #832; G-010 timeout test remains verified by CI #832 and CI #843. G-002 remains blocked pending API/migration role proof and a reviewed ACL/RLS plan. The latest audit-script changes and evidence-document updates require a fresh CI run. No shared database grants, defaults, RLS policies, migrations, staging data or deployment settings were changed.
+
+## 34. Phase 0/3 source review — OTP log redaction and worker activation boundaries — 19 November 2026
+
+### OTP logging source review
+
+Reviewed the current branch's IdentityService, OtpDeliveryService and Resend, SMTP, Twilio and WhatsApp providers. The inspected code paths do not log the OTP value. IdentityService logs masked phone/email identifiers; OtpDeliveryService receives a masked subject from the public phone/email entry points; the providers log masked recipients or stable provider error classes/codes rather than raw provider exception messages or response bodies. The internal mock delivery path is only used by test/dev injection and also receives a masked subject from the email OTP path.
+
+Existing regression coverage includes `otp-redaction.spec.ts`, `otp-security-remediation.spec.ts` and `otp-delivery-providers.spec.ts`, which assert that OTP values and full recipient identifiers do not appear in captured logs. This closes the source-code review for the currently inspected paths, not the earlier Render runtime finding. The deployed service version and fresh post-fix runtime logs have not been verified; no live OTP was sent as part of this review.
+
+### Worker registration and P13 safety defaults
+
+Source inspection confirms `OrdersModule`, `ShippingModule`, `ReturnsModule` and `OperationsModule` are imported by AppModule. AutoCompleteWorker and ShippingCarrierWorker are registered in their domain modules and start polling inside each API process after their startup delays. AutoComplete uses durable order claims; the carrier worker uses row-lock/lease-based event claims. Their multi-instance correctness remains dependent on the corresponding database concurrency tests and runtime replica configuration.
+
+ReturnExpirationWorker is registered through ReturnsModule but remains OFF unless `P13_WORKER_ENABLED` is explicitly truthy. `resolveP13OpsConfig` defaults expected P13 workers to zero while disabled, pilot mode to legacy, and the alert sink to log-only when no webhook is configured. A configured webhook is disabled unless a signing secret of at least 32 characters is present. P13MonitorService is separate from the protected worker: it starts on every API instance and scans on the configured cadence (default 60 seconds), with database alert deduplication.
+
+These defaults prevent accidental activation of protected return/refund work, but they do not prove the deployed environment's flags, actual replica count or alert delivery. The earlier Render inspection showed one API service and no separate worker service; that topology and current environment values have not been reverified in this execution. Do not enable P13 or change Render configuration until the expected holder count, pilot allowlist, signed alert sink and staging verification are approved.
+
+### Current acceptance status
+
+- OTP: source-level redaction review and existing regression tests are present; runtime log verification remains OPEN.
+- AutoComplete/carrier workers: source registration and durable claim boundaries are implemented; CI evidence exists for their focused ownership/concurrency cases. Staging topology and operational alerts remain OPEN.
+- P13 protected return worker: safe default OFF and unit coverage for expected worker count exist; real alert delivery and explicit activation remain DEFERRED pending approved staging configuration.
+- No provider request, staging write, Render environment change, worker activation or deployment was performed.
+
+## 35. G-031 — Separate product moderation from merchant read permission — 19 November 2026
+
+### Finding
+
+A review of the Admin product moderation workflow found that PATCH /v1/admin/products/:id/moderate required admin:merchants:read. The same read permission was used by the ProductModerationActions UI. A custom role granted only merchant/product read access could therefore approve, reject or archive products. This is a least-privilege failure even though the built-in ADMIN and MODERATOR roles are intended to moderate products.
+
+### Remediation committed
+
+- Added the dedicated admin:products:moderate permission to canonical RBAC seed data.
+- Granted it to SUPER_ADMIN, ADMIN and MODERATOR only. It is not granted to FINANCE, merchant, buyer or driver roles.
+- Changed the API moderation mutation to require admin:products:moderate. Product list/detail/media reads continue to require admin:merchants:read.
+- Changed ProductModerationActions to hide Approve, Reject and Archive unless admin:products:moderate is present.
+- Added API guard metadata/role-matrix tests proving admin:merchants:read alone is insufficient and that only the intended platform roles pass.
+- Added Admin UI regression coverage proving the moderation controls are hidden without the dedicated permission.
+- Updated the RBAC architecture and administrator guide.
+
+### Deployment and acceptance notes
+
+The canonical RBAC seed is idempotent and inserts missing permission/role-permission rows without deleting existing assignments. The controlled release workflow runs db:seed after migrations; no schema migration is needed for this permission. Existing access tokens contain a permission snapshot, so current users must refresh/re-authenticate after the seed is applied to receive the new permission claim. Until then the moderation endpoint fails closed.
+
+**Status:** CLOSED — implementation and focused regression coverage passed current-head CI #936.
+
+## 36. G-032 — Align dispute detail permission with the canonical RBAC contract — 19 November 2026
+
+### Finding
+
+The Admin dispute detail page checked admin:disputes:read, a permission key that is not present in canonical RBAC seed data. The dispute list page and GET /v1/admin/disputes/:id endpoint use support:disputes:resolve. Consequently, a user with the intended seeded dispute-review permission could open the list but was denied the detail page before the API request.
+
+### Remediation committed
+
+- Changed the dispute detail page to require support:disputes:resolve, matching the canonical permission and API controller.
+- Updated the visible access-denied message to show the actual required permission.
+- Added Admin UI regression coverage that renders the detail page with the seeded permission, verifies the detail API request and asserts that the permission key matches the list/API contract.
+
+No API permission change or RBAC seed change was required. No database or role assignments were modified.
+
+**Status:** CLOSED — implementation and focused regression coverage passed current-head CI #936.
+
+## 37. G-033 — Align attribute detail permission with the catalog RBAC contract — 19 November 2026
+
+### Finding
+
+The Admin Attributes list correctly requires catalog:attributes:manage, but the /attributes/:id detail page incorrectly checked catalog:categories:write. This denied seeded attribute managers, including the platform ADMIN role, from opening attribute details even though they could access the list. The underlying attribute detail GET route is authenticated and the Admin list is the authoritative UI permission boundary.
+
+### Remediation committed
+
+- Changed the attribute detail page to require catalog:attributes:manage, matching the list page and the canonical RBAC role matrix.
+- Added Admin UI regression coverage that renders the detail route with catalog:attributes:manage, verifies the attribute detail request and asserts the canonical permission key.
+
+No API authorization change, RBAC seed change or database migration was required.
+
+**Status:** CLOSED — implementation and focused regression coverage passed current-head CI #936.
+
+## 38. G-034 — Enforce operation-specific permissions in financial Admin workflows — 19 November 2026
+
+### Finding
+
+The Payments, Settlements, Reconciliation and Settlement Adjustments pages invoked useRequirePerms but ignored the returned hasAccess value. Several pages also rendered mutation controls using only their page-level read permission. The API guards were already enforcing the dedicated write/verify/approve permissions, so this produced misleading UI actions and avoidable 403 responses for read-only users. It was not an API authorization bypass.
+
+### Remediation committed
+
+- Payments: enforce admin:payments:read at page level; show the Verification Queue and Confirm/Reject controls only with admin:payments:verify. Read-only users default to All Payments and never request the verification queue.
+- Settlements: enforce admin:settlements:read at page level; show Mark Paid only with admin:settlements:write.
+- Reconciliation: enforce admin:reconciliation:read at page level; show Run and Resolve controls only with admin:reconciliation:write.
+- Settlement adjustments: enforce admin:adjustments:read at page level; gate Submit with admin:adjustments:write and Approve/Post with admin:adjustments:approve.
+- Add defensive permission checks inside mutation handlers in addition to hiding the controls.
+- Add Admin UI regression coverage for read-only users across all four pages.
+
+No API permission change, database migration or RBAC seed change was required; the backend route guards already enforce these permissions.
+
+**Status:** CLOSED — implementation and focused regression coverage passed current-head CI #936.
+
+## 39. G-035 — Enforce operation-specific permissions in merchant delivery UI — 19 November 2026
+
+### Finding
+
+Merchant delivery list and detail pages checked only that the caller had a merchant role. They did not check the active-organization permission set before requesting shipment details or exposing delivery mutations. Backend shipment endpoints already enforce granular grants, so read-only merchant roles could see controls that would fail with 403 responses, and users lacking shipment-read grants could initiate unnecessary requests.
+
+### Remediation committed
+
+- Require fulfillment:shipments:read before loading merchant delivery lists or shipment details; render an explicit access-denied state otherwise.
+- Gate carrier shipment creation, cancellation, retry, delivery exception reporting and RTS operations with fulfillment:shipments:write.
+- Gate label details with fulfillment:labels:read.
+- Gate physical return-to-stock recording with fulfillment:shipments:return.
+- Add defensive checks inside the delivery action runner and regression tests for missing read permission and read-only shipment access.
+
+No API authorization, RBAC seed or database change was required; backend route guards already enforce these permissions.
+
+**Status:** CLOSED — implementation and focused regression coverage passed current-head CI #936.
+
+## Current-head addendum — CI #936 — 19 November 2026
+
+CI #936 passed all 10 executable jobs on implementation head `78d083a63c454b48fa9808fe25206264766f2523`. API unit/coverage reported 4,483 passed and 110 skipped across 237 test files; PostgreSQL integration, lint/typecheck/format, Flutter, Web/Admin, E6 boundary lint, isolated full migration apply, contract/codegen, build and container smoke passed. k6 and staging release were skipped. G-031–G-035 are closed by this evidence. G-002 remains blocked until the actual Render API and migration database identities are verified. The live staging service still runs the baseline `develop` commit and has auto-deploy disabled. No deployment, shared-database write, grant change, RLS enablement or live migration was performed. This documentation-only update requires a fresh CI run for the resulting branch head.
+
+## Runtime database identity checkpoint — 20 November 2026
+
+- CI #948 passed all 10 executable jobs on PR #138 head `a1cd93085136db59fe82aa858ae4ff4227547d36`. The k6 smoke and staging release jobs were skipped.
+- Read-only staging database audit run #4 established the identity of the `STAGING_DATABASE_URL` credential used by the audit/migration workflow: `session_user = current_user = postgres`, with `rolbypassrls=true`, `rolcreaterole=true`, and `rolcreatedb=true`. This is a highly privileged migration/audit credential, not evidence of the Render API runtime identity.
+- The API runtime connects through `DatabaseService` and its own `pg.Pool`; Supavisor activity snapshots do not conclusively attribute backend sessions to the API.
+- PR #142 (`security/runtime-db-identity-diagnostics`) adds a startup query on that actual API pool. It logs only session/effective role names, database name, role capability flags and TLS status; failures are non-fatal and use a fixed warning. Its CI run `44656130587` passed the API unit/coverage, PostgreSQL integration, lint/typecheck/format, Flutter, Web/Admin, migration, contract/codegen, build and container jobs. It has not been merged or deployed.
+- G-002 remains BLOCKED pending independently verified API runtime identity, ownership/default-ACL mapping, and a reviewed least-privilege role and table-specific RLS plan. The audit found 114 public tables/partitions with RLS enabled/forced on 0; effective CRUD grants were 0/114 for anon/authenticated/service_role, while excessive non-DML grants and owner-specific default ACL risks remain.
+- No shared database mutation, grant/default-ACL change, RLS enablement, migration, seed, Render setting change, restart, worker activation, staging write or deployment was performed.
+
+### Documentation-head verification gate — 20 November 2026
+
+The 20-November reconciliation was committed after CI #948 in documentation-only commits `fb81c7139e150ab8a8e6e28feacfa7c55a8429b7` and `429f88b0e009d30c450091650e2f15d5a5f9f39d`. CI #948 therefore verifies the preceding implementation head, not these later documentation commits. No PR-triggered workflow run is currently returned for either documentation commit; latest-head CI verification remains pending. Keep PR #138 draft until a successful run covers the current branch head.
+
+---
+
+## Pull-request integration and CI coordination checkpoint — 20 November 2026
+
+The remediation branch contains a broad, integrated implementation set and remains a draft working branch. Several focused pull requests have independently ported subsets of the same work onto `develop`. A green CI result on a focused PR does not establish that its patch is independent of the remediation branch.
+
+### Integration rules
+
+1. Maintain one authoritative implementation for each finding. Before merging any focused PR, compare its changed files and behavior against the corresponding code already present on `remediation/phase-0-1-tenant-security`.
+2. Do not merge both copies of a finding merely because both CI runs are green. If a focused PR is selected to land first, reconcile the remediation branch against the resulting `develop` state before the next integration.
+3. Preserve PR #138 as draft. Its current head is a working integration branch, not an approved release candidate. No deployment or shared-database action follows from CI success.
+4. Treat PR #143 as a documentation reconciliation proposal based on `develop`; do not replace the much more detailed PR #138 plan/tracker with its shorter documents. Incorporate its corrections into the detailed tracker while retaining the historical implementation evidence.
+5. Require exact-head CI evidence for the current PR head before claiming that head is verified. Documentation changes made through the GitHub Contents API have not, so far, produced a workflow run; record this as pending rather than assuming a previous run covers them.
+
+### Observed overlaps and blockers
+
+| Focused PR | Finding           | Integration observation                                                                                                                                                                                                                                                                                                              |
+| ---------: | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+|       #144 | G-001             | Ported into PR #138: offer-detail authorization, service-level active store membership, JWT actor attribution, tests and lifecycle fixtures. Keep #144 draft as supporting CI evidence; do not merge both copies. Current combined branch CI and independent review are pending.                                                     |
+|       #145 | G-020             | Adds `0070_normalize_arabic_search_path.sql`, while PR #138 already contains `0070_public_access_and_function_search_path_hardening.sql` covering G-002 and G-020. The competing 0070 migration filenames must be reconciled; do not merge/apply both as currently numbered.                                                         |
+|       #147 | G-003             | Repeats the carrier-event exclusion already present on PR #138 and previously verified there in CI #687. Its new focused test had a TS4111 failure; indexed access was corrected in commit `590ac892`, and CI #1024 is pending.                                                                                                      |
+|       #148 | G-008             | Adds a DIGITAL-only guard, but PR #138 already uses the broader `SUPPORTED_PAYMENT_METHODS` allowlist and rejects unsupported methods before provider resolution/payment writes (CI #714). The focused patch is weaker/overlapping; do not merge independently.                                                                      |
+|       #149 | G-005             | Its client-side currency buckets are superseded by PR #138's server checkout preview, per-supplier totals, VAT disclosure and `totalsByCurrency` rendering. Do not replace the more complete server-authoritative checkout surface with this UI-only patch.                                                                          |
+|       #150 | G-009             | CI #1023 passed and it supersedes failed PR #146, but its delivery status semantics differ from PR #138: PR #150 records missing-token push as FAILED and throws for unconfigured channels; PR #138 persists NOT_CONFIGURED with stable reason codes. Reconcile the canonical status contract before porting/merging either version. |
+|       #151 | UX reference data | Adds country/currency selectors and reference data across web/mobile. This is not a direct duplicate of the G-001–G-009 fixes but touches mobile models also changed on PR #138; review generated/model compatibility during integration.                                                                                            |
+
+### CI checkpoint — 20 November 2026
+
+- PR #150 CI #1023 passed all ten executable jobs; k6 and staging release were skipped.
+- PR #151 CI #1022 passed all ten executable jobs; k6 and staging release were skipped.
+- PR #149 CI #1016, PR #148 CI #1015 and PR #144 CI #1011 passed all ten executable jobs; k6 and staging release were skipped.
+- PR #145 CI #1012 passed all ten executable jobs; this does not resolve the migration-numbering conflict or authorize applying migration 0070 to the shared database.
+- PR #146 CI #1013 failed in API unit tests because the notification test's database mock did not satisfy the service query chain. PR #150 is the newer G-009 candidate.
+- PR #147 CI #1014 failed API typecheck because test-mock properties from an index signature used dot notation. The test was corrected in commit `590ac892`; CI #1024 is still running at this checkpoint.
+- PR #138 CI #948 passed ten executable jobs on earlier code head `a1cd9308`. Its current head includes later documentation commits and has no exact-head workflow run yet.
+
+All these CI runs skipped k6 and the staging release. None establishes staging E2E, production readiness or release authorization.
+
+### Change-control boundary
+
+No PR was merged, no deployment/release was triggered, no shared database migration/grant/default-ACL/RLS change was performed, no worker was activated, and no external notification, payment or carrier side effect was initiated as part of this checkpoint.
+
+### G-001 integration update — 20 November 2026
+
+The focused PR #144 G-001 hardening has been ported into `remediation/phase-0-1-tenant-security`: offer detail object authorization, service-level active store-membership checks on propose/update/withdraw, JWT-derived actor attribution for merchant/admin actions, controller/service regression tests, and PostgreSQL lifecycle fixture updates. PR #144 CI #1011 is supporting evidence for the focused patch, but the combined remediation branch still requires exact-head CI and independent review. G-001 remains PARTIAL and the Phase 1 authenticated-business-testing gate remains closed until its full acceptance criteria are satisfied. PR #144 must not be merged independently while the same changes are present on PR #138.
+
+### Develop history reconciliation — 20 November 2026
+
+PR #140's read-only database access audit was already merged into `develop` at `f74eb588cc58fc99b105e749d39dbfbacb4f9775`. The remediation branch was reconciled with that commit using merge commit `92cb3d2498ea6539923cc3e5ef67e7b6eb738451`. The root package now exposes the `db:audit-access` forwarding script, the read-only audit workflow matches the canonical develop version, and the audit script was already identical. The branch compares as 547 commits ahead / 0 behind develop. The audit workflow remains manually dispatched and read-only; it was not run as part of this merge.
+
+The current combined remediation head still has no exact-head GitHub Actions run. The Vercel web/admin commit statuses report `Deployment rate limited — retry in 24 hours`; treat these as external preview-provider failures, not as successful CI or application-test results. Keep PR #138 draft.
+
+### G-002 runtime identity diagnostic integration — 20 November 2026
+
+The safe startup identity fingerprint from PR #142 has been ported into the remediation branch's `DatabaseService`. It queries the actual API pool and logs only session/effective role, database name, role capability flags and TLS. It does not log connection strings, hostnames, client addresses, credentials, SQL text or raw errors, and diagnostic failure is non-fatal. PR #142 CI #990 is supporting evidence for the isolated change; exact-head CI on the combined branch remains pending. The actual deployed role is not verified until a separately approved staging release exposes the startup record. No release or deployment is authorized by this plan.
+
+## Latest execution checkpoint — 20 November 2026
+
+PR #147 CI #1024 passed all 10 executable jobs, including container build and
+smoke; k6 and staging release were skipped.
+
+PR #138 CI #1037 reached the changed-file formatting gate after lint/typecheck
+and failed because the two remediation documents had been updated after the
+prior Prettier pass. The seven G-001/G-002 source and test files passed that
+formatting check. Both documents were then formatted with Prettier 3.9.6 in
+commit `f2c0bf67fddda8180f788cb868aed2aa193229d5`. The temporary formatter
+removed itself in the same commit.
+
+The current branch tree contains no `.m73b6-scratch/` files or root
+`test-token.txt`; the PR's changed-file list records those paths as deletions.
+A fresh exact-head CI run is required after this documentation update. PR #138
+remains draft. G-001 remains partial, G-002 remains blocked, and the migration
+numbering and notification status-contract conflicts remain unresolved. No
+staging release, deployment or shared-database mutation was performed.
+
+### Current verification gate — 20 November 2026
+
+PR #138 head `b092fd8970c1609f19cc2458ff4b04eaf48b5241` passed GitHub Actions CI #1041: all 10 executable jobs passed, including PostgreSQL integration, API unit/coverage, migration full apply, container build/smoke, contract/codegen and production build. k6 and staging release were skipped. The run follows a targeted fix for offer lifecycle semantics: suspension must not overwrite the merchant's independent `is_available` preference; reactivation now preserves it, with a regression assertion.
+
+Keep PR #138 open and draft. External Vercel web/admin preview statuses remain rate-limited and failing; they are not GitHub Actions test failures and no preview deployment was initiated. This CI result does not close G-001 or G-002, authorize staging/business testing, or resolve the competing migration numbering and notification status-contract decisions. Continue with the G-002 identity/access evidence and documented integration decisions under the existing no-live-mutation/no-deployment boundary.
+
+### G-002 audit compatibility and immutable revision checkpoint — 20 November 2026
+
+- Source review confirmed the repository's local development database and CI PostgreSQL integration service use PostgreSQL 16 (infra/docker-compose.dev.yml and .github/workflows/ci.yml). The audit previously called has_table_privilege(..., 'MAINTAIN') unconditionally; that privilege is PostgreSQL 17+, so the read-only audit would fail against the documented PostgreSQL 16 baseline.
+- Updated apps/api/scripts/audit-db-access.ts to read server_version_num, include the MAINTAIN privilege count only on PostgreSQL 17+, and return maintain_count: null when the server does not support that privilege. PostgreSQL 16 continues to be audited for the other supported table privileges. Commit: 82afa41668c8161874f401170ad466affaa6da1a.
+- Found and corrected a workflow/revision mismatch: the manual audit workflow previously checked out hard-coded develop, meaning dispatching it from the remediation branch would still execute the develop copy of the audit script. It now checks out the immutable github.sha selected for the workflow dispatch. Commit: 7eb09a40b42209feac0393151ab523e729f1f366.
+- No GitHub Actions run is currently associated with the audit-compatibility commit; the combined status currently shows only the two external Vercel preview contexts failing with provider build-rate-limit status. Therefore this source correction is NOT YET CI-VERIFIED. It has not been run against a live database.
+- The workflow remains manual-dispatch only and protected by the staging environment. It was not dispatched and no approval was requested. No staging secret was accessed; no deployment, migration, shared-database mutation, grant/default-ACL change, RLS enablement, worker activation or business side effect occurred.
+- PR #138 remains open and draft. G-002 remains BLOCKED until an authorized operator dispatches the reviewed immutable revision, approves the protected environment, and the actual API and migration identities are independently established. The audit report is evidence gathering only; it does not authorize privilege or RLS changes.
+
+### G-002 PostgreSQL CI execution coverage — 20 November 2026
+
+- PR #138 exact source head `3e856985893a5eb5da63434b856f0eacd20bcb29` passed GitHub Actions CI #1049: all 10 executable jobs succeeded, including PostgreSQL integration, full migration apply, formatting, typecheck, container smoke and build. k6 and staging release were skipped. The Vercel web/admin preview contexts remain externally rate-limited and are not part of the successful GitHub Actions result.
+- Extended the disposable PostgreSQL migration job to execute `pnpm db:audit-access` immediately after the full migration apply. This exercises the actual read-only audit against the CI PostgreSQL instance, after application roles and schema are provisioned; it uses no staging credentials and does not touch a shared database. Commit: `d8652850adf84d0b61986683a97d29149cd7670d`.
+- The new workflow step is not yet verified: it requires a new CI run on the updated workflow commit. Keep PR #138 draft. Do not dispatch the protected staging audit, deploy, migrate a shared database, alter grants/default ACLs, enable RLS, or activate workers as part of this gate.
+
+### PostgreSQL CI audit gate — 20 November 2026
+
+CI #1051 on the PR merge ref stopped at the changed-file formatting gate. Lint and typecheck passed; the Flutter analysis and tests passed. Prettier flagged `.github/workflows/ci.yml` and both remediation tracking documents. Because the lint job failed, Migration Full Apply and the newly added read-only database audit step were skipped. The formatting corrections are being applied before rerunning the complete gate. No staging audit, deployment, shared-database mutation or release action was performed.
+
+### PostgreSQL CI audit execution — 20 November 2026
+
+- Exact branch head `1ec2a60d9bce6ff502fa7baa9e740798fc2b60f9` passed CI [#1053](https://github.com/nabeel2323/scs-platform/actions/runs/44756359937): all 10 executable jobs succeeded. The changed-file formatting gate, full migration apply, and PostgreSQL audit step all passed; k6 and staging release were skipped.
+- The audit ran read-only against disposable PostgreSQL 16.16 and reported `mutationPerformed: false` and `connectionStringPrinted: false`. It identified the CI migration login `scs` as superuser/BYPASSRLS, with 116 public tables and zero RLS-enabled tables. `anon` and `authenticated` had no effective table privileges in this migrated fixture. This is fixture evidence only and does not establish the staging API or migration identity.
+- Follow-up hardening: the CI migration gate now creates a random-password, non-superuser `scs_audit` login with no schema/table grants and runs the audit using that identity. This avoids treating the migration owner's superuser session as a sufficient test of the audit's catalog-read requirements. The restricted-login execution is pending a fresh CI run.
+- G-002 remains BLOCKED pending an authorized protected staging audit and independent confirmation of the real API/migration runtime identities. No staging dispatch, deployment, shared-database mutation, grant/default-ACL change, RLS enablement, worker activation or business side effect was performed.
+
+## Exact-head CI follow-up — 21 November 2026
+
+PR #138 source head `dc2436ef6e2fadd1a982e44f935fcc5f56bc6d0b` was evaluated by CI #1131. Lint, typecheck, Flutter analysis and Flutter tests passed. The changed-file Prettier gate failed on the offer-controller unit test and the database-access verification report; dependent test, migration, build, integration and release jobs were skipped. The remediation is limited to formatting and documentation reconciliation and is being grouped into one commit. Do not treat CI #1131 as a passing verification run. Re-run CI on the resulting exact PR head and verify the full required jobs before advancing the release gate. G-001 remains partial pending independent review and complete role/tenant acceptance evidence. G-002 remains blocked pending verified API/migration identities and approved access architecture. No staging release, deployment or shared-database mutation is authorized by this checkpoint.
+
+## Grouped formatting correction — 21 November 2026
+
+The exact-head CI #1133 run passed lint, typecheck and Flutter analysis/tests but failed the changed-file Prettier gate on four files: `catalog-offer-controller.spec.ts`, `DB-ACCESS-VERIFICATION-2026-11-19.md`, `IMPLEMENTATION-PLAN.md` and `IMPLEMENTATION-PROGRESS.md`. The repository-locked Prettier write/check completed successfully for all four in a temporary self-cleaning workflow. Commit `96820fe00da6c7db29736e04cea82ebcf78b36b9` groups the formatting updates and removes the temporary workflow. Full exact-head CI is still required; do not treat the formatter run as test, migration or build verification. Keep PR #138 draft and G-001 partial/G-002 blocked pending their stated evidence gates.
+
+## Post-format verification checkpoint — 21 November 2026
+
+CI #1136 ran on pre-format documentation head `e8afb2d8713217e9b4f77de3f2b534046fa6202e`. Lint, TypeScript typecheck, Flutter analysis and tests passed. The changed-file formatting gate failed only on `IMPLEMENTATION-PLAN.md` and `IMPLEMENTATION-PROGRESS.md`; dependent API, PostgreSQL, migration, web/admin, boundary and build jobs were skipped. The repository-locked formatter subsequently passed write/check for both documents and removed its temporary workflow. The post-format branch head is `a5227c897dc397ad4f890fe2bf96181c971e59f2`; a full exact-head CI run is required. Keep PR #138 draft. G-001 remains PARTIAL and G-002 remains BLOCKED pending their stated independent evidence gates.
+
+## Exact-head CI checkpoint — 21 November 2026
+
+PR #138 source head `c7165d891b87e008e9872e6aaefa299eaef9a61d` passed [CI #1142](https://github.com/nabeel2323/scs-platform/actions/runs/44832686714). All 10 executable jobs passed, including changed-file formatting, lint/typecheck, Flutter, API unit/coverage, PostgreSQL integration, Web/Admin, E6 boundary lint, isolated full migration apply and read-only database audit, contract/codegen, container smoke and build. k6 and staging release were skipped. This verifies the current exact source head in CI, not staging or production. Keep PR #138 open and draft: G-001 remains PARTIAL pending independent security review and complete role/tenant acceptance evidence; G-002 remains BLOCKED pending approved protected staging identity audit and reviewed database access design. No shared database or staging mutation, migration, grant/RLS change or deployment was performed.
+
+## Exact-head verification and G-001 role boundary — 21 November 2026
+
+The merchant-offer controller now explicitly restricts merchant list/analytics and offer-detail reads to merchant principals (`MERCHANT_OWNER`, `MERCHANT_STAFF`, and the legacy `MERCHANT` role), subject to the existing active store-membership checks. Tenant-privileged callers continue through the existing governance permission path. Buyer requests are rejected before membership lookup or target-offer loading. Focused controller tests cover these role paths.
+
+The first CI attempt on this change failed only at changed-file formatting; the API and PostgreSQL dependent jobs were skipped. The repository-locked Prettier correction then completed and removed its temporary workflow. The exact formatted head `adfcd7c4ea7476c19d54f4a70dd09de603d8c089` passed [CI #1154](https://github.com/nabeel2323/scs-platform/actions/runs/44842282830), with all 10 executable jobs green, including API unit/coverage, PostgreSQL integration, migration full-apply/read-only audit, Web/Admin, boundary, contract/codegen, build and container smoke. k6 and staging release were skipped.
+
+This closes the formatting/test-execution blocker for this change, but it does not close G-001: independent security review and the full owner/staff/buyer/foreign-merchant/platform-admin acceptance matrix remain required. G-002 remains blocked pending authorized protected staging identity evidence and a reviewed least-privilege/RLS design. Keep PR #138 draft. Do not deploy, write to staging, alter shared database privileges/default ACLs, apply migration 0070, enable RLS, or activate workers under this verification step.
+
+## G-001 offer existence confidentiality follow-up — 21 November 2026
+
+Merchant offer detail and mutation paths now share a scope-first service boundary. The service resolves the offer's store scope, verifies active-organization ownership and ACTIVE store membership, and only then loads full offer detail. Unknown, foreign-organization and same-organization non-member identifiers return the same 404 response. Governance reads remain on the separate permission-gated admin path. Focused regression coverage and exact-head CI are required before treating this increment as verified; G-001 remains PARTIAL pending the complete acceptance matrix and independent security review.
+
+## G-001 inactive-store buyer visibility follow-up — 21 November 2026
+
+Buyer-facing product offer lists and ranked seller results now require the owning store to be ACTIVE as well as the offer being ACTIVE and available. DRAFT stores can continue merchant-side setup and offer management, but their offers are excluded from buyer discovery until store activation. Unit coverage checks both query paths and the no-active-store case. Exact-head CI and the remaining acceptance/review gates are still required.
+
+### G-001 query-shape refinement — 21 November 2026
+
+The ACTIVE-store visibility boundary uses a correlated SQL EXISTS predicate in both buyer-facing offer queries rather than materializing all active store IDs. This keeps tenant/store visibility filtering in the database and avoids an application-side list of store identifiers. The unit tests assert the query shape; exact-head CI remains the verification gate.
+
+## UX-012/UX-013 implementation continuation — 22 November 2026
+
+Mobile merchant pricing is now implemented against the existing pricing API: list/detail routes, price-list create/update/activation, quantity-tier CRUD, product/variant selection, offer linkage and MOQ-tier preflight. Admin order details now return and display product title, variant title and SKU. PricingService variant-tier reads require storeId and enforce the owning store through the priceLists join.
+
+Focused tests are committed but not run. The next source implementation stream is UX-010 re-audit of remaining Admin/Web/Mobile surfaces. G-002 live runtime identity/catalog evidence and transaction-context/RLS design remain protected gates; no global transaction interceptor, RLS or grants are approved.
+
+## 40. G-036 — Authorize realtime store and order room subscriptions — 23 November 2026
+
+### Finding
+
+The Socket.IO gateway authenticated the connection and restricted `user:{id}` rooms to the matching user, but it accepted arbitrary authenticated joins to `org:{storeId}` and `order:{orderId}` rooms. The store room broadcasts new-order metadata and order-status events; the order room broadcasts order status. A valid JWT alone did not prove store membership, buyer ownership, driver assignment or the required read permission. This created a cross-tenant realtime subscription path independent of the guarded REST endpoints.
+
+### Remediation implemented
+
+- Preserve the authenticated JWT subject, active organization, role and permission claims on the socket.
+- Validate room names and UUID identifiers; fail closed for malformed, missing or unauthorized targets.
+- Restrict `user:{id}` to the authenticated user.
+- Restrict `org:{storeId}` to an existing store and require `merchant:orders:read` plus active-organization ownership and ACTIVE store membership. Platform-privileged users require `orders:read`.
+- Restrict `order:{id}` to the buyer who owns the sub-order/master-order with `orders:read`, a merchant with `merchant:orders:read` plus active store membership, a driver assigned to the shipment with `fulfillment:shipments:read`, or platform staff with `orders:read`.
+- Make the Web merchant realtime client subscribe only when the active user has `merchant:orders:read`.
+- Add focused gateway regression tests for own/foreign user rooms, merchant permission and membership, foreign organization denial, buyer/master-order ownership, assigned/unassigned drivers and platform-staff grants.
+
+### Acceptance and verification
+
+- No unauthorized room may be joined, even when the socket has a valid JWT.
+- Store and order rooms must be scoped to the current organization and active store membership, buyer ownership or driver assignment as applicable.
+- Missing permissions, missing records, malformed identifiers and database authorization errors must fail closed without disclosing foreign-record existence.
+- Focused API and Web tests are added but have **not been executed**. Exact-head CI and independent security review remain pending; do not mark this finding closed.
+- No shared database privileges, RLS policies, migrations, staging records, worker configuration or deployment were changed.
+
+**Status:** IN PROGRESS — source remediation implemented; focused tests added, not executed; exact-head CI and independent review pending.
+
+## FIN-004 — Settlement lifecycle event consistency — 23 November 2026
+
+Settlement calculation now writes `PAYMENT_SETTLEMENT_CALCULATED` rather than the unrelated refund-success event. Marking PAID now locks the settlement row and atomically updates the settlement, appends `PAYMENT_SETTLEMENT_PAID` history with actor/amount/reference metadata, and writes `payment.settlement_paid` to the transactional outbox. FIN-DSH-13 asserts calculation history/outbox; FIN-DSH-17 verifies concurrent pay attempts yield one winner and one history/outbox pair. Not executed.
+
+## FIN-005 — COD order payment projection consistency — 23 November 2026
+
+COD cash confirmation now synchronizes the denormalized `orders.payment_status` to CONFIRMED in the same transaction as the payment transition, while preserving fulfillment/order status (for example DELIVERED). FIN-DSH-18 verifies order/payment projection and payment event. Not executed.
+
+Source/test commits: `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699150cb896a23eb171eab0ae5a00`, `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`. Status: IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, automatic payout, staging, shared DB or deployment changes.
+
+## Financial correctness continuation FIN-004–FIN-013 — 23 November 2026
+
+- FIN-004 settlement event consistency: calculation event corrected; PAID transition now atomically persists settlement state, immutable payment history and outbox event. Commits `50f544a98dc8d9b84d8a3709b250425df48c4d5a`, `def9131ba94699150cb896a23eb171eab0ae5a00`.
+- FIN-005 COD order payment projection: payment_status synchronized without changing fulfillment state. Commit `51d7d9c8a6a26450f9cbc1dd32d0a6779513acd9`.
+- FIN-006 dispute refund recovery validates full request identity before reusing an orphan refund. Commit `9899113a4f574d2733b957d2f1b489e35a71fe0f`.
+- FIN-007 refund approval synchronizes the order payment projection. Commit `5b68edac4d148f68656b4331a9612cd1752eab3d`.
+- FIN-008 return refund recovery validates full request identity. Commit `72927529e64a719741b94b864f6adba7cafd4f0d`.
+- FIN-009 dispute resolution uses compare-and-set to prevent duplicate terminal events/outbox. Commit `2b8e2fa7cf2aab87d4186153a61748bc82805c52`.
+- FIN-010 return refund adjustment serializes against settlement payment. Commit `a1dc7b2cf31c83f2a59c0a72f0056f4955fe7143`.
+- FIN-011 settlement adjustment preserves original currency. Commit `ba3318724c3080d4c29baee1c81e972262e14ac4`.
+- FIN-012 missing financial breakdown blocks manual/COD payment confirmation and rolls back. Commit `cdb189e95dd7022793af33352a18c31f81117059`.
+- FIN-013 payment expiry records cancellation history only after the conditional order update succeeds. Source/test commits `028e30e9ebeb626b51b6d80bc28467c9c946c419`, `83550c34c7dc11492fc6e5c5fc6fcb418b79243c`.
+- FIN-DSH-11–28 are added but not executed. Status for all is IMPLEMENTED / TESTING_PENDING. No schema/migration, provider, gateway, automatic payout, staging, shared DB, grant/RLS, deployment or worker changes.
+
+#### FIN-014 — Discount-adjusted commission reversal and currency integrity
+
+Commission reversal must use the order financial breakdown as the basis for allocating order-level discounts across returned goods. The same returned net-goods basis must drive both the commission reversal ledger and settlement adjustment. Both records must preserve the original payment currency. PostgreSQL FIN-DSH-29 covers a partial discounted return and both persisted ledgers. Implementation is present; test pending Phase 3. No schema/migration or gateway/payout scope change.
+
+#### FIN-015 — Exact commission reversal arithmetic
+
+Proportional commission reversal must use exact BigInt multiplication/division even when each minor-unit input is a safe JavaScript integer, because the product can exceed Number.MAX_SAFE_INTEGER. The shared helper validates safe-integer inputs, computes floor(original commission × returned net goods / order net goods), and caps the result at remaining commission. Unit coverage includes a case where floating-point arithmetic would overstate reversal by one minor unit. Implementation and test are present; test pending Phase 3. No schema/migration or gateway/payout scope change.
+
+#### FIN-016 — COD payment expiry exclusion
+
+Cash on delivery is collected at delivery and must not expire on the bank-transfer payment timeout. Stale-payment discovery must exclude CASH_ON_DELIVERY, and expirePayment must enforce the same rule at the service boundary. FIN-DSH-30 verifies a stale COD payment remains AWAITING_PAYMENT, its delivered order remains unchanged and no PAYMENT_EXPIRED event is emitted. Implementation is present; PostgreSQL test pending Phase 3. No schema/migration or gateway/payout scope change.
+
+## FIN-019 — Settlement adjustment posting integrity — 23 November 2026
+
+Settlement adjustment posting must preserve the financial sign convention `net = gross - refund - commission - fee`: a commission reversal is a merchant credit and therefore increases net, while refund, delivery-fee and balance-debit adjustments reduce net. Amounts must be positive safe integers in minor units. Posting must lock and attach an existing primary settlement; an approved adjustment must not be marked POSTED without a corresponding ledger row. The implementation adds a type-specific net helper, amount validation, primary-settlement row locking and fail-closed behavior when no primary settlement exists. Unit sign tests and PostgreSQL FIN-DSH-34/35 are added; execution remains pending Phase 3. No schema/migration, gateway or payout scope change.
+
+## FIN-019 — Settlement adjustment posting integrity — 23 November 2026
+
+Settlement adjustment posting must preserve the financial sign convention `net = gross - refund - commission - fee`: a commission reversal is a merchant credit and therefore increases net, while refund, delivery-fee and balance-debit adjustments reduce net. Amounts must be positive safe integers in minor units. Posting must lock and attach an existing primary settlement; an approved adjustment must not be marked POSTED without a corresponding ledger row. The implementation adds a type-specific net helper, amount validation, primary-settlement row locking and fail-closed behavior when no primary settlement exists. Unit sign tests and PostgreSQL FIN-DSH-34/35 are added; execution remains pending Phase 3. No schema/migration, gateway or payout scope change.
+
+## FIN-020 — Reconciliation arithmetic and discrepancy type safety — 23 November 2026
+
+The reconciliation service now follows the settlement writer's ledger semantics: primary settlements debit commission; ADJUSTMENT rows add a positive commission reversal credit. Safe integer checks and BigInt operations prevent rounded monetary comparisons. Delivery-fee refund caps use the return workflow's net-goods basis and half-up rounding, and reconciliation covers both delivery-fee exception and refund adjustment types. Refund-status mismatch details remain narrative evidence and no longer enter BIGINT monetary columns.
+
+Unit regressions and disposable-PostgreSQL FIN-DSH-36 have been added. Source/test commit: `ad478cc53ce40bec86172e881b4f14cea7e6dfac`. Execution remains pending the consolidated Phase 3 campaign; this increment is not CI-verified. No schema/migration, shared database/staging, environment, worker, grant/RLS, gateway or payout changes.
+
+## FIN-021 — Reconciliation run lifecycle integrity — 23 November 2026
+
+Reconciliation run versioning is serialized by a PostgreSQL transaction-scoped advisory lock keyed by tenant, period and currency. The unique index is organization-scoped and treats NULL org_id as one global scope. Supersession links now point from the prior run to its successor; migration 0074 repairs the historical backward links. Run creation, source checks, discrepancy inserts and COMPLETED transition share one transaction. On failure the transaction rolls back all partial rows, then a separate best-effort transaction records a FAILED run with zero discrepancies and a generic execution-error summary.
+
+PostgreSQL FIN-DSH-37/38 cover concurrent tenant version allocation, forward supersession and failure rollback. Tests are added but not executed. Commit: `e2dcb43e37d2a67a72d0891c4c3519d19719b5ae`. Migration 0074 is source-only and has not been applied to shared/staging.
+
+## FIN-022 — Financial history and outbox consistency — 23 November 2026
+
+Payment creation and CREATED → AWAITING_PAYMENT now publish outbox messages in the same transactions as their immutable payment events. Dispute opening locks the order and persists the dispute, OPENED history and outbox together; evidence and response transitions lock the dispute and atomically persist history/outbox. Settlement-adjustment creation emits `settlement_adjustment.created` in its insert transaction. Generic outbox polling now claims pending non-carrier events using `FOR UPDATE SKIP LOCKED`, a five-minute lease and owner-conditional success/failure updates. SQL aliases claimed event fields to the dispatcher's camel-case contract.
+
+PostgreSQL FIN-DSH-39–42 and unit tests cover event parity, dispute rollback, adjustment creation event and two-instance outbox claim. Tests are added but not executed. The generic dispatcher still logs events rather than publishing to an external event bus. Commits: `3784bca3dd9a21fa3123e555aebbdd13addfb21b`, `a77339ab1b50d881fc006a16b9613505458fcd27`, `ccde36322f9bcfd12f2de2bfad22390cd9b7f503`, `5d7eadf07e11801813a606dfeeda60b83c16eb19`, `e761195829d3fcd4bc2d9d0eecfd848188c32d53`.
+
+## FIN-023 — Checkout and dispute-refund transaction boundaries — 23 November 2026
+
+BANK_TRANSFER checkout now updates the order to PAYMENT_PENDING and the payment to AWAITING_PAYMENT, appends both immutable history transitions and publishes matching outbox events inside the original checkout transaction. The post-commit best-effort mutation has been removed; checkout fails closed if the payment service is unavailable. `PaymentsService.requestRefund` accepts an optional transaction client. Dispute resolution now locks the dispute row and includes refund request, payment history/outbox, refund-dispute linkage, dispute RESOLVED state/history/outbox in one transaction. Existing orphan-refund idempotency recovery is retained.
+
+PostgreSQL FIN-DSH-43/44/45 cover success parity and rollback injection. Tests are added but not executed. Commits: `a5fa4806e310159b6f2708d366764ffe4fa3892f`, `442b03a77e4645fba01b8f33d3d2351265365b9d`, `71c8acb5a890a8b7350915cc4eca80dd6104874c`.
+
+## FIN-024 — Payment proof upload lifecycle — 23 November 2026
+
+The payment proof API now accepts multipart file uploads (10 MB, JPEG/PNG/WebP/PDF) while retaining receipt URL/reference compatibility. Storage configuration and file constraints are validated; generated keys are scoped to the payment. If the DB transaction fails, the service checks the persisted payment row and deletes the new object only when it is not referenced. If verification fails, the object is retained. Previous managed proof deletion occurs only after a successful replacement commit; external URLs are never deleted and omitted replacement fields preserve the existing proof.
+
+PostgreSQL FIN-DSH-46/47 cover failure compensation and replacement ordering. Tests added but not executed. Commits: `7f6e3a949975511b5be56470c0dd427dc92ba16d`, `41c8db370a30124e981c42c1e7d7b8487771e8ec`.
+
+**Residual:** process crash between storage upload and DB transaction may leave an orphan; cleanup verification/delete failures also intentionally leave the object. No durable upload-intent or sweeper exists.
+
+### Next source-audit task — FIN-025
+
+Design a durable upload-intent/recovery workflow that survives process crashes. Use bounded lease/retry and verify payment-row references before deletion. Never perform broad bucket listing/deletion or delete any object referenced by a committed payment row. Add PostgreSQL and storage-mock tests for crash recovery, retries, concurrent replacement and cleanup failure. No shared/staging DB writes or worker activation.
+
+### FIN-024 follow-up — uncertain upload response
+
+Transition validation now precedes storage upload. If `putObject` times out after object acceptance, the service checks the generated key and deletes the object if present. FIN-DSH-48 covers this path. Commit: `847647c424097e5ace69236d0c3b4592f85d30e9`. Tests not executed. Durable recovery for a process crash between upload and DB transaction remains FIN-025.
+
+## FIN-025 — Durable payment-proof upload recovery — 23 November 2026
+
+Each generated proof key now has a durable intent persisted before object storage is called. Payment row, immutable event, outbox and new intent COMMITTED state share one transaction. Replaced managed proofs receive a cleanup intent in the same transaction. A callable recovery method uses stale-age eligibility, SKIP LOCKED claims, lease fencing, global payment-row reference checks, exact-key HEAD/DELETE and bounded exponential retries. No bucket listing or broad delete exists; the method is not scheduled or activated. Migration 0075 is source-only. FIN-DSH-46–53 added/updated; tests not executed.
+
+## FIN-026 — Payment event actor attribution — 23 November 2026
+
+verifyPayment, confirmCash and privileged return transitions previously hardcoded actor classes despite allowing privileged overrides. They now record ADMIN versus MERCHANT/BUYER from the authenticated caller. FIN-DSH-54/55 cover merchant verification, admin COD confirmation and privileged return overrides. No migration; tests not executed. Commit: e5733dc4a403c15da27d9064aa8703a89f6ee7f4.
+
+## FIN-027 — Return refund balance aggregation — 23 November 2026
+
+The return-side cumulative refund guard now matches the payment refund guard by counting `APPROVED` as reserved balance. PostgreSQL `SUM(bigint)` is read as exact numeric text and converted through BigInt, avoiding a 32-bit cast overflow and rejecting totals outside JavaScript's safe-integer range. FIN-DSH-56 covers both conditions. Source: `6ae8aba762215f69f42e74e4608a4fa31a02543b`; test: `5b636df49155ea523bc730852ed900720a858a88`. Tests remain pending the consolidated Phase 3 campaign.
+
+## FIN-028 — Settlement calculation actor attribution — 23 November 2026
+
+The admin-only settlement calculation path now persists `PAYMENT_SETTLEMENT_CALCULATED.actor_type = ADMIN` instead of the misleading SYSTEM class. FIN-DSH-57 verifies actor ID and class in PostgreSQL. Source: `5a7dfd6ea67de61bb016cc7a7ef31749760955d8`; test: `05799cde897871ab9752af07bf70830ac834edbf`. Test remains pending Phase 3.
+
+## FIN-029 — Payment confirmation order-history actor parity — 23 November 2026
+
+Payment confirmation now propagates the authenticated ADMIN/MERCHANT actor class into the linked order status history, matching the payment event's actor ID/class. FIN-DSH-54 covers both ledgers. Source: `77c2caaa322836cc8e7d651f6577df715c5e3228`; test: `8fc1759a9e374f12513c82d301b2c9b934a98840`. Test remains pending Phase 3.
+
+## FIN-030 — Refund-completion period attribution — 23 November 2026
+
+Monthly reconciliation now attributes refund and commission-reversal checks to the append-only `REFUNDED` transition timestamp, rather than the original return-request creation timestamp. A fallback preserves legacy rows without a REFUNDED event. FIN-DSH-58 covers a cross-period return/refund. Source: `93a908d4627c804af5d12e20c6a1e7c2811524e9`; test: `5abae2018b9e6d6a43d5e3b90764ef80560b4ea0`. Test pending Phase 3.
+
+## FIN-031 — Cross-period duplicate refund detection — 23 November 2026
+
+Duplicate-refund reconciliation now scopes candidate returns by successful refund `updated_at` in the accounting period, then counts all successful refunds for each candidate return across periods. Tenant scoping is retained. FIN-DSH-59 covers a prior-period duplicate plus a current-period success. Source: `6089a1fd821c35c0dcd9f0cde849e145326905e1`; test: `4bdd2935d48ea2c6ef3d633aa6af2f3fe39369ab`. Test pending Phase 3.
+
+## FIN-032 — Settlement-adjustment accounting-period correctness — 23 November 2026
+
+Reconciliation previously used adjustment creation time for POSTED-adjustment approval and delivery-fee-cap checks. This misattributed adjustments created in an earlier period but posted in the current period; delivery-fee-cap checks also included DRAFT and other unposted adjustments. Both checks now require status POSTED and use the adjustment transition timestamp (updated_at) as the accounting-period timestamp. PostgreSQL FIN-DSH-60 covers a prior-period-created adjustment posted in the current period and confirms that an unposted draft is excluded. Source commit: 0c65476d1135d18504ae910083299683fdb8d072; test commit: 39a8ee35e81e919601e49d0564fee023d5a39871. Test added, not executed.
+
+## FIN-033 — Exact payment refund aggregate arithmetic — 23 November 2026
+
+Three payment-side SUM(bigint) aggregates used for refund reservation, refund approval projection and settlement calculation were exposed as JavaScript numbers without an explicit precision guard. They now return PostgreSQL numeric text, convert through BigInt, and fail closed when negative or outside Number.MAX_SAFE_INTEGER. Unit coverage verifies totals above the 32-bit boundary, unsafe aggregate rejection and malformed/negative values. Source commit: 633d56a06e073ee416e5b7a989167ef5828f13d8; test commit: 115b0dab007e4071f6a32ee1e564427a86732249. Tests added, not executed.
+
+## FIN-034 — Caller-owned refund transaction support — 23 November 2026
+
+PaymentsService.requestRefund now accepts an optional caller-owned transaction client and reuses it rather than opening a nested transaction. This aligns the implementation with the existing dispute-resolution caller, which passes its transaction so refund creation, payment event/outbox, refund linkage and dispute resolution remain atomic. Existing PostgreSQL FIN-DSH-45 covers injected failure rollback; tests remain unexecuted. Source commit: 2c4b4538cc10e3d4e6217ca56967c89e52657fd8.
+
+## FIN-035 — Atomic return-refund and return-ledger transition — 23 November 2026
+
+Return refund creation previously committed the payment refund/event/outbox first, then linked the refund and advanced the return request in a second transaction. It now locks the payment and performs refund creation (reusing PaymentsService's caller-owned transaction), return linkage, REFUND_PENDING state/history and return outbox in one transaction. The existing idempotency recovery path remains for legacy split-transaction rows. PostgreSQL FIN-DSH-61 injects failure at return outbox persistence and asserts that refund, payment event/outbox and return changes all roll back. Source commit: e462c256be710a81e42b2f2d4093d4700abe1818; test commit: f5d38d5a4af42ec29fa38040d8ba184e5dcbcdff, with scoped outbox assertion correction 4ad18e1eab3495030c6fff719607b5101337edb4 and test index update ac266c2c365d23c3ef3e58032616bb118d037715. Tests not executed.
+
+## FIN-044 — Adjustment parent isolation and payout visibility — 23 November 2026
+
+Implementation follow-up: adjustment parent selection must exclude all adjustment ledger rows, not merely rows currently in ADJUSTMENT status. Because payout transitions an adjustment row to PAID, the query also excludes rows carrying `metadata.adjustmentId` and legacy rows identified by the stable posted-adjustment notes prefix. Payout preserves that legacy marker. The Admin Settlements screen now exposes ADJUSTMENT filtering and the standard payout action. FIN-DSH-68/69 and Admin recovery coverage are added; execution remains part of the consolidated Phase 3 verification campaign.
+
+## FIN-045/046 — Adjustment reconciliation and merchant visibility — 23 November 2026
+
+The implementation now preserves adjustment accounting semantics across the ADJUSTMENT → PAID transition by identifying rows through durable adjustment metadata or the legacy posted-adjustment note marker. The merchant-facing read-only Settlements page consumes the existing organization/store-scoped API, with store/status filtering and distinct paid-adjustment labeling. Admin settlement listings also label paid adjustment rows. Regression coverage is added; execution remains part of the consolidated Phase 3 campaign.
+
+
+## G-002 — Merchant document metadata context boundary (24 November 2026)
+
+Merchant document metadata operations are separated from object-storage signing at the controller boundary. Only registration of already-uploaded metadata and the two metadata-list reads are wrapped by the verified-user transaction context. Upload URL signing and download URL signing remain excluded because they perform object-storage work; download signing currently also persists the generated URL. Do not wrap those complete handlers in a request transaction. A future slice must split short DB metadata reads/writes from storage calls, preserve membership/ownership checks and avoid holding a transaction across storage I/O.
+
+
+## G-002 — Orders cancellation database phase (24 November 2026)
+
+The dedicated cancellation flow may use a service-level user actor context only around its DB-only phases. Payment cancellation is currently a conditional payment-record status update, payment-event insert and transactional outbox write; it does not call a provider. Keep the complete cancellation controller handler outside the request interceptor: the order/shipment transaction must commit before realtime emission. Run a second short user actor context for master-order recalculation and final read. Merchant rejection remains excluded while it invokes refund orchestration; checkout remains excluded until its pre-transaction, transaction and post-commit side effects are separated.
+
+
+## G-002 Orders rejection and Merchant document download-presign — 24 November 2026
+
+Merchant rejection now runs under the verified merchant actor for the database lifecycle. Stock release is performed with the same transaction client as the optimistic REJECTED status update, status history and rejection outbox row. This corrects the prior per-item stock transaction boundary: stock/status/history/outbox now commit or roll back together. A stable reject-refund:<orderId> key is used for retry-safe refund-request creation in a separate DB-only actor phase after rejection commits; payment-provider execution remains downstream of the outbox worker. Master-order recalculation and final read use another short actor scope.
+
+Merchant/admin download presign now reads document metadata (and, for merchant callers, verifies current organization membership) in a short user actor scope, calls object storage outside all DB transactions, then persists storageUrl in a second short user actor scope. Controller methods pass verified JWT identity and intentionally have no transaction interceptor. Upload presign remains storage-only.
+
+Regression specs added: orders-reject-actor-context.spec.ts and merchant-document-presign-context.spec.ts. Not executed. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No RLS, grants, migrations, shared/staging database writes, deployment, worker activation, merge or release.
+
+
+## Refund request actor attribution and provider boundary correction — 24 November 2026
+
+The merchant-rejection request now passes the actual authenticated merchant CallerContext and merchant user ID into PaymentsService.requestRefund. PaymentsService permits this non-buyer path only for reason MERCHANT_REJECTION, a MERCHANT_* role, and an order that passes assertOrderAccessible for the caller's active organization. The payment event records actorType MERCHANT and actorId/requestedBy as the merchant. The previous synthetic BUYER caller was removed. A focused regression spec covers valid same-org merchant initiation and rejects an order outside the merchant's active organization.
+
+Important scope boundary: requestRefund creates a REQUESTED refund row, payment event and outbox row. OutboxDispatcher.dispatch currently only logs generic events and marks them dispatched; it does not call a payment provider. This work does not implement automatic refund settlement/provider execution. That remains outside this slice and must not be implied as complete or activated without the relevant product/financial approval. No provider call or worker activation occurred. Tests remain authored but unexecuted.
+
+
+
+## 24 November 2026 — actor-context typecheck correction
+
+The source and fixture corrections in commit `c587ed46db9a4893f2fa0167a74e671bc9d3ae10` address the concrete TypeScript diagnostics recorded by automatic CI #1475. This is implementation/type-safety remediation, not test verification. No local test, formatter, lint, typecheck or E6 command was run. Actions #1476 was unintentionally triggered by the PR push; no additional CI run is intentionally requested. G-002 remains IN PROGRESS pending complete operation/predicate mapping and protected runtime/catalog evidence.
+
+
+## 24 November 2026 — carrier recovery and worker lease principal adoption
+
+Carrier reconciliation and worker lease services now use explicit worker/system principals for database-only operations. The admin carrier recovery controller separates the authenticated user's authorization/state transition from the subsequent provider reconciliation call, and writes audit under a separate principal. No provider call, database write, migration, RLS policy, grant/default-ACL change, staging action, deployment, worker activation, merge or release was performed by this documentation update. Regression specs remain unexecuted.
+
+## 24 November 2026 — latest automatic CI result and fixture correction
+
+Run #1478 (45386103613) on source commit 98161b3f2e49b4b16af3d0fe6c98c5a8074a441f completed FAILURE. API lint succeeded; API typecheck reported only three diagnostics in worker-lease-expiry-fencing.spec.ts: withActorContext was not bound in the third test, and its callback context parameter was consequently implicit any. Mobile Flutter Tests succeeded. Format check and all downstream unit/coverage, integration, E6, build, contract, k6, container and staging jobs were skipped. Source fixture correction commit 5de17d1880aa645a2efeccaf98eba959c6da7c8e binds the helper in that test. It contains [skip ci]; no rerun is requested, so the correction is not yet typecheck-verified.
+
+Exact current head 5de17d1880aa645a2efeccaf98eba959c6da7c8e has zero GitHub Actions runs. Vercel Web/Admin contexts are FAILURE because the preview provider rate-limited deployments. PR #138 remains OPEN / DRAFT / UNMERGED.
+
+## 24 November 2026 — Catalog Import read-only/report actor-context slice
+
+CatalogImportController list, detail and errors routes now use TenantDatabaseContextInterceptor after the class-level JWT, permission and role guards. Preview is intentionally excluded because it reads only the in-memory plan cache. Upload, execute and retry are intentionally excluded because they combine object-storage/workbook processing with multiple DB phases. The report route passes verified JWT sub/role/activeOrg to CatalogImportService; persisted errors are fetched in a short user actor context, then the XLSX workbook is generated after the DB scope closes. Regression metadata coverage was added for route interceptor selection; no test was run.
+
+Catalog Import upload, validation, execution, retry, template dropdown reads and export source queries now use explicit caller actor scopes with storage/workbook work outside DB transactions. Next P13 operational services remain: P13Monitor, OpsAlert, OpsControl and PilotControl principal separation.
+
+## G-002 — Catalog Import actor-context phase separation — 24 November 2026
+
+**Source implementation checkpoint:** `ff83be282b9f36c1153271e612e5686bbee33931` (source files: CatalogImportController, CatalogImportService, ExcelExecutorService and TemplateGeneratorService).
+
+- The controller now forwards verified JWT `sub`, `role` and `activeOrg` into upload, execute, retry, template download and catalog export operations. Existing list/detail/errors routes retain the post-guard verified-user interceptor; preview remains in-memory only.
+- Upload performs object-storage put before opening a short user actor scope for the import-row insert. Auto-validation then passes the same verified caller through each phase.
+- Validation scopes job/status reads and writes, existing-catalog snapshots, reference resolution, plan/refs persistence and error persistence to short user actor transactions. Storage download, byte collection, XLSX parsing, validation, planning and cache mutation remain outside DB transactions.
+- Execution scopes import status/counter updates, publishability DB reads, error/plan persistence and audit persistence. The audit record uses a separate audit principal. ExcelExecutorService establishes a verified user actor for each of its 12 ordered entity-type transactions; combination-key updates use a separate short user actor scope. Existing per-entity transaction/savepoint and dependency behavior is retained.
+- Retry resolves the job under the caller actor, then reuses caller-aware validation and execution. Failure-path plan snapshot persistence is also actor-scoped.
+- Template dropdown source rows are loaded under one short actor scope; template workbook creation and XLSX serialization occur after it closes. Catalog export scopes each independent source query and performs workbook row generation/serialization outside those query scopes.
+- Object storage and workbook parsing/generation are not wrapped in actor transactions. No request-wide transaction was added.
+- This is source implementation only. No tests, formatter, lint, typecheck, E6 or CI were intentionally run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No RLS, migration, grants/default ACLs, shared/staging database actions, deployment, worker activation, merge or release occurred.
+
+**Remaining G-002 work:** P13Monitor/OpsAlert/OpsControl/PilotControl worker/system/operator principal separation; remaining source-backed raw SQL/function/trigger/partition/bootstrap/CLI/helper access paths and exact per-operation predicates; migration-backed FK validation; protected read-only catalog and actual API/migration runtime identity evidence through the authorized process. G-001 independent review and G-036 verification remain open; Phase 6 remains NOT STARTED.
+
+
+## G-002 — P13 monitor, alert, ops-control and pilot-control principals — 24 November 2026
+
+**Source implementation checkpoint:** P13 source slice completed through `c80af8cddb3a65814a20304f53b49f400f8c416d`.
+
+- P13Monitor's raw SQL reads now execute under a dedicated worker principal (`p13-monitor`). Worker-lease reads continue through WorkerLeaseService's own worker principal. Findings collection remains read-only; alert raise/resolve work begins after those short read scopes close.
+- OpsAlertService's durable alert-state DB phases use the platform alert-service system principal when no caller context is active. Operator-facing list/snapshot reads use the verified admin user. Atomic claim/update statements remain individually scoped; webhook delivery stays outside the alert-service's short DB scopes.
+- OpsControlService checks the pause flag under a worker principal. Admin state/history reads and pause/resume mutations use verified caller claims; the durable control row and append-only control audit row remain in one caller-bound transaction. Platform AuditService writes use a separate audit principal, and alert delivery follows after those DB scopes close.
+- PilotControlService policy flag/allowlist reads reuse an already-active verified caller/worker context, otherwise use a dedicated system policy reader. Admin snapshots and configuration mutations use verified caller claims; platform audit writes use a separate audit principal. Organization/store ownership validation calls remain outside the local write transaction.
+- OperationsController now forwards authenticated JWT `sub`, `role` and `activeOrg` to the control, alert and pilot services. No new RBAC permissions or role changes were introduced.
+- This is source implementation only. No tests, formatter, lint, typecheck, E6 or CI were intentionally run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED. No RLS, migration, grants/default ACLs, shared/staging database actions, deployment, worker activation, merge or release occurred.
+
+**Next G-002 work:** complete callsite and operation-map reconciliation for P13 and the other raw SQL/service/worker paths; verify actor scopes are never switched while another actor transaction is active; finish the physical table/operation/ownership-predicate matrix and exact FK evidence; obtain protected read-only runtime catalog and API/migration identity evidence through the authorized process. Regression specs are still required before the deferred verification campaign. G-001 independent review and G-036 verification remain open; Phase 6 remains NOT STARTED.
+
+
+## G-002 — Catalog Import and P13 actor-context adoption consolidated — 24 November 2026
+
+**Latest source implementation checkpoint:** `75890feeffcef6f0035238476dc9242958dd5ec5`.
+
+The Catalog Import source slice and P13 operational principal slice are now implemented together:
+- Catalog Import upload/validate/execute/retry, executor entity-type transactions, report errors, template dropdown queries and export source queries use verified caller actor scopes. Object storage, XLSX parsing, workbook construction and serialization remain outside DB actor transactions. Failure-path plan persistence and audit writes use the appropriate user/audit principal.
+- P13Monitor raw SQL reads use a worker principal; WorkerLeaseService retains its own worker scope. OpsAlert durable alert-state DB phases use a system service principal when no caller context is already active; operator list/snapshot reads use the authenticated admin actor. Webhook delivery remains outside the alert service's short DB scopes.
+- OpsControl pause checks use a worker principal; admin state/history/pause/resume use the verified caller, with the control row and append-only control audit in one transaction and a separate audit principal for AuditService.
+- Pilot policy reads use the current verified actor when nested or a system policy principal otherwise. Admin snapshots and writes use the verified caller; organization/store ownership validation reads are also caller-scoped; AuditService writes use a separate audit principal.
+- Helper wrappers now await PromiseLike/Drizzle query thenables before leaving the actor context.
+- The implementation does not activate workers, change RLS/grants/migrations, or access shared/staging data. No tests, formatter, lint, typecheck or E6 were intentionally run. G-002 remains IMPLEMENTATION_IN_PROGRESS / NOT VERIFIED.
+
+**Automatic CI note:** GitHub automatically queued PR CI run #1499 (run ID 45394547128) after the source push. It was PENDING at the last check; no workflow was intentionally dispatched. Vercel Web/Admin contexts remained FAILURE due to the external build-rate limit. Check the run's eventual result before starting the deferred verification campaign.
+
+**Next work:** reconcile the complete G-002 operation inventory against all source callsites and exact table/ownership predicates; verify no actor-context switch occurs while a different actor transaction is active; finish the 99 Drizzle-exported / 114 detailed public relation / unresolved 116 historical count reconciliation; validate migration-backed FKs and obtain protected read-only runtime catalog plus actual API/migration runtime identity evidence through the authorized process. Add/adjust regression specs after implementation/integration is complete, then run the consolidated verification campaign. G-001 independent review and G-036 verification remain open; Phase 6 remains NOT STARTED.
+
+
+## 24 November 2026 — Catalog Import/P13 operation map and schema barrel follow-up
+
+- CatalogImportController passes verified `sub`, `role`, and `activeOrg` into upload, execute, retry, template and export operations. CatalogImportService scopes each DB-only phase to the caller; object storage and XLSX parsing/generation remain outside actor transactions. ExcelExecutor scopes each entity-type transaction. The platform import's `uploaded_by` is actor attribution, not a tenant owner; `catalog_import_errors` inherits its platform import parent through `import_id`.
+- P13Monitor cross-tenant diagnostic reads use the dedicated worker principal `p13-monitor`; WorkerLeaseService retains its own worker identity. OpsAlert durable alert-state writes use the alert-service system principal when not already inside a verified actor scope; operator list/snapshot reads use the authenticated admin. OpsControl pause checks use a worker principal, admin control state/history/mutations use the verified admin, and platform audit writes use a separate audit principal. Pilot policy reads use the active verified actor or the explicit system policy principal; admin snapshots and writes use the verified admin and audit writes use the audit principal.
+- P13 platform-control tables (`ops_alerts`, `ops_controls`, `ops_control_audit`, `p13_pilot_allowlist`, and `worker_leases`) are platform operational/control data. The pilot allowlist's `org_id`/`store_id` identify the configured target scope; they do not turn the control table into a merchant-owned tenant table.
+- Source commit `474ef450d98a62fe3b2f6b480a5dc4ea300d824d` adds `catalog-import.schema.ts` to the runtime Drizzle schema barrel. The barrel now exports all 100 current `pgTable` declarations. This does not prove deployed table presence or apply migration 0075.
+- Remaining source work is callsite/nesting audit across the full 53-file candidate set, carrier/bootstrap/CLI/audit middleware and raw SQL DB objects; exact operation predicates and FK evidence; and protected live API/migration identity plus relation-kind inventory. No RLS/grant/migration or shared/staging action is authorized by this source map.
+
+
+## 24 November 2026 — actor-context nesting correction and final source checkpoint
+
+**Latest source checkpoint:** `0f3c180f5af389cb363e8919982af371dc178f16`.
+
+- Source callsite review found that ReturnExpirationWorker already holds its lease-fenced worker actor when it calls `OpsControlService.isPaused()`. OpsControl now reuses the active actor context instead of attempting to switch to a second worker ID. This avoids the explicit actor-switch rejection in DatabaseService while preserving the worker's existing lease fence.
+- P13Monitor's read helper likewise reuses an already-active verified actor context when nested and creates its dedicated `p13-monitor` worker context only when no actor context exists. Pilot policy and OpsAlert system helpers already follow the same reuse-before-create rule.
+- Catalog Import resolver reads and CatalogTaxonomyService publishability checks are executed inside the caller's actor scope. The publishability validator's legacy natural-code-to-UUID correction is a DB write and therefore remains inside that same caller scope.
+- Runtime schema barrel completeness correction `474ef450d98a62fe3b2f6b480a5dc4ea300d824d` includes the catalog-import schema; current source and runtime barrel both enumerate 100 declarations. The 114 public r/p count is a historical 19-November catalog snapshot (99 declarations + 15 non-Drizzle objects), not a current live count; 116 remains a separate unexplained historical count. No protected live catalog audit was run.
+- No tests, formatter, lint, typecheck or E6 were intentionally run. No merge/deploy, worker activation, migration, RLS/grant/default-ACL change or shared/staging DB access occurred. Automatic CI run #1499 was queued on the prior source checkpoint and must not be treated as exact-head verification.
+
+**Next task:** continue the source callsite and ownership-predicate audit across carrier credential lifecycle/retry/recovery, audit middleware, migration/bootstrap/CLI paths and raw database functions/triggers/partitions. Add targeted regression specs for actor reuse, worker nesting, caller-scope boundaries and the schema-barrel completeness correction after implementation/integration is complete. Then finish FK evidence and protected read-only API/migration identity/catalog verification.
+
+
+## 24 November 2026 — CI failure triage and fixture compatibility correction
+
+- Automatic PR CI run [#1499](https://github.com/nabeel2323/scs-platform/actions/runs/45394547128), on the earlier source checkpoint `75890feeffcef6f0035238476dc9242958dd5ec5`, completed with **API Lint PASS / API TypeScript typecheck FAIL**. The typecheck errors were due to test fixtures still calling the new caller-required APIs with legacy signatures, plus a stale `actorId` reference in PilotControl's flag log message. Vercel Web/Admin contexts also failed on the external build-rate-limit page.
+- Corrected the PilotControl caller attribution reference. Updated Catalog Import executor/template tests to pass a verified caller; integration harnesses now use the real DatabaseService actor-context implementation. Updated executor unit doubles to expose the scoped-context hook. Updated P13 operational-readiness and PilotControl tests to pass caller contexts and use the real DB actor-context wrapper where PostgreSQL is involved.
+- These are test-source/fixture corrections only. They have **not** been executed and no new typecheck was run. Do not treat CI #1499 as verification of the corrected test fixtures.
+- Latest implementation/test commit: `4950e66507efebca8fbc7d910d65ae717f360732`. Exact-head Actions lookup returned zero workflow runs. Exact-head combined status contains only Vercel Web/Admin failures targeting the provider build-rate-limit page; these are not application test results. Commits use `[skip ci]` under the implementation-first verification restriction.
+- PR #138 remains OPEN / DRAFT / UNMERGED. No merge, deployment, worker activation, migration, RLS/grant/default-ACL change, shared/staging DB access or provider call occurred.
+
+**Next:** complete the remaining source callsite/ownership-predicate inventory, then run the consolidated typecheck/unit/PostgreSQL/E6 verification campaign only after implementation and integration are complete. Resolve any newly exposed failures before considering G-002 verified. G-001 independent review and G-036 verification remain open; Phase 6 remains NOT STARTED.

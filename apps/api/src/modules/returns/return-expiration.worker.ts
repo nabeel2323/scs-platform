@@ -37,8 +37,9 @@ import { DatabaseService } from '../../common/database/database.service';
 import { OpsAlertService } from '../operations/ops-alert.service';
 import { OpsControlService } from '../operations/ops-control.service';
 import { WorkerLeaseService } from '../operations/worker-lease.service';
-import { P13_LEASE_KEY, resolveP13OpsConfig, type P13OpsConfig } from '../operations/p13-ops.config';
-import { readRows } from '../operations/raw-result';
+import { P13_RETURN_EXPIRATION_LEASE_KEY } from '../../common/worker/worker-lease.constants';
+import { resolveP13OpsConfig, type P13OpsConfig } from '../operations/p13-ops.config';
+import { readRows } from '../../common/database/raw-query-result';
 import { ReturnsService } from './returns.service';
 import { returnRequests } from './returns.schema';
 
@@ -125,7 +126,9 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
       // promise can be cut off before the UPDATE reaches the database, which would
       // strand the lease until its TTL expires. Bounded by a timeout so an
       // unreachable database cannot hang shutdown — the TTL still covers takeover.
-      const release = this.leases.release(this.epoch, P13_LEASE_KEY).catch(() => undefined);
+      const release = this.withWorkerContext(() =>
+        this.leases.release(this.epoch, P13_RETURN_EXPIRATION_LEASE_KEY),
+      ).catch(() => undefined);
       let guardTimer: NodeJS.Timeout | undefined;
       const guard = new Promise<void>((resolve) => {
         guardTimer = setTimeout(resolve, 5_000);
@@ -147,6 +150,13 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
       clearInterval(this.timer);
       this.timer = null;
     }
+  }
+
+  private withWorkerContext<T>(operation: () => Promise<T>): Promise<T> {
+    return this.db.withActorContext(
+      { actorKind: 'worker', workerId: this.leases.holderId },
+      operation,
+    );
   }
 
   private async runQuietly(): Promise<void> {
@@ -174,7 +184,9 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
 
     // 1. Establish or verify ownership.
     if (this.epoch === 0) {
-      const acquired = await this.leases.tryAcquire(P13_LEASE_KEY);
+      const acquired = await this.withWorkerContext(() =>
+        this.leases.tryAcquire(P13_RETURN_EXPIRATION_LEASE_KEY),
+      );
       if (!acquired.acquired) {
         await this.handleAcquisitionFailure(acquired);
         return {
@@ -188,21 +200,23 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
       this.state = 'HELD';
       this.logger.log(`Lease acquired at epoch ${this.epoch} by ${acquired.holderId}`);
     } else {
-      const stillOurs = await this.leases.renewAndFence(this.epoch, P13_LEASE_KEY);
+      const stillOurs = await this.withWorkerContext(() =>
+        this.leases.renewAndFence(this.epoch, P13_RETURN_EXPIRATION_LEASE_KEY),
+      );
       if (!stillOurs) {
         const lostEpoch = this.epoch;
         this.epoch = 0;
         this.state = 'STANDBY';
-        await this.alerts.raise({
+        await this.withWorkerContext(() => this.alerts.raise({
           conditionKey: 'p13.worker.ownership_lost',
           severity: 'WARN',
-          title: `Worker lost the ${P13_LEASE_KEY} lease at epoch ${lostEpoch}`,
-          detail: { leaseKey: P13_LEASE_KEY, lostEpoch, holderId: this.leases.holderId },
+          title: `Worker lost the ${P13_RETURN_EXPIRATION_LEASE_KEY} lease at epoch ${lostEpoch}`,
+          detail: { leaseKey: P13_RETURN_EXPIRATION_LEASE_KEY, lostEpoch, holderId: this.leases.holderId },
           resourceType: 'worker_lease',
           // Deduped per job key: `ops_alerts.resource_id` is a UUID, so the lease
           // key has to be carried in the dedup identity explicitly.
-          dedupKey: `p13.worker.ownership_lost:${P13_LEASE_KEY}`,
-        });
+          dedupKey: `p13.worker.ownership_lost:${P13_RETURN_EXPIRATION_LEASE_KEY}`,
+        }));
         return { state: 'STANDBY', executed: false, skipped: 'fence_lost', epoch: lostEpoch };
       }
     }
@@ -210,11 +224,13 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
     // 2. Pause control — checked before any read of business state.
     let paused = false;
     try {
-      paused = await this.controls.isPaused();
+      paused = await this.withWorkerContext(() => this.controls.isPaused());
     } catch (err) {
       // Fail closed: an unreadable control is treated as paused, and the cycle
       // is recorded as a failure so alert 1 can fire.
-      await this.leases.recordPollFailure(this.epoch, 'CONTROL_UNREADABLE', P13_LEASE_KEY);
+      await this.withWorkerContext(() =>
+        this.leases.recordPollFailure(this.epoch, 'CONTROL_UNREADABLE', P13_RETURN_EXPIRATION_LEASE_KEY),
+      );
       this.logger.error(`Pause control unreadable — skipping cycle: ${errMessage(err)}`);
       return { state: this.state, executed: false, skipped: 'paused', epoch: this.epoch };
     }
@@ -247,43 +263,73 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
     // assume the caller just renewed: the claim statement below writes
     // `return_requests.updated_at`, and a partitioned worker must not be able to
     // write even that.
-    if (!(await this.leases.renewAndFence(epoch, P13_LEASE_KEY))) {
+    if (!(await this.withWorkerContext(() =>
+      this.leases.renewAndFence(epoch, P13_RETURN_EXPIRATION_LEASE_KEY),
+    ))) {
       this.epoch = 0;
       this.state = 'STANDBY';
-      await this.alerts.raise({
+      await this.withWorkerContext(() => this.alerts.raise({
         conditionKey: 'p13.worker.ownership_lost',
         severity: 'WARN',
-        title: `Worker lost the ${P13_LEASE_KEY} lease at epoch ${epoch}`,
-        detail: { leaseKey: P13_LEASE_KEY, lostEpoch: epoch, holderId: this.leases.holderId, stage: 'batch_start' },
-        dedupKey: `p13.worker.ownership_lost:${P13_LEASE_KEY}`,
+        title: `Worker lost the ${P13_RETURN_EXPIRATION_LEASE_KEY} lease at epoch ${epoch}`,
+        detail: {
+          leaseKey: P13_RETURN_EXPIRATION_LEASE_KEY,
+          lostEpoch: epoch,
+          holderId: this.leases.holderId,
+          stage: 'batch_start',
+        },
+        dedupKey: `p13.worker.ownership_lost:${P13_RETURN_EXPIRATION_LEASE_KEY}`,
         resourceType: 'worker_lease',
-      });
+      }));
       return { state: this.state, executed: false, skipped: 'fence_lost', epoch };
     }
 
     let claimedRows: Array<{ id: string }>;
 
     try {
-      const claimed = await this.db.db.execute(sql`
-        UPDATE return_requests
-        SET updated_at = NOW()
-        WHERE id IN (
-          SELECT id FROM return_requests
-          WHERE status = 'REQUESTED'
-            AND expires_at IS NOT NULL
-            AND expires_at <= NOW()
-          ORDER BY expires_at ASC
+      const claimed = await this.withWorkerContext(() => this.db.db.execute(sql`
+        WITH live_fence AS MATERIALIZED (
+          SELECT lease_key
+          FROM worker_leases
+          WHERE lease_key = ${P13_RETURN_EXPIRATION_LEASE_KEY}
+            AND holder_id = ${this.leases.holderId}
+            AND epoch = ${epoch}
+            AND expires_at > NOW()
+          FOR UPDATE
+        ),
+        candidate AS (
+          SELECT rr.id
+          FROM return_requests rr
+          CROSS JOIN live_fence
+          WHERE rr.status = 'REQUESTED'
+            AND rr.expires_at IS NOT NULL
+            AND rr.expires_at <= NOW()
+          ORDER BY rr.expires_at ASC
           LIMIT ${ReturnExpirationWorker.BATCH_SIZE}
-          FOR UPDATE SKIP LOCKED
+          FOR UPDATE OF rr SKIP LOCKED
         )
-        RETURNING id
-      `);
+        UPDATE return_requests AS target
+        SET updated_at = NOW()
+        FROM candidate
+        WHERE target.id = candidate.id
+        RETURNING target.id
+      `));
       claimedRows = readRows<{ id: string }>(claimed);
     } catch (err) {
-      const failures = await this.leases.recordPollFailure(epoch, errCode(err), P13_LEASE_KEY);
+      const failures = await this.withWorkerContext(() =>
+        this.leases.recordPollFailure(epoch, errCode(err), P13_RETURN_EXPIRATION_LEASE_KEY),
+      );
       await this.alertOnFailures(epoch, failures, errMessage(err));
       this.logger.error(`Return expiration poll error: ${errMessage(err)}`);
       return { state: this.state, executed: false, skipped: 'acquisition_failed', epoch };
+    }
+
+    if (claimedRows.length === 0 && !(await this.withWorkerContext(() =>
+      this.leases.renewAndFence(epoch, P13_RETURN_EXPIRATION_LEASE_KEY),
+    ))) {
+      this.epoch = 0;
+      this.state = 'STANDBY';
+      return { state: this.state, executed: false, skipped: 'fence_lost', epoch };
     }
 
     if (claimedRows.length > 0) {
@@ -298,32 +344,55 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
 
       // Re-verify fence AND pause before every individual mutation, so a pause
       // or a takeover lands between items rather than only between batches.
-      if (!(await this.leases.renewAndFence(epoch, P13_LEASE_KEY))) {
+      if (!(await this.withWorkerContext(() =>
+        this.leases.renewAndFence(epoch, P13_RETURN_EXPIRATION_LEASE_KEY),
+      ))) {
         this.epoch = 0;
         this.state = 'STANDBY';
         this.logger.warn(
           `Fence lost mid-batch at epoch ${epoch}; stopping with ${remaining(claimedRows, escalated, failed)} item(s) unprocessed.`,
         );
-        return { state: this.state, executed: true, skipped: 'fence_lost', epoch, escalated, failed };
+        return {
+          state: this.state,
+          executed: true,
+          skipped: 'fence_lost',
+          epoch,
+          escalated,
+          failed,
+        };
       }
-      if (await this.controls.isPaused()) {
+      if (await this.withWorkerContext(() => this.controls.isPaused())) {
         this.state = 'HELD_PAUSED';
         return { state: this.state, executed: true, skipped: 'paused', epoch, escalated, failed };
       }
 
-      const outcome = await this.processExpiration(row.id, epoch);
+      const outcome = await this.withWorkerContext(() => this.processExpiration(row.id, epoch));
       if (outcome === 'escalated') escalated += 1;
       else if (outcome === 'failed') failed += 1;
+      else if (outcome === 'fence_lost') {
+        return {
+          state: 'STANDBY',
+          executed: true,
+          skipped: 'fence_lost',
+          epoch,
+          escalated,
+          failed,
+        };
+      }
     }
 
     if (failed > 0) {
-      const failures = await this.leases.recordPollFailure(epoch, 'ITEM_FAILURE', P13_LEASE_KEY);
+      const failures = await this.withWorkerContext(() =>
+        this.leases.recordPollFailure(epoch, 'ITEM_FAILURE', P13_RETURN_EXPIRATION_LEASE_KEY),
+      );
       await this.alertOnFailures(epoch, failures, `${failed} return(s) failed to escalate`);
     } else {
-      await this.leases.recordPollSuccess(
-        epoch,
-        `claimed=${claimedRows.length} escalated=${escalated}`,
-        P13_LEASE_KEY,
+      await this.withWorkerContext(() =>
+        this.leases.recordPollSuccess(
+          epoch,
+          `claimed=${claimedRows.length} escalated=${escalated}`,
+          P13_RETURN_EXPIRATION_LEASE_KEY,
+        ),
       );
     }
 
@@ -340,7 +409,7 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
   private async processExpiration(
     returnId: string,
     epoch: number,
-  ): Promise<'escalated' | 'skipped' | 'failed'> {
+  ): Promise<'escalated' | 'skipped' | 'failed' | 'fence_lost'> {
     try {
       // Verify the return is still REQUESTED (may have been approved by merchant).
       const ret = await this.db.db.query.returnRequests.findFirst({
@@ -351,7 +420,22 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
 
       // Phase 2: escalate to admin review instead of terminal expiry. This never
       // approves, rejects, refunds, or expires a return on SLA elapse alone.
-      await this.returnsService.escalateReturn(ret.id);
+      const result = await this.returnsService.escalateReturn(ret.id, {
+        kind: 'worker',
+        holderId: this.leases.holderId,
+        epoch,
+      });
+      if (!result) {
+        const stillOwnsLease = await this.withWorkerContext(() =>
+          this.leases.renewAndFence(epoch, P13_RETURN_EXPIRATION_LEASE_KEY),
+        );
+        if (!stillOwnsLease) {
+          this.epoch = 0;
+          this.state = 'STANDBY';
+          return 'fence_lost';
+        }
+        return 'skipped';
+      }
       this.logger.log(`Escalated return ${ret.id} to admin review (merchant SLA exceeded)`);
       return 'escalated';
     } catch (err: any) {
@@ -381,10 +465,16 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
 
     // DB_ERROR / ROW_MISSING: exclusivity could not be established at all.
     this.state = 'STANDBY';
-    const failures = await this.leases
-      .recordPollFailure(this.epoch, acquired.reason ?? 'ACQUIRE_FAILED', P13_LEASE_KEY)
-      .catch(() => null);
-    await this.alertOnFailures(this.epoch, failures, acquired.error ?? acquired.reason ?? 'unknown');
+    const failures = await this.withWorkerContext(() =>
+      this.leases
+        .recordPollFailure(this.epoch, acquired.reason ?? 'ACQUIRE_FAILED', P13_RETURN_EXPIRATION_LEASE_KEY)
+        .catch(() => null),
+    );
+    await this.alertOnFailures(
+      this.epoch,
+      failures,
+      acquired.error ?? acquired.reason ?? 'unknown',
+    );
   }
 
   /** Alert 1: three consecutive worker polling failures. */
@@ -395,16 +485,21 @@ export class ReturnExpirationWorker implements OnModuleInit, OnModuleDestroy {
   ): Promise<void> {
     const threshold = this.config.thresholds.pollFailureAlertCount;
     if (failures === null || failures < threshold) return;
-    await this.alerts.raise({
+    await this.withWorkerContext(() => this.alerts.raise({
       conditionKey: 'p13.worker.poll_failures',
       severity: 'CRITICAL',
       title: `P13 worker failed ${failures} consecutive polls (threshold ${threshold})`,
-      detail: { leaseKey: P13_LEASE_KEY, pollFailures: failures, epoch, lastError: detail.slice(0, 200) },
+      detail: {
+        leaseKey: P13_RETURN_EXPIRATION_LEASE_KEY,
+        pollFailures: failures,
+        epoch,
+        lastError: detail.slice(0, 200),
+      },
       resourceType: 'worker_lease',
       // Identical key to the monitor's check 1, so the two paths cannot open
       // two incidents for one condition.
-      dedupKey: `p13.worker.poll_failures:${P13_LEASE_KEY}`,
-    });
+      dedupKey: `p13.worker.poll_failures:${P13_RETURN_EXPIRATION_LEASE_KEY}`,
+    }));
   }
 }
 

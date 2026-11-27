@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, lte, isNull, or } from 'drizzle-orm';
+import { getOrderQuantityViolation } from '../orders/index';
 import { priceLists, priceTiers } from './pricing.schema';
 import { merchantOffers } from '../catalog/catalog.offer.schema';
 import { productVariants } from '../catalog/catalog.schema';
@@ -46,6 +47,151 @@ export interface VariantPricing {
    * `unitPriceMinor` rather than invent a number.
    */
   tiers: PriceTierDisplay[];
+}
+
+export interface OfferPriceSource {
+  id: string;
+  storeId: string;
+  productId: string;
+  variantId: string | null;
+  status: string;
+  isAvailable: boolean;
+  currency: string;
+  basePriceMinor: number | null;
+  moq: number;
+  orderIncrement?: number | null;
+  priceListId: string | null;
+}
+
+export interface SelectedOfferPriceRequest {
+  offerId: string;
+  variantId: string;
+  quantity: number;
+}
+
+export function selectedOfferPriceKey(
+  offerId: string,
+  variantId: string,
+  quantity: number,
+): string {
+  return `${offerId}:${variantId}:${quantity}`;
+}
+
+export interface SelectedOfferPrice {
+  offerId: string;
+  storeId: string;
+  productId: string;
+  variantId: string;
+  priceListId: string | null;
+  unitPriceMinor: number;
+  currency: string;
+  minQty: number;
+}
+
+/**
+ * Resolve the price of the exact offer selected by the buyer.
+ *
+ * Search/PDP cards display an offer identity, and the cart must price that
+ * same offer rather than silently selecting a different variant/product offer
+ * from the same store. Offers with a price list use its active quantity tier;
+ * offers without a price list use their explicit basePriceMinor.
+ *
+ * The helper batches price-list/tier reads for all requested offers so product
+ * card enrichment does not issue one query per seller.
+ */
+export async function resolveSelectedOfferPrices(
+  db: Db,
+  offers: OfferPriceSource[],
+  requests: SelectedOfferPriceRequest[],
+): Promise<Map<string, SelectedOfferPrice>> {
+  const result = new Map<string, SelectedOfferPrice>();
+  if (requests.length === 0) return result;
+
+  const offerById = new Map(offers.map((offer) => [offer.id, offer]));
+  const eligible = requests.flatMap((request) => {
+    const offer = offerById.get(request.offerId);
+    if (
+      !offer ||
+      offer.status !== 'ACTIVE' ||
+      !offer.isAvailable ||
+      getOrderQuantityViolation(request.quantity, offer.moq, offer.orderIncrement ?? null) !=
+        null ||
+      (offer.variantId != null && offer.variantId !== request.variantId)
+    )
+      return [];
+    return [{ request, offer }];
+  });
+  if (eligible.length === 0) return result;
+
+  const priceListIds = [
+    ...new Set(eligible.map(({ offer }) => offer.priceListId).filter((id): id is string => !!id)),
+  ];
+  const variantIds = [...new Set(eligible.map(({ request }) => request.variantId))];
+
+  const tierRows =
+    priceListIds.length > 0
+      ? await db
+          .select({
+            priceListId: priceLists.id,
+            priceListStoreId: priceLists.storeId,
+            priceListName: priceLists.name,
+            currency: priceLists.currency,
+            variantId: priceTiers.variantId,
+            minQty: priceTiers.minQty,
+            maxQty: priceTiers.maxQty,
+            unitPriceMinor: priceTiers.unitPriceMinor,
+          })
+          .from(priceTiers)
+          .innerJoin(priceLists, eq(priceLists.id, priceTiers.priceListId))
+          .where(
+            and(
+              inArray(priceLists.id, priceListIds),
+              inArray(priceTiers.variantId, variantIds),
+              eq(priceLists.isActive, true),
+            ),
+          )
+      : [];
+
+  for (const { request, offer } of eligible) {
+    if (offer.priceListId) {
+      const tier = tierRows
+        .filter(
+          (row) =>
+            row.priceListId === offer.priceListId &&
+            row.priceListStoreId === offer.storeId &&
+            row.variantId === request.variantId &&
+            row.minQty <= request.quantity &&
+            (row.maxQty == null || request.quantity < row.maxQty),
+        )
+        .sort((a, b) => b.minQty - a.minQty)[0];
+      if (!tier) continue;
+      result.set(selectedOfferPriceKey(offer.id, request.variantId, request.quantity), {
+        offerId: offer.id,
+        storeId: offer.storeId,
+        productId: offer.productId,
+        variantId: request.variantId,
+        priceListId: offer.priceListId,
+        unitPriceMinor: tier.unitPriceMinor,
+        currency: tier.currency.trim(),
+        minQty: tier.minQty,
+      });
+      continue;
+    }
+
+    if (offer.basePriceMinor == null) continue;
+    result.set(selectedOfferPriceKey(offer.id, request.variantId, request.quantity), {
+      offerId: offer.id,
+      storeId: offer.storeId,
+      productId: offer.productId,
+      variantId: request.variantId,
+      priceListId: null,
+      unitPriceMinor: offer.basePriceMinor,
+      currency: offer.currency.trim(),
+      minQty: offer.moq,
+    });
+  }
+
+  return result;
 }
 
 /** Pick the applicable tier for `qty` out of an unordered ladder. */
@@ -122,7 +268,7 @@ export async function resolveVariantPrices(
       .where(
         and(
           inArray(priceTiers.priceListId, [
-            ...new Set([...winners.values()].map(w => w.priceListId)),
+            ...new Set([...winners.values()].map((w) => w.priceListId)),
           ]),
           inArray(priceTiers.variantId, variantIds),
         ),
@@ -184,8 +330,8 @@ export async function resolveOfferPrices(
     where: inArray(productVariants.id, variantIds),
     columns: { id: true, productId: true },
   });
-  const variantToProduct = new Map(variants.map(v => [v.id, v.productId]));
-  const productIds = [...new Set(variants.map(v => v.productId))];
+  const variantToProduct = new Map(variants.map((v) => [v.id, v.productId]));
+  const productIds = [...new Set(variants.map((v) => v.productId))];
 
   // 2. Fetch ACTIVE offers for the store + variants/products.
   const offers = await db.query.merchantOffers.findMany({
@@ -269,19 +415,18 @@ export async function resolveOfferPrices(
             unitPriceMinor: priceTiers.unitPriceMinor,
           })
           .from(priceTiers)
-          .where(
-            and(
-              eq(priceTiers.priceListId, priceListId),
-              inArray(priceTiers.variantId, vids),
-            ),
-          )
+          .where(and(eq(priceTiers.priceListId, priceListId), inArray(priceTiers.variantId, vids)))
           .orderBy(priceTiers.minQty);
 
         for (const row of ladderRows) {
           const key = `${row.priceListId}|${row.variantId}`;
           const ladder = ladders.get(key);
           if (ladder)
-            ladder.push({ minQty: row.minQty, maxQty: row.maxQty, unitPriceMinor: row.unitPriceMinor });
+            ladder.push({
+              minQty: row.minQty,
+              maxQty: row.maxQty,
+              unitPriceMinor: row.unitPriceMinor,
+            });
           else
             ladders.set(key, [
               { minQty: row.minQty, maxQty: row.maxQty, unitPriceMinor: row.unitPriceMinor },
@@ -291,7 +436,8 @@ export async function resolveOfferPrices(
 
       for (const [variantId, winner] of winners) {
         const offer =
-          offerByVariant.get(variantId) || offerByProduct.get(variantToProduct.get(variantId) ?? '');
+          offerByVariant.get(variantId) ||
+          offerByProduct.get(variantToProduct.get(variantId) ?? '');
         result.set(variantId, {
           priceListId: winner.priceListId,
           priceListName: winner.priceListName,

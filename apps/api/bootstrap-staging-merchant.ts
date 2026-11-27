@@ -1,19 +1,20 @@
-import { Pool } from "pg";
-import fs from "node:fs";
-import crypto from "node:crypto";
+import { Pool } from 'pg';
+import { assertStagingBootstrapTarget, setStagingBootstrapActorContext } from './scripts/staging-bootstrap-safety';
+import fs from 'node:fs';
+import crypto from 'node:crypto';
 
 async function main() {
-  const connectionString = process.env["DATABASE_URL"];
-  const caFile = process.env["PGSSLROOTCERT"];
+  const connectionString = process.env['DATABASE_URL'];
+  const caFile = process.env['PGSSLROOTCERT'];
 
   if (!connectionString || !caFile) {
-    throw new Error("DATABASE_URL or PGSSLROOTCERT is not set");
+    throw new Error('DATABASE_URL or PGSSLROOTCERT is not set');
   }
 
   const pool = new Pool({
     connectionString,
     ssl: {
-      ca: fs.readFileSync(caFile, "utf8"),
+      ca: fs.readFileSync(caFile, 'utf8'),
       rejectUnauthorized: true,
     },
   });
@@ -21,7 +22,9 @@ async function main() {
   const client = await pool.connect();
 
   try {
-    await client.query("BEGIN");
+    await assertStagingBootstrapTarget(client, 'bootstrap-staging-merchant');
+    await client.query('BEGIN');
+    await setStagingBootstrapActorContext(client, 'bootstrap-staging-merchant');
 
     // Dedicated staging merchant owner.
     const userId = crypto.randomUUID();
@@ -38,18 +41,12 @@ async function main() {
       VALUES ($1, $2, $3, $4, $5)
       RETURNING id, phone, full_name, status
       `,
-      [
-        userId,
-        "+966500000010",
-        "TAIF Staging Merchant Owner",
-        "en",
-        "ACTIVE",
-      ],
+      [userId, '+966500000010', 'TAIF Staging Merchant Owner', 'en', 'ACTIVE'],
     );
 
     // Dedicated staging merchant organization.
     const orgId = crypto.randomUUID();
-    const inviteCode = crypto.randomBytes(6).toString("hex");
+    const inviteCode = crypto.randomBytes(6).toString('hex');
 
     const orgResult = await client.query(
       `
@@ -67,11 +64,11 @@ async function main() {
       `,
       [
         orgId,
-        "WHOLESALER",
-        "TAIF B2 Test Merchant",
-        "TAIF B2 Test Merchant",
-        "SA",
-        "PENDING",
+        'WHOLESALER',
+        'TAIF B2 Test Merchant',
+        'TAIF B2 Test Merchant',
+        'SA',
+        'PENDING',
         inviteCode,
       ],
     );
@@ -87,7 +84,7 @@ async function main() {
     );
 
     if (roleResult.rowCount !== 1) {
-      throw new Error("MERCHANT_OWNER role was not found");
+      throw new Error('MERCHANT_OWNER role was not found');
     }
 
     const roleId = roleResult.rows[0].id;
@@ -107,36 +104,30 @@ async function main() {
       VALUES ($1, $2, $3, $4, $5)
       RETURNING id, org_id, user_id, role_id, status
       `,
-      [
-        membershipId,
-        orgId,
-        userId,
-        roleId,
-        "ACTIVE",
-      ],
+      [membershipId, orgId, userId, roleId, 'ACTIVE'],
     );
 
-    await client.query("COMMIT");
+    await client.query('COMMIT');
 
-    console.log("\nSTAGING MERCHANT BOOTSTRAP COMPLETE\n");
+    console.log('\nSTAGING MERCHANT BOOTSTRAP COMPLETE\n');
 
-    console.log("USER");
+    console.log('USER');
     console.table(userResult.rows);
 
-    console.log("ORGANIZATION");
+    console.log('ORGANIZATION');
     console.table(orgResult.rows);
 
-    console.log("ROLE");
+    console.log('ROLE');
     console.table(roleResult.rows);
 
-    console.log("MEMBERSHIP");
+    console.log('MEMBERSHIP');
     console.table(membershipResult.rows);
 
-    console.log("\nPhone: +966500000010");
-    console.log("Organization: TAIF B2 Test Merchant");
-    console.log("Role: MERCHANT_OWNER");
+    console.log('\nPhone: +966500000010');
+    console.log('Organization: TAIF B2 Test Merchant');
+    console.log('Role: MERCHANT_OWNER');
   } catch (error) {
-    await client.query("ROLLBACK");
+    await client.query('ROLLBACK');
     throw error;
   } finally {
     client.release();
@@ -145,7 +136,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("\nBOOTSTRAP FAILED");
+  console.error('\nBOOTSTRAP FAILED');
   console.error(error);
   process.exit(1);
 });

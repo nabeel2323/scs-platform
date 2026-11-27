@@ -6,6 +6,7 @@ import {
   Body,
   Query,
   UseGuards,
+  UseInterceptors,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import {
@@ -16,7 +17,14 @@ import {
 } from './catalog.requests.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
-import { RequirePermission } from '../../common/guards/current-user.decorator';
+import {
+  CurrentUser,
+  JwtPayload,
+  RequirePermission,
+} from '../../common/guards/current-user.decorator';
+import { DatabaseService } from '../../common/database/database.service';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
+import { assertStoreInOrg, assertStoreMember, type CallerContext } from '../../common/tenant-scope';
 
 /**
  * PHASE COS-12: Merchant catalog entity requests + admin review queue.
@@ -28,21 +36,36 @@ import { RequirePermission } from '../../common/guards/current-user.decorator';
  */
 @Controller()
 @UseGuards(JwtAuthGuard)
+@UseInterceptors(TenantDatabaseContextInterceptor)
 export class CatalogRequestsController {
-  constructor(private readonly requestsService: CatalogRequestsService) {}
+  constructor(
+    private readonly requestsService: CatalogRequestsService,
+    private readonly db: DatabaseService,
+  ) {}
+
+  private async assertMerchantStoreAccess(user: JwtPayload, storeId: string): Promise<void> {
+    const caller: CallerContext = { sub: user.sub, role: user.role, activeOrg: user.activeOrg };
+    await assertStoreInOrg(this.db, caller, storeId);
+    await assertStoreMember(this.db, caller, storeId);
+  }
 
   // ── Merchant routes ──────────────────────────────────────────
 
   @Post('merchant/requests')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:offers:write')
-  async createRequest(@Body() input: CreateCatalogRequestInput) {
-    return this.requestsService.createRequest(input);
+  async createRequest(@CurrentUser() user: JwtPayload, @Body() input: CreateCatalogRequestInput) {
+    await this.assertMerchantStoreAccess(user, input.storeId);
+    // The authenticated identity is authoritative; never accept requestedBy from the client.
+    return this.requestsService.createRequest({ ...input, requestedBy: user.sub });
   }
 
   @Get('merchant/requests')
-  async listMerchantRequests(@Query('storeId') storeId?: string) {
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('catalog:offers:write')
+  async listMerchantRequests(@CurrentUser() user: JwtPayload, @Query('storeId') storeId?: string) {
     if (!storeId) return [];
+    await this.assertMerchantStoreAccess(user, storeId);
     return this.requestsService.listMerchantRequests(storeId);
   }
 
@@ -51,10 +74,7 @@ export class CatalogRequestsController {
   @Get('admin/requests')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:requests:manage')
-  async listAdminRequests(
-    @Query('type') type?: string,
-    @Query('status') status?: string,
-  ) {
+  async listAdminRequests(@Query('type') type?: string, @Query('status') status?: string) {
     return this.requestsService.listAdminRequests({
       type: type as CatalogRequestType | undefined,
       status: status as CatalogRequestStatus | undefined,
@@ -64,11 +84,8 @@ export class CatalogRequestsController {
   @Post('admin/requests/:id/approve')
   @UseGuards(PermissionsGuard)
   @RequirePermission('catalog:requests:manage')
-  async approveRequest(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { reviewerId: string },
-  ) {
-    return this.requestsService.approveRequest(id, body.reviewerId);
+  async approveRequest(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: JwtPayload) {
+    return this.requestsService.approveRequest(id, user.sub);
   }
 
   @Post('admin/requests/:id/reject')
@@ -76,8 +93,9 @@ export class CatalogRequestsController {
   @RequirePermission('catalog:requests:manage')
   async rejectRequest(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { reviewerId: string; reason: string },
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { reason: string },
   ) {
-    return this.requestsService.rejectRequest(id, body.reviewerId, body.reason);
+    return this.requestsService.rejectRequest(id, user.sub, body.reason);
   }
 }

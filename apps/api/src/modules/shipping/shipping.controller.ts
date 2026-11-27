@@ -1,9 +1,10 @@
 import {
   Controller, Get, Post, Put, Patch, Delete,
-  Param, Body, Query, UseGuards, HttpCode,
+  Param, Body, Query, UseGuards, UseInterceptors, HttpCode,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 import {
   CurrentUser,
   JwtPayload,
@@ -45,6 +46,7 @@ import {
  */
 @Controller('shipping')
 @UseGuards(JwtAuthGuard)
+@UseInterceptors(TenantDatabaseContextInterceptor)
 export class ShippingController {
   constructor(private readonly shippingService: ShippingService) {}
 

@@ -63,6 +63,7 @@ describe('M7.3-B.6 D-2 — shipment search against real PostgreSQL', () => {
   const storeB = randomUUID();
   const buyerA = randomUUID();
   const buyerB = randomUUID();
+  const merchantB = randomUUID();
   const orderA = randomUUID();
   const orderB = randomUUID();
   const shipmentA = randomUUID();
@@ -158,6 +159,21 @@ describe('M7.3-B.6 D-2 — shipment search against real PostgreSQL', () => {
       orgId: orgB, storeId: storeB, storeName: 'Al-Baraka Books', buyerId: buyerB,
       orderId: orderB, shipmentId: shipmentB, trackingId: 'TRK-BARAKA-0002', carrierShipmentId: 'SHIP-BARAKA-0002',
     });
+    await pool.query(
+      `INSERT INTO roles (id, key, name) VALUES ($1, 'MERCHANT_OWNER', 'Merchant Owner')
+       ON CONFLICT (key) DO NOTHING`,
+      [randomUUID()],
+    );
+    const merchantRole = await pool.query(`SELECT id FROM roles WHERE key = 'MERCHANT_OWNER' LIMIT 1`);
+    await pool.query(
+      `INSERT INTO users (id, full_name, phone) VALUES ($1, 'Merchant B', '+966500000099')`,
+      [merchantB],
+    );
+    await pool.query(
+      `INSERT INTO organization_members (id, org_id, user_id, role_id, status)
+       VALUES ($1, $2, $3, $4, 'ACTIVE')`,
+      [randomUUID(), orgB, merchantB, merchantRole.rows[0].id],
+    );
   });
 
   afterAll(async () => {
@@ -204,7 +220,7 @@ describe('M7.3-B.6 D-2 — shipment search against real PostgreSQL', () => {
   });
 
   it('applies tenant scoping to non-privileged callers alongside search', async () => {
-    const merchant = { sub: randomUUID(), role: 'MERCHANT_OWNER', activeOrg: orgB } as any;
+    const merchant = { sub: merchantB, role: 'MERCHANT_OWNER', activeOrg: orgB } as any;
     // 'GULF' matches store A only; a merchant scoped to org B must see nothing.
     const res = await controller.listShipments(merchant, { search: 'GULF' });
     expect(res.total).toBe(0);

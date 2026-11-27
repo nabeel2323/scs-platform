@@ -190,28 +190,40 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async linkEmail(@CurrentUser() user: JwtPayload, @Body() dto: LinkEmailDto) {
     await this.assertEmailIdentityEnabled();
-    return this.identityService.linkEmailToAccount(user.sub, dto.email, dto.otp);
+    return this.identityService.linkEmailToAccount(user.sub, dto.email, dto.otp, {
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Post('account/link-phone')
   @UseGuards(JwtAuthGuard)
   async linkPhone(@CurrentUser() user: JwtPayload, @Body() dto: LinkPhoneDto) {
     await this.assertEmailIdentityEnabled();
-    return this.identityService.linkPhoneToAccount(user.sub, dto.phone, dto.otp);
+    return this.identityService.linkPhoneToAccount(user.sub, dto.phone, dto.otp, {
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Post('account/unlink-email')
   @UseGuards(JwtAuthGuard)
   async unlinkEmail(@CurrentUser() user: JwtPayload) {
     await this.assertEmailIdentityEnabled();
-    return this.identityService.unlinkEmailFromAccount(user.sub);
+    return this.identityService.unlinkEmailFromAccount(user.sub, {
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   @Post('account/unlink-phone')
   @UseGuards(JwtAuthGuard)
   async unlinkPhone(@CurrentUser() user: JwtPayload) {
     await this.assertEmailIdentityEnabled();
-    return this.identityService.unlinkPhoneFromAccount(user.sub);
+    return this.identityService.unlinkPhoneFromAccount(user.sub, {
+      role: user.role,
+      activeOrg: user.activeOrg,
+    });
   }
 
   // ── Existing Endpoints ─────────────────────────────────────
@@ -255,10 +267,13 @@ export class AuthController {
   @Post('switch-org')
   @UseGuards(JwtAuthGuard)
   async switchOrg(@CurrentUser() user: JwtPayload, @Body() dto: SwitchOrgDto) {
-    return this.identityService.switchOrg(user.sub, dto.orgId, user.sid, {
-      jti: user.jti,
-      exp: user.exp,
-    });
+    return this.identityService.switchOrg(
+      user.sub,
+      dto.orgId,
+      { role: user.role, activeOrg: user.activeOrg },
+      user.sid,
+      { jti: user.jti, exp: user.exp },
+    );
   }
 
   // ── Dual Authentication Endpoints ─────────────────────────

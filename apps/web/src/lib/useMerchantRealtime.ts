@@ -24,12 +24,13 @@ import { onNewOrder, watchStore, type NewOrderEvent } from './realtime';
 export function useMerchantRealtime(onNewOrderCb?: (evt: NewOrderEvent) => void): void {
   const { user } = useAuth();
   const isMerchant = isMerchantRole(user?.role);
+  const canReadOrders = user?.perms?.includes('merchant:orders:read') === true;
 
   const cbRef = useRef(onNewOrderCb);
   cbRef.current = onNewOrderCb;
 
   useEffect(() => {
-    if (!user || !isMerchant) return;
+    if (!user || !isMerchant || !canReadOrders) return;
 
     const off = onNewOrder((evt) => {
       if (typeof window !== 'undefined') {
@@ -57,5 +58,5 @@ export function useMerchantRealtime(onNewOrderCb?: (evt: NewOrderEvent) => void)
     // Depend on the stable `user` context value (as the Navbar does) plus the
     // derived role, so a token refresh reconnecting the socket doesn't re-run.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, isMerchant]);
+  }, [user, isMerchant, canReadOrders]);
 }

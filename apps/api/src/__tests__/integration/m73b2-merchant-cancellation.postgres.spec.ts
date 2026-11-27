@@ -100,7 +100,7 @@ async function createOrderAtStatus(
     buyerId,
     deliveryAddress: {},
     idempotencyKey: `b2-${randomUUID()}`,
-  });
+  }, { sub: buyerId, role: 'BUYER', activeOrg: null });
   const orderId = co.subOrders[0]!.id;
   const caller = { sub: merchantId, role: 'MERCHANT_OWNER' as const, activeOrg: orgId };
 
@@ -141,7 +141,7 @@ async function createOrderPendingConfirmation(
     buyerId,
     deliveryAddress: {},
     idempotencyKey: `b2-pc-${randomUUID()}`,
-  });
+  }, { sub: buyerId, role: 'BUYER', activeOrg: null });
   return co.subOrders[0]!.id;
 }
 
@@ -257,7 +257,7 @@ describe('M7.3-B.2 — Merchant Cancellation + Shipment Sync (PostgreSQL)', () =
       [randomUUID(), orgA, buyerA, roleById.get('BUYER')],
     );
     await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-a-b2', 'Store A', 'APPROVED')`,
+      `INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-a-b2', 'Store A', 'ACTIVE', 'VERIFIED')`,
       [storeA, orgA],
     );
     await pool.query(
@@ -294,7 +294,7 @@ describe('M7.3-B.2 — Merchant Cancellation + Shipment Sync (PostgreSQL)', () =
       [randomUUID(), orgB, buyerB, roleById.get('BUYER')],
     );
     await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-b-b2', 'Store B', 'APPROVED')`,
+      `INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-b-b2', 'Store B', 'ACTIVE', 'VERIFIED')`,
       [storeB, orgB],
     );
     await pool.query(

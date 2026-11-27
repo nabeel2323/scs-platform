@@ -26,26 +26,31 @@ import { eq, and, isNull, lte, or, sql, ne } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
 import { ShippingProviderRegistry } from './shipping-registry';
 import { shipments } from '../orders/shipment.schema';
+import { orders } from '../orders/orders.schema';
 import { CarrierObservabilityService } from './carrier-observability';
 import { CarrierCircuitBreaker } from './carrier-circuit-breaker';
 import { CarrierEmailResolver } from './carrier-email-resolver';
-import { generateIdempotencyKey, CreateShipmentRequest, CancelPickupRequest } from './shipping.types';
+import {
+  generateIdempotencyKey,
+  CreateShipmentRequest,
+  CancelPickupRequest,
+} from './shipping.types';
 import { classifyCarrierError } from './carrier-errors';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
 export type ReconciliationOutcome =
-  | 'already_complete'              // Case A / CA
-  | 'recovered'                     // Case B
-  | 'retry_safe'                    // Case C (retry triggered)
-  | 'not_found_deferred'            // Case C (not found, not safe to retry)
-  | 'routed_to_recovery'            // Case D
-  | 'cancel_succeeded'              // Case CD: tracking confirmed cancellation
-  | 'cancel_budget_exhausted'       // Case CC: reconciliation attempts exhausted
-  | 'cancel_boundary_exceeded'      // Case CB: 24h boundary exceeded
-  | 'cancel_deferred'               // Case CE/CF: within budget, scheduled next
-  | 'cancel_transport_error'        // Case CE: carrier query failed
-  | 'cancel_ambiguous'              // Case CF: carrier response inconclusive
+  | 'already_complete' // Case A / CA
+  | 'recovered' // Case B
+  | 'retry_safe' // Case C (retry triggered)
+  | 'not_found_deferred' // Case C (not found, not safe to retry)
+  | 'routed_to_recovery' // Case D
+  | 'cancel_succeeded' // Case CD: tracking confirmed cancellation
+  | 'cancel_budget_exhausted' // Case CC: reconciliation attempts exhausted
+  | 'cancel_boundary_exceeded' // Case CB: 24h boundary exceeded
+  | 'cancel_deferred' // Case CE/CF: within budget, scheduled next
+  | 'cancel_transport_error' // Case CE: carrier query failed
+  | 'cancel_ambiguous' // Case CF: carrier response inconclusive
   | 'error';
 
 export interface ReconciliationResult {
@@ -103,11 +108,18 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     private readonly circuitBreaker: CarrierCircuitBreaker,
     private readonly emailResolver: CarrierEmailResolver,
   ) {
-    this.intervalMs = parseInt(
-      process.env['CARRIER_RECONCILIATION_INTERVAL_MS'] || '600000',
-      10,
-    );
+    this.intervalMs = parseInt(process.env['CARRIER_RECONCILIATION_INTERVAL_MS'] || '600000', 10);
     this.cancelIntervalMs = CarrierReconciliationService.CANCEL_RECONCILIATION_INTERVAL_MS;
+  }
+
+  /** Reconciliation is a global system worker; no tenant is inferred from payload data. */
+  private readonly workerId = `carrier-reconciliation-${process.pid}`;
+
+  private withWorkerContext<T>(operation: () => Promise<T>): Promise<T> {
+    return this.db.withActorContext(
+      { actorKind: 'worker', workerId: this.workerId },
+      operation,
+    );
   }
 
   onModuleInit() {
@@ -170,14 +182,19 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
       // Other workers see recoveryStatus = 'RECONCILING' and skip those rows.
       const leaseExpiry = new Date(Date.now() + CarrierReconciliationService.CLAIM_LEASE_MS);
 
-      const claimed = await this.db.db.execute(sql`
+      const claimed = await this.withWorkerContext(() => this.db.db.execute(sql`
         UPDATE shipments
         SET recovery_status = 'RECONCILING',
             next_reconciliation_at = ${leaseExpiry},
             updated_at = NOW()
         WHERE id IN (
           SELECT id FROM shipments
-          WHERE (
+          WHERE EXISTS (
+              SELECT 1 FROM orders o
+              WHERE o.id = shipments.order_id
+                AND o.store_id = shipments.store_id
+            )
+            AND (
             carrier_create_status = 'RECOVERY_REQUIRED'
             OR (
               carrier_create_status IN ('PENDING', 'IN_PROGRESS')
@@ -191,7 +208,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
           FOR UPDATE SKIP LOCKED
         )
         RETURNING *
-      `);
+      `));
 
       const candidates = claimed.rows ?? [];
       this.logger.log(`Reconciliation cycle: ${candidates.length} candidates claimed.`);
@@ -202,9 +219,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
       }
 
       if (results.length > 0) {
-        this.logger.log(
-          `Reconciliation complete: ${results.map(r => r.outcome).join(', ')}`,
-        );
+        this.logger.log(`Reconciliation complete: ${results.map((r) => r.outcome).join(', ')}`);
       }
     } catch (err: any) {
       this.logger.error(`Reconciliation cycle error: ${err?.message}`);
@@ -216,11 +231,36 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
   }
 
   /**
+   * Verify the independent shipment.order_id and shipment.store_id references
+   * describe the same merchant-owned sub-order before any provider interaction.
+   * Accept both Drizzle camelCase rows and raw SQL snake_case claim rows.
+   */
+  private async hasConsistentShipmentOrderStore(shipment: any): Promise<boolean> {
+    const orderId = shipment.orderId ?? shipment.order_id;
+    const storeId = shipment.storeId ?? shipment.store_id;
+    if (typeof orderId !== 'string' || typeof storeId !== 'string') return false;
+    const order = await this.withWorkerContext(() =>
+      this.db.db.query.orders.findFirst({
+        where: eq(orders.id, orderId),
+        columns: { storeId: true },
+      }),
+    );
+    return !!order && order.storeId === storeId;
+  }
+
+  /**
    * Reconcile a single shipment.
    */
   async reconcileShipment(shipment: any): Promise<ReconciliationResult> {
     const shipmentId = shipment.id as string;
-    const providerKey = shipment.shippingProviderKey || 'aramex';
+    if (!(await this.hasConsistentShipmentOrderStore(shipment))) {
+      return {
+        shipmentId,
+        outcome: 'error',
+        detail: 'Shipment order does not belong to its store; carrier reconciliation was blocked',
+      };
+    }
+    const providerKey = shipment.shippingProviderKey || shipment.shipping_provider_key || 'aramex';
     const provider = this.registry.findProvider(providerKey);
 
     if (!provider) {
@@ -249,12 +289,12 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
 
     if (trackingId) {
       try {
-        const trackingInfo = await provider.getTrackingInfo(trackingId);
+        const trackingInfo = await provider.getTrackingInfo(trackingId, shipment.storeId);
         this.circuitBreaker.recordSuccess(cbScope);
 
         if (trackingInfo) {
           // Case B: Carrier has the shipment — recover
-          await this.db.db
+          await this.withWorkerContext(() => this.db.db
             .update(shipments)
             .set({
               carrierCreateStatus: 'SUCCESS' as any,
@@ -266,11 +306,11 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
               lastCarrierSyncAt: new Date(),
               updatedAt: new Date(),
             })
-            .where(eq(shipments.id, shipmentId));
+            .where(eq(shipments.id, shipmentId)));
 
           this.logger.log(
             `Reconciliation: shipment ${shipmentId} recovered via tracking ` +
-            `(status: ${trackingInfo.status})`,
+              `(status: ${trackingInfo.status})`,
           );
 
           return { shipmentId, outcome: 'recovered', detail: trackingInfo.status };
@@ -285,7 +325,10 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     }
 
     // Case C: Carrier doesn't have it — can we safely retry?
-    if (shipment.carrierCreateStatus === 'PENDING' || shipment.carrierCreateStatus === 'RECOVERY_REQUIRED') {
+    if (
+      shipment.carrierCreateStatus === 'PENDING' ||
+      shipment.carrierCreateStatus === 'RECOVERY_REQUIRED'
+    ) {
       // Check if it's safe to retry (idempotency key exists)
       if (shipment.idempotencyKey) {
         // Schedule a retry via outbox
@@ -311,24 +354,26 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     const { randomUUID } = await import('node:crypto');
     const { outboxEvents } = await import('../audit/audit.schema');
 
-    await this.db.db.insert(outboxEvents).values({
-      id: randomUUID(),
-      eventType: 'shipping.carrier.create',
-      aggregateId: shipment.id,
-      payload: { source: 'reconciliation', retryCount: (shipment.carrierCreateRetries || 0) + 1 },
-      status: 'PENDING',
-      organizationId: null, // resolved by worker from shipment
-    });
+    await this.withWorkerContext(async () => {
+      await this.db.db.insert(outboxEvents).values({
+        id: randomUUID(),
+        eventType: 'shipping.carrier.create',
+        aggregateId: shipment.id,
+        payload: { source: 'reconciliation', retryCount: (shipment.carrierCreateRetries || 0) + 1 },
+        status: 'PENDING',
+        organizationId: null, // resolved by worker from shipment
+      });
 
-    // Update shipment to indicate retry is scheduled
-    await this.db.db
-      .update(shipments)
-      .set({
-        recoveryStatus: 'RETRY_SCHEDULED',
-        nextReconciliationAt: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(shipments.id, shipment.id));
+      // Outbox publication intent and shipment retry state commit atomically.
+      await this.db.db
+        .update(shipments)
+        .set({
+          recoveryStatus: 'RETRY_SCHEDULED',
+          nextReconciliationAt: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(shipments.id, shipment.id));
+    });
   }
 
   /**
@@ -337,19 +382,16 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
   private async deferReconciliation(shipment: any): Promise<void> {
     // Exponential backoff for reconciliation: 10min, 20min, 40min, 1h, 2h, 4h (max)
     const currentRetries = shipment.carrierCreateRetries || 0;
-    const delayMs = Math.min(
-      10 * 60 * 1000 * Math.pow(2, currentRetries),
-      4 * 60 * 60 * 1000,
-    );
+    const delayMs = Math.min(10 * 60 * 1000 * Math.pow(2, currentRetries), 4 * 60 * 60 * 1000);
 
-    await this.db.db
+    await this.withWorkerContext(() => this.db.db
       .update(shipments)
       .set({
         recoveryStatus: 'DEFERRED',
         nextReconciliationAt: new Date(Date.now() + delayMs),
         updatedAt: new Date(),
       })
-      .where(eq(shipments.id, shipment.id));
+      .where(eq(shipments.id, shipment.id)));
   }
 
   // ── B.3.3.3: Cancel Reconciliation ───────────────────────────────────────
@@ -369,14 +411,19 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     try {
       const leaseExpiry = new Date(Date.now() + CarrierReconciliationService.CLAIM_LEASE_MS);
 
-      const claimed = await this.db.db.execute(sql`
+      const claimed = await this.withWorkerContext(() => this.db.db.execute(sql`
         UPDATE shipments
         SET recovery_status = 'RECONCILING',
             next_reconciliation_at = ${leaseExpiry},
             updated_at = NOW()
         WHERE id IN (
           SELECT id FROM shipments
-          WHERE carrier_cancel_status IN ('UNKNOWN', 'RECONCILIATION_REQUIRED')
+          WHERE EXISTS (
+              SELECT 1 FROM orders o
+              WHERE o.id = shipments.order_id
+                AND o.store_id = shipments.store_id
+            )
+            AND carrier_cancel_status IN ('UNKNOWN', 'RECONCILIATION_REQUIRED')
             AND (next_reconciliation_at IS NULL OR next_reconciliation_at <= NOW())
             AND (recovery_status IS NULL
                  OR recovery_status NOT IN ('RECONCILING', 'RECOVERED', 'ADMIN_TRIGGERED'))
@@ -385,7 +432,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
           FOR UPDATE SKIP LOCKED
         )
         RETURNING *
-      `);
+      `));
 
       const candidates = claimed.rows ?? [];
       this.logger.log(`Cancel reconciliation cycle: ${candidates.length} candidates claimed.`);
@@ -397,7 +444,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
 
       if (results.length > 0) {
         this.logger.log(
-          `Cancel reconciliation complete: ${results.map(r => `${r.shipmentId}:${r.outcome}`).join(', ')}`,
+          `Cancel reconciliation complete: ${results.map((r) => `${r.shipmentId}:${r.outcome}`).join(', ')}`,
         );
       }
     } catch (err: any) {
@@ -422,6 +469,13 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
    */
   async reconcileCancelShipment(shipment: any): Promise<ReconciliationResult> {
     const shipmentId = shipment.id as string;
+    if (!(await this.hasConsistentShipmentOrderStore(shipment))) {
+      return {
+        shipmentId,
+        outcome: 'error',
+        detail: 'Shipment order does not belong to its store; cancel reconciliation was blocked',
+      };
+    }
     const cancelStatus = shipment.carrier_cancel_status as string | null;
 
     // CA: Already terminal
@@ -445,7 +499,11 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     const reconciliationAttempts = shipment.carrier_cancel_retries || 0;
     if (reconciliationAttempts >= CarrierReconciliationService.MAX_CANCEL_RECONCILIATION_ATTEMPTS) {
       await this.escalateCancelReconciliation(shipment, 'budget exhausted');
-      return { shipmentId, outcome: 'cancel_budget_exhausted', detail: `${reconciliationAttempts} attempts` };
+      return {
+        shipmentId,
+        outcome: 'cancel_budget_exhausted',
+        detail: `${reconciliationAttempts} attempts`,
+      };
     }
 
     const providerKey = shipment.shipping_provider_key || 'aramex';
@@ -465,7 +523,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     const trackingId = shipment.carrier_tracking_id;
     if (trackingId) {
       try {
-        const trackingInfo = await provider.getTrackingInfo(trackingId);
+        const trackingInfo = await provider.getTrackingInfo(trackingId, shipment.store_id);
         this.circuitBreaker.recordSuccess(cbScope);
 
         if (trackingInfo) {
@@ -493,7 +551,11 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
         }
         // Non-transport error (auth, validation, etc.) — defer
         await this.deferCancelReconciliation(shipment);
-        return { shipmentId, outcome: 'cancel_transport_error', detail: err?.message?.slice(0, 200) };
+        return {
+          shipmentId,
+          outcome: 'cancel_transport_error',
+          detail: err?.message?.slice(0, 200),
+        };
       }
     }
 
@@ -507,7 +569,11 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     }
 
     await this.deferCancelReconciliation(shipment);
-    return { shipmentId, outcome: 'cancel_deferred', detail: `Attempt ${newAttempts}, scheduled next` };
+    return {
+      shipmentId,
+      outcome: 'cancel_deferred',
+      detail: `Attempt ${newAttempts}, scheduled next`,
+    };
   }
 
   /**
@@ -515,7 +581,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
    * BD-05/BD-12: After time or budget exhaustion.
    */
   private async escalateCancelReconciliation(shipment: any, reason: string): Promise<void> {
-    await this.db.db
+    await this.withWorkerContext(() => this.db.db
       .update(shipments)
       .set({
         carrierCancelStatus: 'RECONCILIATION_REQUIRED' as any,
@@ -523,11 +589,9 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
         nextReconciliationAt: null,
         updatedAt: new Date(),
       })
-      .where(eq(shipments.id, shipment.id));
+      .where(eq(shipments.id, shipment.id)));
 
-    this.logger.warn(
-      `Cancel reconciliation escalated for shipment ${shipment.id}: ${reason}`,
-    );
+    this.logger.warn(`Cancel reconciliation escalated for shipment ${shipment.id}: ${reason}`);
   }
 
   /**
@@ -535,7 +599,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
    * BD-06: Only on unambiguous proof of cancellation.
    */
   private async resolveCancelSucceeded(shipment: any): Promise<void> {
-    await this.db.db
+    await this.withWorkerContext(() => this.db.db
       .update(shipments)
       .set({
         carrierCancelStatus: 'SUCCEEDED' as any,
@@ -545,7 +609,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
         nextReconciliationAt: null,
         updatedAt: new Date(),
       })
-      .where(eq(shipments.id, shipment.id));
+      .where(eq(shipments.id, shipment.id)));
 
     this.logger.log(`Cancel reconciliation: shipment ${shipment.id} → SUCCEEDED`);
   }
@@ -585,7 +649,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     const currentAttempts = shipment.carrier_cancel_retries || 0;
     const intervalMs = CarrierReconciliationService.CANCEL_RECONCILIATION_INTERVAL_MS;
 
-    await this.db.db
+    await this.withWorkerContext(() => this.db.db
       .update(shipments)
       .set({
         recoveryStatus: null,
@@ -593,7 +657,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
         carrierCancelRetries: currentAttempts + 1,
         updatedAt: new Date(),
       })
-      .where(eq(shipments.id, shipment.id));
+      .where(eq(shipments.id, shipment.id)));
   }
 
   /**

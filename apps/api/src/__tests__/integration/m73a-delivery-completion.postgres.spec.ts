@@ -144,7 +144,7 @@ describe('M7.3-A — Security, Concurrency & Idempotency (integration)', () => {
     const cartId = randomUUID();
     await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerId]);
     await pool.query(`INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id) VALUES ($1, $2, $3, $4, 2, 1000, 2000, $5)`, [randomUUID(), cartId, sId, vId, oId]);
-    const co = await ordersService.checkout({ buyerId, deliveryAddress: {}, idempotencyKey: `m73a-${randomUUID()}` });
+    const co = await ordersService.checkout({ buyerId, deliveryAddress: {}, idempotencyKey: `m73a-${randomUUID()}` }, { sub: buyerId, role: 'BUYER', activeOrg: null });
     const orderId = co.subOrders[0]!.id;
     const ownerOrgId = acceptOrgId || (sId === storeB ? orgB : orgA);
     const caller = { sub: mId, role: 'MERCHANT_OWNER', activeOrg: ownerOrgId };
@@ -166,7 +166,7 @@ describe('M7.3-A — Security, Concurrency & Idempotency (integration)', () => {
     const cartId = randomUUID();
     await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerId]);
     await pool.query(`INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id) VALUES ($1, $2, $3, $4, 2, 1000, 2000, $5)`, [randomUUID(), cartId, sId, vId, oId]);
-    const co = await ordersService.checkout({ buyerId, deliveryAddress: {}, idempotencyKey: `m73a-${randomUUID()}` });
+    const co = await ordersService.checkout({ buyerId, deliveryAddress: {}, idempotencyKey: `m73a-${randomUUID()}` }, { sub: buyerId, role: 'BUYER', activeOrg: null });
     const orderId = co.subOrders[0]!.id;
     const ownerOrgId = acceptOrgId || (sId === storeB ? orgB : orgA);
     const caller = { sub: mId, role: 'MERCHANT_OWNER', activeOrg: ownerOrgId };
@@ -203,11 +203,23 @@ describe('M7.3-A — Security, Concurrency & Idempotency (integration)', () => {
     const client = await pool.connect();
     try { await seedPlatformRbac(client); } finally { client.release(); }
 
-    database = { db } as DatabaseService;
+    database = new DatabaseService();
+    database.db = db;
     const promotions = new PromotionsService(database);
     const realOutbox = new OutboxDispatcher(database);
     const inventoryService = new InventoryService(database, realOutbox);
-    ordersService = new OrdersService(database, realOutbox, promotions, realtime, undefined, notifications);
+    ordersService = new OrdersService(
+      database,
+      realOutbox,
+      promotions,
+      realtime,
+      undefined,
+      notifications,
+      {
+        assertDriverEligibleForStore: vi.fn().mockResolvedValue(undefined),
+        validateCheckoutSelection: vi.fn().mockResolvedValue(undefined),
+      } as any,
+    );
 
     // Roles
     const rolesRes = await pool.query(`SELECT id, key FROM roles`);
@@ -232,8 +244,8 @@ describe('M7.3-A — Security, Concurrency & Idempotency (integration)', () => {
     await pool.query(`INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`, [randomUUID(), orgA, driverA, roleById.get('DRIVER')]);
 
     // Store + Warehouse
-    await pool.query(`INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-a-m73a', 'Store A', 'APPROVED')`, [storeA, orgA]);
-    await pool.query(`INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-b-m73a', 'Store B', 'APPROVED')`, [storeB, orgB]);
+    await pool.query(`INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-a-m73a', 'Store A', 'ACTIVE', 'VERIFIED')`, [storeA, orgA]);
+    await pool.query(`INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-b-m73a', 'Store B', 'ACTIVE', 'VERIFIED')`, [storeB, orgB]);
     await pool.query(`INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, 'WH A')`, [warehouseA, storeA]);
 
     // Product + Variant + Offer
@@ -328,7 +340,7 @@ describe('M7.3-A — Security, Concurrency & Idempotency (integration)', () => {
       const cartId = randomUUID();
       await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [cartId, buyerA]);
       await pool.query(`INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id) VALUES ($1, $2, $3, $4, 2, 1000, 2000, $5)`, [randomUUID(), cartId, storeA, variantA, offerA]);
-      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `m73a-cd-${randomUUID()}` });
+      const co = await ordersService.checkout({ buyerId: buyerA, deliveryAddress: {}, idempotencyKey: `m73a-cd-${randomUUID()}` }, { sub: buyerA, role: 'BUYER', activeOrg: null });
       const orderId = co.subOrders[0]!.id;
       const caller = { sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA };
       await ordersService.acceptOrder(orderId, merchantA, caller);

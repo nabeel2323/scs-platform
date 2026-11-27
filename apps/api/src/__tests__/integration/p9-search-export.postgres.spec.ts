@@ -34,11 +34,17 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
-  products, productVariants, categories, brands,
+  products,
+  productVariants,
+  categories,
+  brands,
 } from '../../modules/catalog/catalog.schema';
 import {
-  attributeDefinitions, productAttributeValues, variantAttributeValues,
-  productTypes, productTypeAttributes,
+  attributeDefinitions,
+  productAttributeValues,
+  variantAttributeValues,
+  productTypes,
+  productTypeAttributes,
 } from '../../modules/catalog/catalog.taxonomy.schema';
 import { merchantOffers } from '../../modules/catalog/catalog.offer.schema';
 import { users, organizations, organizationMembers } from '../../modules/identity/identity.schema';
@@ -52,38 +58,97 @@ const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/mig
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
 
 async function createStoreOrg(
-  pool: Pool, roleById: Map<string, string>, suffix: string,
-): Promise<{ orgId: string; storeId: string; userId: string; warehouseId: string; priceListId: string }> {
-  const orgId = randomUUID(), storeId = randomUUID(), userId = randomUUID();
-  const warehouseId = randomUUID(), priceListId = randomUUID();
-  await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, $2, $3)`, [userId, `User ${suffix}`, `+966${suffix.padStart(9, '0')}`]);
-  await pool.query(`INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', $2, 'SA')`, [orgId, `Org ${suffix}`]);
-  await pool.query(`INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`, [randomUUID(), orgId, userId, roleById.get('MERCHANT_OWNER')]);
-  await pool.query(`INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, $3, $4, 'APPROVED')`, [storeId, orgId, `store-${suffix}`, `Store ${suffix}`]);
-  await pool.query(`INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, $3)`, [warehouseId, storeId, `WH ${suffix}`]);
-  await pool.query(`INSERT INTO price_lists (id, store_id, name, currency, is_active) VALUES ($1, $2, $3, 'SAR', true)`, [priceListId, storeId, `PL ${suffix}`]);
+  pool: Pool,
+  roleById: Map<string, string>,
+  suffix: string,
+): Promise<{
+  orgId: string;
+  storeId: string;
+  userId: string;
+  warehouseId: string;
+  priceListId: string;
+}> {
+  const orgId = randomUUID(),
+    storeId = randomUUID(),
+    userId = randomUUID();
+  const warehouseId = randomUUID(),
+    priceListId = randomUUID();
+  await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, $2, $3)`, [
+    userId,
+    `User ${suffix}`,
+    `+966${suffix.padStart(9, '0')}`,
+  ]);
+  await pool.query(
+    `INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', $2, 'SA')`,
+    [orgId, `Org ${suffix}`],
+  );
+  await pool.query(
+    `INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`,
+    [randomUUID(), orgId, userId, roleById.get('MERCHANT_OWNER')],
+  );
+  await pool.query(
+    `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, $3, $4, 'APPROVED')`,
+    [storeId, orgId, `store-${suffix}`, `Store ${suffix}`],
+  );
+  await pool.query(`INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, $3)`, [
+    warehouseId,
+    storeId,
+    `WH ${suffix}`,
+  ]);
+  await pool.query(
+    `INSERT INTO price_lists (id, store_id, name, currency, is_active) VALUES ($1, $2, $3, 'SAR', true)`,
+    [priceListId, storeId, `PL ${suffix}`],
+  );
   return { orgId, storeId, userId, warehouseId, priceListId };
 }
 
-async function createProduct(pool: Pool, storeId: string, title: string, variantSkus: string[]): Promise<{ productId: string; variantIds: string[] }> {
+async function createProduct(
+  pool: Pool,
+  storeId: string,
+  title: string,
+  variantSkus: string[],
+): Promise<{ productId: string; variantIds: string[] }> {
   const productId = randomUUID();
-  await pool.query(`INSERT INTO products (id, store_id, title, title_ar, slug, status, created_at, updated_at) VALUES ($1, $2, $3, $3, $4, 'PUBLISHED', NOW(), NOW())`, [productId, storeId, title, `slug-${productId.slice(0, 8)}`]);
+  await pool.query(
+    `INSERT INTO products (id, store_id, title, title_ar, slug, status, created_at, updated_at) VALUES ($1, $2, $3, $3, $4, 'ACTIVE', NOW(), NOW())`,
+    [productId, storeId, title, `slug-${productId.slice(0, 8)}`],
+  );
   const variantIds: string[] = [];
   for (const sku of variantSkus) {
     const vid = randomUUID();
-    await pool.query(`INSERT INTO product_variants (id, product_id, sku, title, unit, is_active, created_at, updated_at) VALUES ($1, $2, $3, $4, 'PCS', true, NOW(), NOW())`, [vid, productId, sku, title]);
+    await pool.query(
+      `INSERT INTO product_variants (id, product_id, sku, title, unit, is_active, created_at, updated_at) VALUES ($1, $2, $3, $4, 'PCS', true, NOW(), NOW())`,
+      [vid, productId, sku, title],
+    );
     variantIds.push(vid);
   }
   return { productId, variantIds };
 }
 
-async function createOffer(pool: Pool, storeId: string, productId: string, variantId: string, priceListId: string, basePriceMinor: number, status = 'ACTIVE') {
-  await pool.query(`INSERT INTO merchant_offers (id, store_id, product_id, variant_id, price_list_id, base_price_minor, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())`, [randomUUID(), storeId, productId, variantId, priceListId, basePriceMinor, status]);
-  await pool.query(`INSERT INTO price_tiers (id, price_list_id, variant_id, min_qty, unit_price_minor, created_at, updated_at) VALUES ($1, $2, $3, 1, $4, NOW(), NOW())`, [randomUUID(), priceListId, variantId, basePriceMinor]);
+async function createOffer(
+  pool: Pool,
+  storeId: string,
+  productId: string,
+  variantId: string,
+  priceListId: string,
+  basePriceMinor: number,
+  status = 'ACTIVE',
+) {
+  await pool.query(
+    `INSERT INTO merchant_offers (id, store_id, product_id, variant_id, price_list_id, base_price_minor, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())`,
+    [randomUUID(), storeId, productId, variantId, priceListId, basePriceMinor, status],
+  );
+  await pool.query(
+    `INSERT INTO price_tiers (id, price_list_id, variant_id, min_qty, unit_price_minor, created_at, updated_at) VALUES ($1, $2, $3, 1, $4, NOW(), NOW())`,
+    [randomUUID(), priceListId, variantId, basePriceMinor],
+  );
 }
 
 async function createInventory(pool: Pool, variantId: string, warehouseId: string, qty: number) {
-  await pool.query(`INSERT INTO inventory_items (id, variant_id, warehouse_id, qty_on_hand, qty_reserved, reorder_point) VALUES ($1, $2, $3, $4, 0, 0)`, [randomUUID(), variantId, warehouseId, qty]);
+  await pool.query(
+    `INSERT INTO inventory_items (id, variant_id, warehouse_id, qty_on_hand, qty_reserved, reorder_point) VALUES ($1, $2, $3, $4, 0, 0)`,
+    [randomUUID(), variantId, warehouseId, qty],
+  );
 }
 
 // @ts-nocheck — test setup uses module-level let vars assigned in beforeAll;
@@ -104,32 +169,85 @@ describe('P9 — Search & Export (PostgreSQL)', () => {
     container = await new PostgreSqlContainer('postgis/postgis:16-3.4').start();
     pool = new Pool({ connectionString: container.getConnectionUri() });
     db = drizzle(pool, {
-      schema: { products, productVariants, categories, brands, users, organizations, organizationMembers, stores, warehouses, priceLists, priceTiers, attributeDefinitions, productAttributeValues, variantAttributeValues, productTypes, productTypeAttributes, merchantOffers, inventoryItems, outboxEvents, searchQueries },
+      schema: {
+        products,
+        productVariants,
+        categories,
+        brands,
+        users,
+        organizations,
+        organizationMembers,
+        stores,
+        warehouses,
+        priceLists,
+        priceTiers,
+        attributeDefinitions,
+        productAttributeValues,
+        variantAttributeValues,
+        productTypes,
+        productTypeAttributes,
+        merchantOffers,
+        inventoryItems,
+        outboxEvents,
+        searchQueries,
+      },
     }) as unknown as DatabaseService['db'];
 
-    const files = fs.readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith('.sql') && !EXCLUDED.has(f)).sort();
-    await pool.query(`CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`);
+    const files = fs
+      .readdirSync(MIGRATIONS_DIR)
+      .filter((f) => f.endsWith('.sql') && !EXCLUDED.has(f))
+      .sort();
+    await pool.query(
+      `CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`,
+    );
     for (const file of files) {
       const sqlContent = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
       await pool.query('BEGIN');
-      try { await pool.query(sqlContent); await pool.query(`INSERT INTO _migration_log (name) VALUES ($1)`, [file]); await pool.query('COMMIT'); } catch { await pool.query('ROLLBACK'); }
+      try {
+        await pool.query(sqlContent);
+        await pool.query(`INSERT INTO _migration_log (name) VALUES ($1)`, [file]);
+        await pool.query('COMMIT');
+      } catch {
+        await pool.query('ROLLBACK');
+      }
     }
     const client = await pool.connect();
-    try { await seedPlatformRbac(client); } finally { client.release(); }
-    roleById = new Map((await pool.query(`SELECT id, key FROM roles`)).rows.map((r: any) => [r.key, r.id] as const));
+    try {
+      await seedPlatformRbac(client);
+    } finally {
+      client.release();
+    }
+    roleById = new Map(
+      (await pool.query(`SELECT id, key FROM roles`)).rows.map((r: any) => [r.key, r.id] as const),
+    );
 
     database = { db } as DatabaseService;
     const outbox = new OutboxDispatcher(database);
     const storage = { createPresignedGetUrl: async () => null } as any;
-    const redis = { client: { get: async () => null, set: async () => {}, del: async () => {} } } as any;
+    const redis = {
+      client: { get: async () => null, set: async () => {}, del: async () => {} },
+    } as any;
     searchService = new SearchService(database, storage, redis);
     const taxonomyService = new CatalogTaxonomyService(database);
     const conditionalRules = new ConditionalRulesService();
-    catalogService = new CatalogService(database, redis, outbox, storage, { record: async () => {} } as any, conditionalRules, taxonomyService, {} as any, {} as any, {} as any);
+    catalogService = new CatalogService(
+      database,
+      redis,
+      outbox,
+      storage,
+      { record: async () => {} } as any,
+      conditionalRules,
+      taxonomyService,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
 
     // Store A
     const a = await createStoreOrg(pool, roleById, 'A');
-    storeA = a.storeId; whA = a.warehouseId; plA = a.priceListId;
+    storeA = a.storeId;
+    whA = a.warehouseId;
+    plA = a.priceListId;
     // Store B
     const b = await createStoreOrg(pool, roleById, 'B');
     storeB = b.storeId;
@@ -157,7 +275,11 @@ describe('P9 — Search & Export (PostgreSQL)', () => {
     await createOffer(pool, storeA, oos.productId, oos.variantIds[0]!, plA, 4000);
 
     // Multi-variant product
-    const mv = await createProduct(pool, storeA, 'Multi Variant Product', ['MV-001', 'MV-002', 'MV-003']);
+    const mv = await createProduct(pool, storeA, 'Multi Variant Product', [
+      'MV-001',
+      'MV-002',
+      'MV-003',
+    ]);
     await createOffer(pool, storeA, mv.productId, mv.variantIds[0]!, plA, 2000);
     await createOffer(pool, storeA, mv.productId, mv.variantIds[1]!, plA, 3500);
     await createOffer(pool, storeA, mv.productId, mv.variantIds[2]!, plA, 7000);
@@ -169,7 +291,10 @@ describe('P9 — Search & Export (PostgreSQL)', () => {
     await createProduct(pool, storeB, 'Store B Product', ['SB-001']);
   }, 120_000);
 
-  afterAll(async () => { await pool?.end(); await container?.stop(); }, 30_000);
+  afterAll(async () => {
+    await pool?.end();
+    await container?.stop();
+  }, 30_000);
 
   // NP-A01: Price range filtering
   describe('NP-A01 — priceMin/priceMax', () => {
@@ -188,7 +313,11 @@ describe('P9 — Search & Export (PostgreSQL)', () => {
       expect(titles).not.toContain('Expensive Device');
     });
     it('filters with priceMin AND priceMax', async () => {
-      const res = await searchService.search('', { storeId: storeA, priceMin: 2000, priceMax: 6000 });
+      const res = await searchService.search('', {
+        storeId: storeA,
+        priceMin: 2000,
+        priceMax: 6000,
+      });
       const titles: string[] = res.items.map((i: any) => i.title ?? '');
       expect(titles).toContain('Mid Gadget');
       expect(titles).not.toContain('Cheap Widget');
@@ -200,7 +329,11 @@ describe('P9 — Search & Export (PostgreSQL)', () => {
       expect(titles).not.toContain('No Price Item');
     });
     it('respects exact price boundaries', async () => {
-      const res = await searchService.search('', { storeId: storeA, priceMin: 5000, priceMax: 5000 });
+      const res = await searchService.search('', {
+        storeId: storeA,
+        priceMin: 5000,
+        priceMax: 5000,
+      });
       const titles: string[] = res.items.map((i: any) => i.title ?? '');
       expect(titles).toContain('Mid Gadget');
       expect(titles.length).toBe(1);
@@ -218,7 +351,11 @@ describe('P9 — Search & Export (PostgreSQL)', () => {
       expect(titles).not.toContain('No Price Item');
     });
     it('combined with price filter', async () => {
-      const res = await searchService.search('', { storeId: storeA, availability: 'inStock', priceMin: 2500 });
+      const res = await searchService.search('', {
+        storeId: storeA,
+        availability: 'inStock',
+        priceMin: 2500,
+      });
       const titles: string[] = res.items.map((i: any) => i.title ?? '');
       expect(titles).toContain('In Stock Item');
     });
@@ -252,7 +389,8 @@ describe('P9 — Search & Export (PostgreSQL)', () => {
     it('newest sorts by created_at DESC', async () => {
       const res = await searchService.search('', { storeId: storeA, sort: 'newest' });
       const dates: number[] = res.items.map((i: any) => new Date(i.createdAt ?? 0).getTime());
-      for (let j = 1; j < dates.length; j++) expect(dates[j - 1]!).toBeGreaterThanOrEqual(dates[j]!);
+      for (let j = 1; j < dates.length; j++)
+        expect(dates[j - 1]!).toBeGreaterThanOrEqual(dates[j]!);
     });
     it('name sorts by title ASC', async () => {
       const res = await searchService.search('', { storeId: storeA, sort: 'name' });
@@ -264,7 +402,13 @@ describe('P9 — Search & Export (PostgreSQL)', () => {
   // NP-A07: Combined filters
   describe('NP-A07 — Combined filters', () => {
     it('price + availability + sort compose correctly', async () => {
-      const res = await searchService.search('', { storeId: storeA, priceMin: 1000, priceMax: 10000, availability: 'inStock', sort: 'price_asc' });
+      const res = await searchService.search('', {
+        storeId: storeA,
+        priceMin: 1000,
+        priceMax: 10000,
+        availability: 'inStock',
+        sort: 'price_asc',
+      });
       const titles: string[] = res.items.map((i: any) => i.title ?? '');
       expect(titles).toContain('In Stock Item');
       expect(titles).toContain('Multi Variant Product');
@@ -276,13 +420,29 @@ describe('P9 — Search & Export (PostgreSQL)', () => {
   // NP-A08: Filtered pagination
   describe('NP-A08 — Filtered pagination', () => {
     it('total reflects filtered count', async () => {
-      const res = await searchService.search('', { storeId: storeA, priceMin: 1000, priceMax: 6000, limit: 2, offset: 0 });
+      const res = await searchService.search('', {
+        storeId: storeA,
+        priceMin: 1000,
+        priceMax: 6000,
+        limit: 2,
+        offset: 0,
+      });
       expect(res.items.length).toBeLessThanOrEqual(2);
       expect(res.total).toBeGreaterThanOrEqual(res.items.length);
     });
     it('no overlap between pages', async () => {
-      const p1 = await searchService.search('', { storeId: storeA, sort: 'name', limit: 3, offset: 0 });
-      const p2 = await searchService.search('', { storeId: storeA, sort: 'name', limit: 3, offset: 3 });
+      const p1 = await searchService.search('', {
+        storeId: storeA,
+        sort: 'name',
+        limit: 3,
+        offset: 0,
+      });
+      const p2 = await searchService.search('', {
+        storeId: storeA,
+        sort: 'name',
+        limit: 3,
+        offset: 3,
+      });
       const ids1 = new Set(p1.items.map((i: any) => i.id));
       for (const item of p2.items) expect(ids1.has((item as any).id)).toBe(false);
     });
@@ -292,10 +452,19 @@ describe('P9 — Search & Export (PostgreSQL)', () => {
   describe('NP-A09 — Typed attribute export', () => {
     it('exports product-scope attributes in CSV', async () => {
       const attrDefId = randomUUID();
-      await pool.query(`INSERT INTO attribute_definitions (id, code, name, type, scope, created_at, updated_at) VALUES ($1, 'color', 'Color', 'TEXT', 'PRODUCT', NOW(), NOW())`, [attrDefId]);
+      await pool.query(
+        `INSERT INTO attribute_definitions (id, code, name, type, scope, created_at, updated_at) VALUES ($1, 'color', 'Color', 'TEXT', 'PRODUCT', NOW(), NOW())`,
+        [attrDefId],
+      );
       // Find a product ID from store A
-      const prods = await pool.query(`SELECT id FROM products WHERE store_id = $1 AND deleted_at IS NULL LIMIT 1`, [storeA]);
-      await pool.query(`INSERT INTO product_attribute_values (id, product_id, attribute_definition_id, value_text) VALUES ($1, $2, $3, $4)`, [randomUUID(), prods.rows[0].id, attrDefId, 'Red']);
+      const prods = await pool.query(
+        `SELECT id FROM products WHERE store_id = $1 AND deleted_at IS NULL LIMIT 1`,
+        [storeA],
+      );
+      await pool.query(
+        `INSERT INTO product_attribute_values (id, product_id, attribute_definition_id, value_text) VALUES ($1, $2, $3, $4)`,
+        [randomUUID(), prods.rows[0].id, attrDefId, 'Red'],
+      );
       const csv = await catalogService.exportProductsCsv(storeA);
       expect(csv).toContain('attr:color');
       expect(csv).toContain('Red');
@@ -306,14 +475,16 @@ describe('P9 — Search & Export (PostgreSQL)', () => {
   describe('NP-A10 — One row per variant', () => {
     it('multi-variant product produces 3 rows', async () => {
       const csv = await catalogService.exportProductsCsv(storeA);
-      const lines = csv.split('\n').filter(l => l.trim());
-      const mvRows = lines.filter(l => l.includes('MV-001') || l.includes('MV-002') || l.includes('MV-003'));
+      const lines = csv.split('\n').filter((l) => l.trim());
+      const mvRows = lines.filter(
+        (l) => l.includes('MV-001') || l.includes('MV-002') || l.includes('MV-003'),
+      );
       expect(mvRows.length).toBe(3);
     });
     it('single-variant product produces 1 row', async () => {
       const csv = await catalogService.exportProductsCsv(storeA);
-      const lines = csv.split('\n').filter(l => l.trim());
-      expect(lines.filter(l => l.includes('CHEAP-001')).length).toBe(1);
+      const lines = csv.split('\n').filter((l) => l.trim());
+      expect(lines.filter((l) => l.includes('CHEAP-001')).length).toBe(1);
     });
   });
 
@@ -322,16 +493,28 @@ describe('P9 — Search & Export (PostgreSQL)', () => {
     it('CSV has all fixed columns', async () => {
       const csv = await catalogService.exportProductsCsv(storeA);
       const header = csv.split('\n')[0];
-      for (const col of ['title', 'titleAr', 'description', 'category', 'brand', 'status', 'sku', 'barcode', 'variantTitle', 'unit', 'priceMinor']) {
+      for (const col of [
+        'title',
+        'titleAr',
+        'description',
+        'category',
+        'brand',
+        'status',
+        'sku',
+        'barcode',
+        'variantTitle',
+        'unit',
+        'priceMinor',
+      ]) {
         expect(header).toContain(col);
       }
     });
     it('priceMinor is correct numeric value', async () => {
       const csv = await catalogService.exportProductsCsv(storeA);
-      const lines = csv.split('\n').filter(l => l.trim());
+      const lines = csv.split('\n').filter((l) => l.trim());
       const headerCols = lines[0]!.split(',');
       const priceIdx = headerCols.indexOf('priceMinor');
-      const cheapRow = lines.find(l => l.includes('CHEAP-001'));
+      const cheapRow = lines.find((l) => l.includes('CHEAP-001'));
       if (cheapRow) {
         const cols = cheapRow.split(',');
         expect(parseInt(cols[priceIdx]!, 10)).toBe(1000);
@@ -366,7 +549,14 @@ describe('P9 — Search & Export (PostgreSQL)', () => {
   describe('NP-A15 — Performance <200ms', () => {
     it('search with all filters <200ms', async () => {
       const t0 = Date.now();
-      await searchService.search('', { storeId: storeA, priceMin: 1000, priceMax: 10000, availability: 'inStock', sort: 'price_asc', limit: 20 });
+      await searchService.search('', {
+        storeId: storeA,
+        priceMin: 1000,
+        priceMax: 10000,
+        availability: 'inStock',
+        sort: 'price_asc',
+        limit: 20,
+      });
       expect(Date.now() - t0).toBeLessThan(200);
     });
     it('export <200ms', async () => {
@@ -381,8 +571,14 @@ describe('P9 — Search & Export (PostgreSQL)', () => {
     it('inactive offers excluded from price filter', async () => {
       const p = await createProduct(pool, storeA, 'Inactive Offer Prod', ['INACT-001']);
       await createOffer(pool, storeA, p.productId, p.variantIds[0]!, plA, 500, 'INACTIVE');
-      const res = await searchService.search('', { storeId: storeA, priceMin: 100, priceMax: 1000 });
-      expect(res.items.map((i: any) => (i.title ?? '') as string)).not.toContain('Inactive Offer Prod');
+      const res = await searchService.search('', {
+        storeId: storeA,
+        priceMin: 100,
+        priceMax: 1000,
+      });
+      expect(res.items.map((i: any) => (i.title ?? '') as string)).not.toContain(
+        'Inactive Offer Prod',
+      );
     });
   });
 
@@ -399,8 +595,10 @@ describe('P9 — Search & Export (PostgreSQL)', () => {
     it('header-only CSV for empty store', async () => {
       const empty = await createStoreOrg(pool, roleById, 'EMPTY');
       const csv = await catalogService.exportProductsCsv(empty.storeId);
-      expect(csv).toContain('title,titleAr,description,category,brand,status,sku,barcode,variantTitle,unit,priceMinor');
-      expect(csv.split('\n').filter(l => l.trim()).length).toBe(1);
+      expect(csv).toContain(
+        'title,titleAr,description,category,brand,status,sku,barcode,variantTitle,unit,priceMinor',
+      );
+      expect(csv.split('\n').filter((l) => l.trim()).length).toBe(1);
     });
   });
 });

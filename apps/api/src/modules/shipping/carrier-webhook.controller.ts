@@ -1,6 +1,13 @@
 import {
-  Controller, Post, Param, Req, Res, HttpCode,
-  HttpStatus, Logger, UseGuards,
+  Controller,
+  Post,
+  Param,
+  Req,
+  Res,
+  HttpCode,
+  HttpStatus,
+  Logger,
+  UseGuards,
 } from '@nestjs/common';
 import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
 import { eq, and } from 'drizzle-orm';
@@ -11,7 +18,7 @@ import { CarrierCredentialsService } from './carrier-credentials.service';
 import { CarrierObservabilityService } from './carrier-observability';
 import { carrierWebhookEvents, carrierCredentials } from './shipping.schema';
 import { outboxEvents } from '../audit/audit.schema';
-import { shipments } from '../orders/shipment.schema';
+import { CarrierWebhookRoutingService } from './carrier-webhook-routing';
 
 /**
  * CarrierWebhookController — inbound carrier webhook endpoint.
@@ -36,7 +43,7 @@ import { shipments } from '../orders/shipment.schema';
  *     but is only safe when a single org uses each provider.
  *
  * DEDUPLICATION:
- *   - Atomic insert into carrier_webhook_events with UNIQUE(provider_key, external_delivery_id).
+ *   - Atomic insert into carrier_webhook_events with UNIQUE(credential_id, external_delivery_id).
  *   - Duplicate deliveries return 200 OK (idempotent) without reprocessing.
  *
  * RESPONSE BEHAVIOUR:
@@ -62,7 +69,22 @@ export class CarrierWebhookController {
     private readonly security: WebhookSecurityService,
     private readonly credentials: CarrierCredentialsService,
     private readonly observability: CarrierObservabilityService,
+    private readonly webhookRouting: CarrierWebhookRoutingService,
   ) {}
+
+  private withCredentialContext<T>(
+    credential: { id: string; orgId: string },
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    return this.db.withActorContext(
+      {
+        actorKind: 'worker',
+        workerId: `carrier-webhook:${credential.id}`,
+        activeOrgId: credential.orgId,
+      },
+      operation,
+    );
+  }
 
   @Post(':providerKey')
   @HttpCode(200)
@@ -120,10 +142,12 @@ export class CarrierWebhookController {
     }
 
     // 2. Extract signature headers
-    const signature = req.headers['x-carrier-signature'] as string
-      || req.headers['x-webhook-signature'] as string;
-    const timestamp = req.headers['x-carrier-timestamp'] as string
-      || req.headers['x-webhook-timestamp'] as string;
+    const signature =
+      (req.headers['x-carrier-signature'] as string) ||
+      (req.headers['x-webhook-signature'] as string);
+    const timestamp =
+      (req.headers['x-carrier-timestamp'] as string) ||
+      (req.headers['x-webhook-timestamp'] as string);
 
     if (!signature) {
       return res.status(HttpStatus.UNAUTHORIZED).json({
@@ -134,21 +158,44 @@ export class CarrierWebhookController {
     // 3. Find the active credential for this provider
     //    If webhookToken is provided (B1.7), use it for exact tenant routing.
     //    Otherwise fall back to provider-key-only lookup (legacy single-org).
-    const credential = webhookToken
-      ? await this.db.db.query.carrierCredentials.findFirst({
-          where: and(
-            eq(carrierCredentials.providerKey, providerKey),
-            eq(carrierCredentials.webhookToken, webhookToken),
-            eq(carrierCredentials.isActive, true),
-          ),
-        })
-      : await this.db.db.query.carrierCredentials.findFirst({
-          where: and(
-            eq(carrierCredentials.providerKey, providerKey),
-            eq(carrierCredentials.isActive, true),
-          ),
-        });
+    const credentialLookup = await this.db.withActorContext(
+      { actorKind: 'worker', workerId: 'carrier-webhook:credential-resolution' },
+      async () => {
+        if (webhookToken) {
+          const credential = await this.db.db.query.carrierCredentials.findFirst({
+            where: and(
+              eq(carrierCredentials.providerKey, providerKey),
+              eq(carrierCredentials.webhookToken, webhookToken),
+              eq(carrierCredentials.isActive, true),
+            ),
+          });
+          return { credential, ambiguous: false };
+        }
 
+        // The legacy provider-key-only route is safe only when exactly one
+        // active credential exists. Never let findFirst silently choose a tenant.
+        const candidates = await this.db.db.query.carrierCredentials.findMany({
+          where: and(
+            eq(carrierCredentials.providerKey, providerKey),
+            eq(carrierCredentials.isActive, true),
+          ),
+          limit: 2,
+        });
+        if (candidates.length > 1) return { credential: null, ambiguous: true };
+        return { credential: candidates[0] ?? null, ambiguous: false };
+      },
+    );
+
+    if (credentialLookup.ambiguous) {
+      this.logger.warn(
+        `Legacy webhook route rejected for ${providerKey}: multiple active credentials require a tenant-specific webhook token`,
+      );
+      return res.status(HttpStatus.UNAUTHORIZED).json({
+        error: 'A tenant-specific webhook token is required for this provider',
+      });
+    }
+
+    const credential = credentialLookup.credential;
     if (!credential) {
       this.logger.warn(`Webhook received for unknown provider: ${providerKey}`);
       return res.status(HttpStatus.UNAUTHORIZED).json({
@@ -157,7 +204,9 @@ export class CarrierWebhookController {
     }
 
     // 4. Decrypt webhook secret
-    const webhookSecret = await this.credentials.decryptWebhookSecret(credential.id);
+    const webhookSecret = await this.withCredentialContext(credential, () =>
+      this.credentials.decryptWebhookSecret(credential.id, credential.orgId),
+    );
     if (!webhookSecret) {
       this.logger.warn(`No webhook secret configured for provider: ${providerKey}`);
       return res.status(HttpStatus.UNAUTHORIZED).json({
@@ -166,7 +215,12 @@ export class CarrierWebhookController {
     }
 
     // 5. Verify signature
-    const verification = this.security.verifySignature(rawBody, signature, webhookSecret, timestamp);
+    const verification = this.security.verifySignature(
+      rawBody,
+      signature,
+      webhookSecret,
+      timestamp,
+    );
     if (!verification.valid) {
       this.logger.warn(
         `Webhook signature verification failed for ${providerKey}: ${verification.reason}`,
@@ -197,61 +251,123 @@ export class CarrierWebhookController {
     // 8. Deduplication — atomic insert
     const webhookEventId = crypto.randomUUID();
     try {
-      await this.db.db.insert(carrierWebhookEvents).values({
-        id: webhookEventId,
-        providerKey,
-        eventType: (payload['event_type'] as string) || (payload['event'] as string) || 'unknown',
-        externalDeliveryId,
-        shipmentId: null, // resolved below
-        payload,
-        processed: false,
-        signatureValid: true,
-        rawBody,
-      });
+      await this.withCredentialContext(credential, () =>
+        this.db.db.insert(carrierWebhookEvents).values({
+          id: webhookEventId,
+          providerKey,
+          credentialId: credential.id,
+          eventType: (payload['event_type'] as string) || (payload['event'] as string) || 'unknown',
+          externalDeliveryId,
+          shipmentId: null, // resolved below
+          payload,
+          processed: false,
+          signatureValid: true,
+          rawBody,
+        }),
+      );
     } catch (err: any) {
       if (err?.code === '23505') {
-        // Duplicate — return idempotent 200
+        // Idempotent duplicate. If the first delivery is still pending, make
+        // sure a retry is queued rather than silently losing the event.
+        const existing = await this.withCredentialContext(credential, () =>
+          this.db.db.query.carrierWebhookEvents.findFirst({
+            where: and(
+              eq(carrierWebhookEvents.credentialId, credential.id),
+              eq(carrierWebhookEvents.externalDeliveryId, externalDeliveryId),
+            ),
+          }),
+        );
         this.logger.log(`Duplicate webhook from ${providerKey}: ${externalDeliveryId}`);
-        return res.status(HttpStatus.OK).json({
-          received: true,
-          duplicate: true,
-        });
+        if (existing && !existing.processed) {
+          await this.markWebhookPendingAndEnqueue(
+            existing.id,
+            providerKey,
+            externalDeliveryId,
+            credential,
+            existing.processingError || 'Duplicate delivery requested retry',
+          );
+          return res.status(HttpStatus.OK).json({
+            received: true,
+            duplicate: true,
+            pending: true,
+          });
+        }
+        return res.status(HttpStatus.OK).json({ received: true, duplicate: true });
       }
       throw err;
     }
 
-    // 9. Resolve tenant: carrier shipment reference → SCS shipment → store → org
-    //    NEVER trust storeId/orgId from the webhook payload.
-    const shipment = await this.db.db.query.shipments.findFirst({
-      where: and(
-        eq(shipments.carrierShipmentId, externalDeliveryId),
-      ),
-    });
+    // 9. Resolve the shipment only inside the organization bound to the
+    // credential that verified this webhook. Never trust tenant IDs in payloads.
+    let resolution;
+    try {
+      resolution = await this.withCredentialContext(credential, () =>
+        this.webhookRouting.resolveShipmentForCredential(
+          credential,
+          providerKey,
+          externalDeliveryId,
+        ),
+      );
+    } catch (resolutionError: any) {
+      const message = (resolutionError?.message || 'Shipment resolution failed').slice(0, 2000);
+      await this.markWebhookPendingAndEnqueue(
+        webhookEventId,
+        providerKey,
+        externalDeliveryId,
+        credential,
+        message,
+      );
+      return res.status(HttpStatus.OK).json({ received: true, duplicate: false, pending: true });
+    }
 
-    if (shipment) {
-      // Link the webhook event to the shipment
-      await this.db.db.update(carrierWebhookEvents)
+    if (resolution.status === 'AMBIGUOUS') {
+      const message = 'Ambiguous carrier shipment reference within credential organization';
+      await this.withCredentialContext(credential, async () => {
+        await this.db.db
+          .update(carrierWebhookEvents)
+          .set({ processed: true, processedAt: new Date(), processingError: message })
+          .where(eq(carrierWebhookEvents.id, webhookEventId));
+      });
+      this.logger.error(`Webhook ${webhookEventId} not linked: ${message}`);
+      return res.status(HttpStatus.OK).json({ received: true, duplicate: false, ambiguous: true });
+    }
+
+    if (resolution.status === 'NOT_FOUND') {
+      const message = 'No matching shipment found yet for this credential and provider reference';
+      await this.markWebhookPendingAndEnqueue(
+        webhookEventId,
+        providerKey,
+        externalDeliveryId,
+        credential,
+        message,
+      );
+      return res.status(HttpStatus.OK).json({ received: true, duplicate: false, pending: true });
+    }
+
+    const shipment = resolution.shipment;
+    await this.withCredentialContext(credential, async () => {
+      await this.db.db
+        .update(carrierWebhookEvents)
         .set({ shipmentId: shipment.id })
         .where(eq(carrierWebhookEvents.id, webhookEventId));
+    });
 
-      this.logger.log(
-        `Webhook from ${providerKey} linked to shipment ${shipment.id} ` +
+    this.logger.log(
+      `Webhook from ${providerKey} linked to shipment ${shipment.id} ` +
         `(store: ${shipment.storeId})`,
-      );
-    } else {
-      this.logger.warn(
-        `Webhook from ${providerKey}: no shipment found for carrier ID ${externalDeliveryId}`,
-      );
-    }
+    );
 
     // 10. Process the webhook — on failure, persist error and schedule async retry
     //     M7.2.3-C: Never block the HTTP response; always return 200 to the carrier.
     //     M7.2.4-A: Removed duplicate shipment lookup (step 9 already did it).
     try {
       // Mark as processed
-      await this.db.db.update(carrierWebhookEvents)
-        .set({ processed: true, processedAt: new Date() })
-        .where(eq(carrierWebhookEvents.id, webhookEventId));
+      await this.withCredentialContext(credential, async () => {
+        await this.db.db
+          .update(carrierWebhookEvents)
+          .set({ processed: true, processedAt: new Date(), processingError: null })
+          .where(eq(carrierWebhookEvents.id, webhookEventId));
+      });
 
       this.observability.incrementCounter('carrier_webhook_total', providerKey);
     } catch (processingErr: any) {
@@ -262,38 +378,13 @@ export class CarrierWebhookController {
 
       this.observability.incrementCounter('carrier_webhook_failures_total', providerKey);
 
-      // Mark the webhook event as failed with error details
-      await this.db.db.update(carrierWebhookEvents)
-        .set({
-          processed: false,
-          processingError: (processingErr?.message || 'Unknown processing error').slice(0, 2000),
-        })
-        .where(eq(carrierWebhookEvents.id, webhookEventId));
-
-      // M7.2.4-A: Resolve organizationId from the credential for tenant context.
-      const retryOrgId = (credential as any)?.orgId || null;
-
-      // Insert async retry outbox event — the ShippingCarrierWorker picks this up
-      try {
-        await this.db.db.insert(outboxEvents).values({
-          id: randomUUID(),
-          eventType: 'shipping.carrier.webhook.retry',
-          aggregateId: webhookEventId,
-          payload: {
-            providerKey,
-            externalDeliveryId,
-            webhookEventId,
-            error: (processingErr?.message || 'Unknown').slice(0, 500),
-            source: 'webhook_async_retry',
-          },
-          status: 'PENDING',
-          organizationId: retryOrgId,
-        });
-      } catch (outboxErr: any) {
-        this.logger.error(
-          `Failed to insert webhook retry outbox event: ${outboxErr?.message}`,
-        );
-      }
+      await this.markWebhookPendingAndEnqueue(
+        webhookEventId,
+        providerKey,
+        externalDeliveryId,
+        credential,
+        processingErr?.message || 'Unknown processing error',
+      );
     }
 
     return res.status(HttpStatus.OK).json({
@@ -302,16 +393,77 @@ export class CarrierWebhookController {
     });
   }
 
+  private async markWebhookPendingAndEnqueue(
+    webhookEventId: string,
+    providerKey: string,
+    externalDeliveryId: string,
+    credential: { id: string; orgId: string },
+    error: string,
+  ): Promise<void> {
+    const safeError = error.slice(0, 2000);
+    this.logger.warn(`Webhook ${webhookEventId} pending retry: ${safeError}`);
+    try {
+      await this.withCredentialContext(credential, async () => {
+        await this.db.db
+          .update(carrierWebhookEvents)
+          .set({ processed: false, processingError: safeError })
+          .where(eq(carrierWebhookEvents.id, webhookEventId));
+      });
+    } catch (updateError: any) {
+      this.logger.error(`Failed to persist pending webhook state: ${updateError?.message}`);
+    }
+
+    try {
+      const pendingRetry = await this.withCredentialContext(credential, () =>
+        this.db.db.query.outboxEvents.findFirst({
+          where: and(
+            eq(outboxEvents.aggregateId, webhookEventId),
+            eq(outboxEvents.eventType, 'shipping.carrier.webhook.retry'),
+            eq(outboxEvents.status, 'PENDING'),
+          ),
+          columns: { id: true },
+        }),
+      );
+      if (!pendingRetry) {
+        await this.withCredentialContext(credential, () =>
+          this.db.db.insert(outboxEvents).values({
+            id: randomUUID(),
+            eventType: 'shipping.carrier.webhook.retry',
+            aggregateId: webhookEventId,
+            payload: {
+              providerKey,
+              externalDeliveryId,
+              webhookEventId,
+              error: safeError.slice(0, 500),
+              source: 'webhook_async_retry',
+            },
+            status: 'PENDING',
+            organizationId: credential.orgId,
+          }),
+        );
+      }
+    } catch (outboxError: any) {
+      this.logger.error(`Failed to insert webhook retry outbox event: ${outboxError?.message}`);
+    }
+  }
+
   /**
    * Extract the external delivery ID from a webhook payload.
    * Provider-independent — looks for common field names.
    */
   private extractExternalDeliveryId(payload: Record<string, unknown>): string | null {
     const candidates = [
-      'shipment_id', 'tracking_number', 'awb', 'carrier_shipment_id',
-      'delivery_id', 'consignment_id', 'external_delivery_id',
+      'shipment_id',
+      'tracking_number',
+      'awb',
+      'carrier_shipment_id',
+      'delivery_id',
+      'consignment_id',
+      'external_delivery_id',
       // Aramex PascalCase field names (B2.21)
-      'WaybillNumber', 'ShipmentNumber', 'TrackingNumber',
+      'WaybillNumber',
+      'ShipmentNumber',
+      'TrackingNumber',
     ];
 
     for (const key of candidates) {

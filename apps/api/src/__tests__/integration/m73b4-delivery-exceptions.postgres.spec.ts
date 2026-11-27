@@ -84,7 +84,7 @@ async function createOrderOutForDelivery(
     buyerId,
     deliveryAddress: {},
     idempotencyKey: `b4-${randomUUID()}`,
-  });
+  }, { sub: buyerId, role: 'BUYER', activeOrg: null });
   const orderId = co.subOrders[0]!.id;
   const caller = { sub: merchantId, role: 'MERCHANT_OWNER' as const, activeOrg: orgId };
 
@@ -176,7 +176,13 @@ describe('M7.3-B.4 — Delivery Exceptions + Retry (PostgreSQL)', () => {
     outbox = new OutboxDispatcher(database);
     const promotions = new PromotionsService(database);
     const inventoryService = new InventoryService(database, outbox);
-    ordersService = new OrdersService(database, outbox, promotions, realtime, undefined, notifications);
+    // These suites cover delivery-exception/RTS behavior, not shipping checkout policy.
+    // Keep checkout setup valid while retaining the explicit driver eligibility collaborator.
+    const shipping = {
+      validateCheckoutSelection: vi.fn().mockResolvedValue(undefined),
+      assertDriverEligibleForStore: vi.fn().mockResolvedValue(undefined),
+    } as any;
+    ordersService = new OrdersService(database, outbox, promotions, realtime, undefined, notifications, shipping);
 
     const rolesRes = await pool.query(`SELECT id, key FROM roles`);
     roleById = new Map(rolesRes.rows.map((r: any) => [r.key, r.id] as const));
@@ -223,11 +229,11 @@ describe('M7.3-B.4 — Delivery Exceptions + Retry (PostgreSQL)', () => {
 
     // Store + Warehouse
     await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-a-b4', 'Store A', 'APPROVED')`,
+      `INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-a-b4', 'Store A', 'ACTIVE', 'VERIFIED')`,
       [storeA, orgA],
     );
     await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-b-b4', 'Store B', 'APPROVED')`,
+      `INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-b-b4', 'Store B', 'ACTIVE', 'VERIFIED')`,
       [storeB, orgB],
     );
     await pool.query(
@@ -621,7 +627,7 @@ describe('M7.3-B.4 — Delivery Exceptions + Retry (PostgreSQL)', () => {
       buyerId: buyerA,
       deliveryAddress: {},
       idempotencyKey: `b4-ready-${randomUUID()}`,
-    });
+    }, { sub: buyerA, role: 'BUYER', activeOrg: null });
     const orderId = co.subOrders[0]!.id;
     const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
 

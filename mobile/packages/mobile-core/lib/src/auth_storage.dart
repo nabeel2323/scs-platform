@@ -56,6 +56,7 @@ class AuthStorage {
   }
 
   Future<String?> getActiveOrgId() => _storage.read(key: _activeOrgIdKey);
+  Future<void> clearActiveOrgId() => _storage.delete(key: _activeOrgIdKey);
   Future<void> setActiveOrgId(String orgId) =>
       _storage.write(key: _activeOrgIdKey, value: orgId);
 

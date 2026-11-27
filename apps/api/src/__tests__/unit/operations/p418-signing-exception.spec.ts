@@ -5,6 +5,7 @@
  * unsigned delivery. Uses vi.mock to force createHmac to throw.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
 
 // vi.hoisted runs before vi.mock — declare the mock function there so it's
 // available inside the hoisted vi.mock factory.
@@ -34,8 +35,19 @@ describe('P13 Phase 4.1.8 — signing exception cannot trigger unsigned delivery
     // Minimal mock — the service won't reach the DB for the signing check.
     mockDb = {
       db: {
-        execute: vi.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+        execute: vi.fn(async (query: any) => {
+          const compiled = new PgDialect().sqlToQuery(query);
+          const isInsert = /INSERT INTO ops_alerts/i.test(compiled.sql);
+          const isUpdate = /UPDATE\s+["']?ops_alerts["']?/i.test(compiled.sql);
+          const rowId = isInsert ? compiled.params[0] : compiled.params[compiled.params.length - 1];
+          return {
+            rows: isInsert || isUpdate ? [{ id: rowId }] : [],
+            rowCount: isInsert || isUpdate ? 1 : 0,
+          };
+        }),
       },
+      withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()),
+      currentActorContext: null,
     } as unknown as DatabaseService;
   });
 

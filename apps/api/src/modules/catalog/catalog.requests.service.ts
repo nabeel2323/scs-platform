@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { DatabaseService } from '../../common/database/database.service';
 import { catalogRequests } from './catalog.requests.schema';
 import { eq, and, desc } from 'drizzle-orm';
@@ -88,13 +88,33 @@ export class CatalogRequestsService {
   }
 
   /**
+   * Lock a pending request while its entity is created and review state is
+   * changed. The controller-level actor interceptor keeps this lock inside
+   * the authenticated request transaction, so a concurrent reviewer cannot
+   * create the same requested entity twice.
+   */
+  private async getRequestForUpdate(id: string) {
+    if (this.db.currentActorContext?.actorKind !== 'user') {
+      throw new ForbiddenException('Authenticated reviewer actor context is required');
+    }
+    const [request] = await this.db.db
+      .select()
+      .from(catalogRequests)
+      .where(eq(catalogRequests.id, id))
+      .for('update')
+      .limit(1);
+    if (!request) throw new NotFoundException('Catalog request not found');
+    if (request.status !== 'PENDING') {
+      throw new ConflictException(`Request is not pending (current status: ${request.status})`);
+    }
+    return request;
+  }
+
+  /**
    * Admin approves a request — auto-creates the catalog entity.
    */
   async approveRequest(requestId: string, reviewerId: string) {
-    const req = await this.getRequest(requestId);
-    if (req.status !== 'PENDING') {
-      throw new BadRequestException(`Request is not pending (current status: ${req.status})`);
-    }
+    const req = await this.getRequestForUpdate(requestId);
 
     // Create the entity based on request type
     const payload = req.payload as Record<string, any>;
@@ -151,12 +171,19 @@ export class CatalogRequestsService {
     }
 
     // Mark request as approved
-    await this.db.db.update(catalogRequests).set({
-      status: 'APPROVED',
-      reviewedBy: reviewerId,
-      reviewedAt: new Date(),
-      updatedAt: new Date(),
-    }).where(eq(catalogRequests.id, requestId));
+    const [approved] = await this.db.db
+      .update(catalogRequests)
+      .set({
+        status: 'APPROVED',
+        reviewedBy: reviewerId,
+        reviewedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(catalogRequests.id, requestId), eq(catalogRequests.status, 'PENDING')))
+      .returning({ id: catalogRequests.id });
+    if (!approved) {
+      throw new ConflictException('Catalog request was reviewed concurrently; reload and retry');
+    }
 
     return { ...req, status: 'APPROVED', reviewedBy: reviewerId, createdEntityId };
   }
@@ -165,18 +192,22 @@ export class CatalogRequestsService {
    * Admin rejects a request with a reason.
    */
   async rejectRequest(requestId: string, reviewerId: string, reason: string) {
-    const req = await this.getRequest(requestId);
-    if (req.status !== 'PENDING') {
-      throw new BadRequestException(`Request is not pending (current status: ${req.status})`);
-    }
+    const req = await this.getRequestForUpdate(requestId);
 
-    await this.db.db.update(catalogRequests).set({
-      status: 'REJECTED',
-      reviewedBy: reviewerId,
-      reviewReason: reason,
-      reviewedAt: new Date(),
-      updatedAt: new Date(),
-    }).where(eq(catalogRequests.id, requestId));
+    const [rejected] = await this.db.db
+      .update(catalogRequests)
+      .set({
+        status: 'REJECTED',
+        reviewedBy: reviewerId,
+        reviewReason: reason,
+        reviewedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(and(eq(catalogRequests.id, requestId), eq(catalogRequests.status, 'PENDING')))
+      .returning({ id: catalogRequests.id });
+    if (!rejected) {
+      throw new ConflictException('Catalog request was reviewed concurrently; reload and retry');
+    }
 
     return { ...req, status: 'REJECTED', reviewedBy: reviewerId, reviewReason: reason };
   }

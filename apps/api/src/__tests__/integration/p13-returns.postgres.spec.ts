@@ -55,14 +55,31 @@ import { users, organizations, organizationMembers } from '../../modules/identit
 import { stores, warehouses, storeMembers } from '../../modules/merchant/merchant.schema';
 import { inventoryItems, stockMovements } from '../../modules/inventory/inventory.schema';
 import { carts, cartItems } from '../../modules/orders/cart.schema';
-import { masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory } from '../../modules/orders/orders.schema';
+import {
+  masterOrders,
+  orders,
+  orderItems,
+  orderFinancialBreakdown,
+  orderStatusHistory,
+} from '../../modules/orders/orders.schema';
 import { shipments, shipmentEvents } from '../../modules/orders/shipment.schema';
 import { outboxEvents } from '../../modules/audit/audit.schema';
 import { paymentRecords, refunds, settlementRecords } from '../../modules/payments/payments.schema';
-import { returnRequests, returnRequestItems, returnRequestEvents } from '../../modules/returns/returns.schema';
+import {
+  returnRequests,
+  returnRequestItems,
+  returnRequestEvents,
+} from '../../modules/returns/returns.schema';
 import { commissionReversals } from '../../modules/returns/financial.schema';
-import { settlementAdjustments, settlementAdjustmentApprovals } from '../../modules/returns/financial.schema';
-import { businessCalendars, businessCalendarHolidays, businessCalendarAudit } from '../../modules/returns/business-calendar.schema';
+import {
+  settlementAdjustments,
+  settlementAdjustmentApprovals,
+} from '../../modules/returns/financial.schema';
+import {
+  businessCalendars,
+  businessCalendarHolidays,
+  businessCalendarAudit,
+} from '../../modules/returns/business-calendar.schema';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/migrations');
@@ -88,10 +105,10 @@ async function createDeliveredOrder(
   orgId: string,
 ): Promise<string> {
   const cartId = randomUUID();
-  await pool.query(
-    `INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`,
-    [cartId, buyerId],
-  );
+  await pool.query(`INSERT INTO carts (id, user_id, status) VALUES ($1, $2, 'ACTIVE')`, [
+    cartId,
+    buyerId,
+  ]);
   await pool.query(
     `INSERT INTO cart_items (id, cart_id, store_id, variant_id, quantity, price_minor, line_total_minor, offer_id)
      VALUES ($1, $2, $3, $4, 3, 1000, 3000, $5)`,
@@ -102,7 +119,7 @@ async function createDeliveredOrder(
     buyerId,
     deliveryAddress: {},
     idempotencyKey: `p13-${randomUUID()}`,
-  });
+  }, { sub: buyerId, role: 'BUYER', activeOrg: orgId });
   const orderId = co.subOrders[0]!.id;
   const caller = { sub: merchantId, role: 'MERCHANT_OWNER' as const, activeOrg: orgId };
 
@@ -111,10 +128,9 @@ async function createDeliveredOrder(
   await ordersService.readyOrder(orderId, merchantId, caller);
 
   // Deliver the order
-  await pool.query(
-    `UPDATE orders SET status = 'DELIVERED', updated_at = now() WHERE id = $1`,
-    [orderId],
-  );
+  await pool.query(`UPDATE orders SET status = 'DELIVERED', updated_at = now() WHERE id = $1`, [
+    orderId,
+  ]);
   await pool.query(
     `UPDATE shipments SET status = 'DELIVERED', delivered_at = now() WHERE order_id = $1`,
     [orderId],
@@ -144,6 +160,10 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
   const merchantA = randomUUID();
   const buyerA = randomUUID();
   const orgA = randomUUID();
+  const platformEscalationAuthority = (sub: string, activeOrg: string) => ({
+    kind: 'platform' as const,
+    caller: { sub, role: 'ADMIN', activeOrg },
+  });
   const storeA = randomUUID();
   const warehouseA = randomUUID();
   const variantA = randomUUID();
@@ -171,25 +191,46 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
 
     db = drizzle(pool, {
       schema: {
-        products, productVariants, merchantOffers,
-        users, organizations, organizationMembers,
-        stores, warehouses, storeMembers,
-        inventoryItems, stockMovements,
-        carts, cartItems,
-        masterOrders, orders, orderItems, orderFinancialBreakdown, orderStatusHistory,
-        shipments, shipmentEvents,
+        products,
+        productVariants,
+        merchantOffers,
+        users,
+        organizations,
+        organizationMembers,
+        stores,
+        warehouses,
+        storeMembers,
+        inventoryItems,
+        stockMovements,
+        carts,
+        cartItems,
+        masterOrders,
+        orders,
+        orderItems,
+        orderFinancialBreakdown,
+        orderStatusHistory,
+        shipments,
+        shipmentEvents,
         outboxEvents,
-        paymentRecords, refunds, settlementRecords,
-        returnRequests, returnRequestItems, returnRequestEvents,
+        paymentRecords,
+        refunds,
+        settlementRecords,
+        returnRequests,
+        returnRequestItems,
+        returnRequestEvents,
         commissionReversals,
-        settlementAdjustments, settlementAdjustmentApprovals,
-        businessCalendars, businessCalendarHolidays, businessCalendarAudit,
+        settlementAdjustments,
+        settlementAdjustmentApprovals,
+        businessCalendars,
+        businessCalendarHolidays,
+        businessCalendarAudit,
       },
     }) as unknown as DatabaseService['db'];
 
     // Run migrations
-    const files = fs.readdirSync(MIGRATIONS_DIR)
-      .filter(f => f.endsWith('.sql') && !EXCLUDED.has(f))
+    const files = fs
+      .readdirSync(MIGRATIONS_DIR)
+      .filter((f) => f.endsWith('.sql') && !EXCLUDED.has(f))
       .sort();
     await pool.query(
       `CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`,
@@ -207,16 +248,30 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
     }
 
     const client = await pool.connect();
-    try { await seedPlatformRbac(client); } finally { client.release(); }
+    try {
+      await seedPlatformRbac(client);
+    } finally {
+      client.release();
+    }
 
-    const outbox = new OutboxDispatcher({ db } as DatabaseService);
-    const promotions = new PromotionsService({ db } as DatabaseService);
-    const inventoryService = new InventoryService({ db } as DatabaseService, outbox);
+    database = new DatabaseService();
+    database.db = db;
+    const outbox = new OutboxDispatcher(database);
+    const promotions = new PromotionsService(database);
+    const inventoryService = new InventoryService(database, outbox);
     const registry = new PaymentProviderRegistry();
     registry.register(new ManualVerificationProvider());
-    const paymentsService = new PaymentsService({ db } as DatabaseService, outbox, registry);
-    database = { db } as DatabaseService;
-    ordersService = new OrdersService(database, outbox, promotions, realtime, undefined, notifications, undefined, paymentsService);
+    const paymentsService = new PaymentsService(database, outbox, registry);
+    ordersService = new OrdersService(
+      database,
+      outbox,
+      promotions,
+      realtime,
+      undefined,
+      notifications,
+      undefined,
+      paymentsService,
+    );
     const calendarService = new BusinessCalendarService(database);
     const commissionReversalService = new CommissionReversalService(database, outbox);
     const settlementAdjService = new SettlementAdjustmentService(database, outbox);
@@ -224,16 +279,39 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
     // inactive here (no P13_PILOT_MODE, no p13.pilot.enabled flag), so the gate
     // is a pass-through and these Phase 3 assertions are unchanged.
     const opsAlerts = new OpsAlertService(database);
-    const pilotService = new PilotControlService(database, new AuditService(database), opsAlerts);
-    returnsService = new ReturnsService(database, outbox, paymentsService, calendarService, commissionReversalService, settlementAdjService, pilotService);
+    const pilotService = new PilotControlService(
+      database,
+      new AuditService(database),
+      opsAlerts,
+      {} as never,
+      {} as never,
+    );
+    returnsService = new ReturnsService(
+      database,
+      outbox,
+      paymentsService,
+      calendarService,
+      commissionReversalService,
+      settlementAdjService,
+      pilotService,
+    );
 
     const rolesRes = await pool.query(`SELECT id, key FROM roles`);
     roleById = new Map(rolesRes.rows.map((r: any) => [r.key, r.id] as const));
 
     // ── Org A setup ──
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Merchant A', '+13100000001')`, [merchantA]);
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Buyer A', '+13100000002')`, [buyerA]);
-    await pool.query(`INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Org A', 'SA')`, [orgA]);
+    await pool.query(
+      `INSERT INTO users (id, full_name, phone) VALUES ($1, 'Merchant A', '+13100000001')`,
+      [merchantA],
+    );
+    await pool.query(
+      `INSERT INTO users (id, full_name, phone) VALUES ($1, 'Buyer A', '+13100000002')`,
+      [buyerA],
+    );
+    await pool.query(
+      `INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Org A', 'SA')`,
+      [orgA],
+    );
     await pool.query(
       `INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`,
       [randomUUID(), orgA, merchantA, roleById.get('MERCHANT_OWNER')],
@@ -243,13 +321,13 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
       [randomUUID(), orgA, buyerA, roleById.get('BUYER')],
     );
     await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-a-p13', 'Store A', 'APPROVED')`,
+      `INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-a-p13', 'Store A', 'ACTIVE', 'VERIFIED')`,
       [storeA, orgA],
     );
-    await pool.query(
-      `INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, 'WH A')`,
-      [warehouseA, storeA],
-    );
+    await pool.query(`INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, 'WH A')`, [
+      warehouseA,
+      storeA,
+    ]);
     // Store membership for merchant (required by assertStoreMember)
     await pool.query(
       `INSERT INTO store_members (id, store_id, user_id, status) VALUES ($1, $2, $3, 'ACTIVE')`,
@@ -273,23 +351,26 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
     );
 
     // ── Store B in Org A (cross-store auth tests) ──
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Merchant B', '+13100000004')`, [merchantB]);
+    await pool.query(
+      `INSERT INTO users (id, full_name, phone) VALUES ($1, 'Merchant B', '+13100000004')`,
+      [merchantB],
+    );
     await pool.query(
       `INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`,
       [randomUUID(), orgA, merchantB, roleById.get('MERCHANT_OWNER')],
     );
     await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-b-p13', 'Store B', 'APPROVED')`,
+      `INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-b-p13', 'Store B', 'ACTIVE', 'VERIFIED')`,
       [storeB, orgA],
     );
     await pool.query(
       `INSERT INTO store_members (id, store_id, user_id, status) VALUES ($1, $2, $3, 'ACTIVE')`,
       [randomUUID(), storeB, merchantB],
     );
-    await pool.query(
-      `INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, 'WH B')`,
-      [warehouseB, storeB],
-    );
+    await pool.query(`INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, 'WH B')`, [
+      warehouseB,
+      storeB,
+    ]);
     await pool.query(
       `INSERT INTO products (id, store_id, slug, title, status) VALUES ($1, $2, 'p13-product-b', 'P13 Product B', 'ACTIVE')`,
       [productB, storeB],
@@ -308,8 +389,14 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
     );
 
     // ── Org B (cross-tenant test) ──
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Buyer B', '+13100000003')`, [buyerB]);
-    await pool.query(`INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Org B', 'SA')`, [orgB]);
+    await pool.query(
+      `INSERT INTO users (id, full_name, phone) VALUES ($1, 'Buyer B', '+13100000003')`,
+      [buyerB],
+    );
+    await pool.query(
+      `INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Org B', 'SA')`,
+      [orgB],
+    );
     await pool.query(
       `INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`,
       [randomUUID(), orgB, buyerB, roleById.get('BUYER')],
@@ -325,22 +412,34 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
 
   it('LC-P13-01: full happy path REQUESTED → REFUNDED (GOOD condition)', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
 
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
 
     // 1. Create return request
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      description: 'Item arrived damaged',
-      lines: [{ orderItemId, quantity: 2 }],
-    }, buyerCaller);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        description: 'Item arrived damaged',
+        lines: [{ orderItemId, quantity: 2 }],
+      },
+      buyerCaller,
+    );
 
     expect(ret.status).toBe('REQUESTED');
     expect(ret.items.length).toBe(1);
@@ -348,7 +447,11 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
     expect(Number(ret.requestedRefundMinor)).toBeGreaterThan(0);
 
     // 2. Merchant approves
-    const approved = await returnsService.transitionReturn(ret.id, 'MERCHANT_APPROVED', merchantCaller);
+    const approved = await returnsService.transitionReturn(
+      ret.id,
+      'MERCHANT_APPROVED',
+      merchantCaller,
+    );
     expect(approved).toBeDefined();
     expect(approved!.status).toBe('MERCHANT_APPROVED');
 
@@ -383,7 +486,10 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
     expect(types).toContain('RETURN');
 
     // 7. Verify qty_on_hand restored (started at 10000, after checkout reserved 3, now 2 returned)
-    const inv = await pool.query(`SELECT qty_on_hand, qty_reserved FROM inventory_items WHERE id = $1`, [invItemA]);
+    const inv = await pool.query(
+      `SELECT qty_on_hand, qty_reserved FROM inventory_items WHERE id = $1`,
+      [invItemA],
+    );
     // qty_reserved should have decreased by 2 (RELEASE)
     expect(Number(inv.rows[0].qty_reserved)).toBeLessThanOrEqual(3); // was 3 from checkout, released 2
 
@@ -402,23 +508,40 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
 
   it('LC-P13-02: merchant rejection path', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
 
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId, quantity: 1 }],
-    }, buyerCaller);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId, quantity: 1 }],
+      },
+      buyerCaller,
+    );
 
-    const rejected = await returnsService.transitionReturn(ret.id, 'MERCHANT_REJECTED', merchantCaller, {
-      notes: 'Item was used beyond return policy',
-    });
+    const rejected = await returnsService.transitionReturn(
+      ret.id,
+      'MERCHANT_REJECTED',
+      merchantCaller,
+      {
+        notes: 'Item was used beyond return policy',
+      },
+    );
     expect(rejected).toBeDefined();
     expect(rejected!.status).toBe('MERCHANT_REJECTED');
 
@@ -435,18 +558,30 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
 
   it('LC-P13-03: buyer cancellation path', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
 
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'CUSTOMER_REQUEST',
-      lines: [{ orderItemId, quantity: 1 }],
-    }, buyerCaller);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'CUSTOMER_REQUEST',
+        lines: [{ orderItemId, quantity: 1 }],
+      },
+      buyerCaller,
+    );
 
     const cancelled = await returnsService.transitionReturn(ret.id, 'CANCELLED', buyerCaller);
     expect(cancelled).toBeDefined();
@@ -457,19 +592,31 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
 
   it('LC-P13-04: DAMAGED condition → RELEASE + ADJUST-out (write-off)', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
 
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'OTHER',
-      lines: [{ orderItemId, quantity: 1 }],
-    }, buyerCaller);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'OTHER',
+        lines: [{ orderItemId, quantity: 1 }],
+      },
+      buyerCaller,
+    );
 
     // Fast-forward to inspection
     await returnsService.transitionReturn(ret.id, 'MERCHANT_APPROVED', merchantCaller);
@@ -498,20 +645,33 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
 
   it('FIN-P13-01: refund includes proportional VAT', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id, unit_price_minor, quantity FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(
+      `SELECT id, unit_price_minor, quantity FROM order_items WHERE order_id = $1`,
+      [orderId],
+    );
     const orderItemId = orderItemsRes.rows[0].id as string;
     const unitPrice = Number(orderItemsRes.rows[0].unit_price_minor);
     const qty = Number(orderItemsRes.rows[0].quantity);
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
 
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId, quantity: 1 }],
-    }, buyerCaller);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId, quantity: 1 }],
+      },
+      buyerCaller,
+    );
 
     // Refund for 1 item at 1000 minor, with 15% VAT, no discount
     const requestedRefund = Number(ret.requestedRefundMinor);
@@ -523,20 +683,32 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
 
   it('SEC-P13-01: buyer cannot create return for another buyer order', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     // buyerB is in a different org
     const badCaller = { sub: buyerB, role: 'BUYER' as const, activeOrg: orgB };
 
     await expect(
-      returnsService.createReturnRequest({
-        subOrderId: orderId,
-        reason: 'PRODUCT_NOT_AS_DESCRIBED',
-        lines: [{ orderItemId, quantity: 1 }],
-      }, badCaller),
+      returnsService.createReturnRequest(
+        {
+          subOrderId: orderId,
+          reason: 'PRODUCT_NOT_AS_DESCRIBED',
+          lines: [{ orderItemId, quantity: 1 }],
+        },
+        badCaller,
+      ),
     ).rejects.toThrow();
   }, 30_000);
 
@@ -544,19 +716,31 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
 
   it('OBX-P13-01: each transition emits outbox event atomically', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
 
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'CUSTOMER_REQUEST',
-      lines: [{ orderItemId, quantity: 1 }],
-    }, buyerCaller);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'CUSTOMER_REQUEST',
+        lines: [{ orderItemId, quantity: 1 }],
+      },
+      buyerCaller,
+    );
 
     await returnsService.transitionReturn(ret.id, 'MERCHANT_REJECTED', merchantCaller, {
       notes: 'Not eligible',
@@ -575,26 +759,41 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
 
   it('cannot create second active return for same sub-order', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
 
-    await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId, quantity: 1 }],
-    }, buyerCaller);
-
-    // Second return should fail
-    await expect(
-      returnsService.createReturnRequest({
+    await returnsService.createReturnRequest(
+      {
         subOrderId: orderId,
         reason: 'PRODUCT_NOT_AS_DESCRIBED',
         lines: [{ orderItemId, quantity: 1 }],
-      }, buyerCaller),
+      },
+      buyerCaller,
+    );
+
+    // Second return should fail
+    await expect(
+      returnsService.createReturnRequest(
+        {
+          subOrderId: orderId,
+          reason: 'PRODUCT_NOT_AS_DESCRIBED',
+          lines: [{ orderItemId, quantity: 1 }],
+        },
+        buyerCaller,
+      ),
     ).rejects.toThrow(/cumulative return|active return/i);
   }, 30_000);
 
@@ -602,20 +801,32 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
   //  CROSS-STORE AUTHORIZATION TESTS
   // ═══════════════════════════════════════════════════════════════════
 
-  it('SEC-P13-04: same-org cross-store merchant CANNOT approve another store\'s return', async () => {
+  it("SEC-P13-04: same-org cross-store merchant CANNOT approve another store's return", async () => {
     // Create order in Store A, return request by buyer
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId, quantity: 1 }],
-    }, buyerCaller);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId, quantity: 1 }],
+      },
+      buyerCaller,
+    );
 
     // Merchant B (same org, different store) tries to approve → 403
     const merchantBCaller = { sub: merchantB, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
@@ -624,48 +835,72 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
     ).rejects.toThrow(/not authorized for this store|do not have access/i);
   }, 30_000);
 
-  it('SEC-P13-05: cross-org merchant CANNOT list another org\'s store returns', async () => {
+  it("SEC-P13-05: cross-org merchant CANNOT list another org's store returns", async () => {
     // Create an order in Store A and a return
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
-    await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId, quantity: 1 }],
-    }, buyerCaller);
+    await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId, quantity: 1 }],
+      },
+      buyerCaller,
+    );
 
     // Merchant B tries to list Store A's returns → 403
     const merchantBCaller = { sub: merchantB, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
-    await expect(
-      returnsService.listReturnsForStore(storeA, merchantBCaller),
-    ).rejects.toThrow(/not authorized for this store|do not have access/i);
+    await expect(returnsService.listReturnsForStore(storeA, merchantBCaller)).rejects.toThrow(
+      /not authorized for this store|do not have access/i,
+    );
   }, 30_000);
 
-  it('SEC-P13-06: cross-org buyer CANNOT view another buyer\'s return', async () => {
+  it("SEC-P13-06: cross-org buyer CANNOT view another buyer's return", async () => {
     // Create order in Store A, return by buyer A
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     const buyerACaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId, quantity: 1 }],
-    }, buyerACaller);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId, quantity: 1 }],
+      },
+      buyerACaller,
+    );
 
     // Buyer B (different org) tries to view the return → 403
     const buyerBCaller = { sub: buyerB, role: 'BUYER' as const, activeOrg: orgB };
-    await expect(
-      returnsService.getReturnRequest(ret.id, buyerBCaller),
-    ).rejects.toThrow(/do not have access/i);
+    await expect(returnsService.getReturnRequest(ret.id, buyerBCaller)).rejects.toThrow(
+      /do not have access/i,
+    );
   }, 30_000);
 
   // ═══════════════════════════════════════════════════════════════════
@@ -674,9 +909,19 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
 
   it('CONC-P13-01: concurrent return creation for same sub-order — only one succeeds', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id, quantity FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(
+      `SELECT id, quantity FROM order_items WHERE order_id = $1`,
+      [orderId],
+    );
     const orderItemId = orderItemsRes.rows[0].id as string;
     const orderedQty = orderItemsRes.rows[0].quantity as number;
 
@@ -685,22 +930,25 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
     // Fire 5 concurrent return requests for the full quantity
     const attempts = await Promise.allSettled(
       Array.from({ length: 5 }, () =>
-        returnsService.createReturnRequest({
-          subOrderId: orderId,
-          reason: 'PRODUCT_NOT_AS_DESCRIBED',
-          lines: [{ orderItemId, quantity: orderedQty }],
-        }, buyerCaller),
+        returnsService.createReturnRequest(
+          {
+            subOrderId: orderId,
+            reason: 'PRODUCT_NOT_AS_DESCRIBED',
+            lines: [{ orderItemId, quantity: orderedQty }],
+          },
+          buyerCaller,
+        ),
       ),
     );
 
-    const succeeded = attempts.filter(a => a.status === 'fulfilled');
-    const rejected = attempts.filter(a => a.status === 'rejected');
+    const succeeded = attempts.filter((a) => a.status === 'fulfilled');
+    const rejected = attempts.filter((a) => a.status === 'rejected');
 
     // Exactly one should succeed (or at most a few if cumulative check allows)
     expect(succeeded.length).toBeGreaterThanOrEqual(1);
     // The total returned quantity must not exceed ordered
     const totalReturned = succeeded
-      .map(a => (a as PromiseFulfilledResult<any>).value.items)
+      .map((a) => (a as PromiseFulfilledResult<any>).value.items)
       .flat()
       .reduce((sum: number, item: any) => sum + item.quantity, 0);
     expect(totalReturned).toBeLessThanOrEqual(orderedQty);
@@ -708,19 +956,31 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
 
   it('CONC-P13-02: concurrent merchant approval — only one transition succeeds', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
 
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId, quantity: 1 }],
-    }, buyerCaller);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId, quantity: 1 }],
+      },
+      buyerCaller,
+    );
 
     // Fire 3 concurrent approval attempts
     const attempts = await Promise.allSettled(
@@ -729,33 +989,49 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
       ),
     );
 
-    const succeeded = attempts.filter(a => a.status === 'fulfilled');
+    const succeeded = attempts.filter((a) => a.status === 'fulfilled');
     // Exactly one should succeed
     expect(succeeded.length).toBe(1);
 
     // Verify final state is MERCHANT_APPROVED
-    const finalStatus = await pool.query(`SELECT status FROM return_requests WHERE id = $1`, [ret.id]);
+    const finalStatus = await pool.query(`SELECT status FROM return_requests WHERE id = $1`, [
+      ret.id,
+    ]);
     expect(finalStatus.rows[0].status).toBe('MERCHANT_APPROVED');
   }, 30_000);
 
   it('CONC-P13-03: concurrent inspection — no duplicate stock movements', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
 
     // Create, approve, ship, receive
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId, quantity: 2 }],
-    }, buyerCaller);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId, quantity: 2 }],
+      },
+      buyerCaller,
+    );
     await returnsService.transitionReturn(ret.id, 'MERCHANT_APPROVED', merchantCaller);
-    await returnsService.transitionReturn(ret.id, 'BUYER_SHIPPED', buyerCaller, { trackingNumber: 'TRK-CONC' });
+    await returnsService.transitionReturn(ret.id, 'BUYER_SHIPPED', buyerCaller, {
+      trackingNumber: 'TRK-CONC',
+    });
     await returnsService.transitionReturn(ret.id, 'RECEIVED', merchantCaller);
 
     // Get stock movement count before inspection
@@ -772,7 +1048,7 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
       ),
     );
 
-    const succeeded = attempts.filter(a => a.status === 'fulfilled');
+    const succeeded = attempts.filter((a) => a.status === 'fulfilled');
     expect(succeeded.length).toBe(1);
 
     // Verify only one set of stock movements was created
@@ -791,24 +1067,39 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
 
   it('P2-01: escalation lifecycle — REQUESTED → ESCALATED → admin APPROVE → MERCHANT_APPROVED', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const adminCaller = { sub: buyerA, role: 'ADMIN' as const, activeOrg: orgA };
 
     // 1. Create return
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId, quantity: 1 }],
-    }, buyerCaller);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId, quantity: 1 }],
+      },
+      buyerCaller,
+    );
     expect(ret.status).toBe('REQUESTED');
 
     // 2. Escalate (simulates worker detecting SLA expiry)
-    const escalated = await returnsService.escalateReturn(ret.id);
+    const escalated = await returnsService.escalateReturn(
+      ret.id,
+      platformEscalationAuthority(buyerA, orgA),
+    );
     expect(escalated!.status).toBe('ESCALATED');
 
     // 3. Verify deadline persistence
@@ -825,7 +1116,11 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
 
     // 4. Admin resolves — APPROVE
     const resolved = await returnsService.resolveEscalation(
-      ret.id, 'APPROVE', 'MERCHANT', adminCaller, 'Approved after review',
+      ret.id,
+      'APPROVE',
+      'MERCHANT',
+      adminCaller,
+      'Approved after review',
     );
     expect(resolved.status).toBe('MERCHANT_APPROVED');
 
@@ -849,118 +1144,188 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
 
   it('P2-02: admin REJECT resolution → MERCHANT_REJECTED', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const adminCaller = { sub: buyerA, role: 'ADMIN' as const, activeOrg: orgA };
 
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'CUSTOMER_REQUEST',
-      lines: [{ orderItemId, quantity: 1 }],
-    }, buyerCaller);
-    await returnsService.escalateReturn(ret.id);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'CUSTOMER_REQUEST',
+        lines: [{ orderItemId, quantity: 1 }],
+      },
+      buyerCaller,
+    );
+    await returnsService.escalateReturn(ret.id, platformEscalationAuthority(buyerA, orgA));
 
     const resolved = await returnsService.resolveEscalation(
-      ret.id, 'REJECT', 'BUYER_REMORSE', adminCaller, 'Not eligible',
+      ret.id,
+      'REJECT',
+      'BUYER_REMORSE',
+      adminCaller,
+      'Not eligible',
     );
     expect(resolved.status).toBe('MERCHANT_REJECTED');
   }, 30_000);
 
   it('P2-03: admin CANCEL resolution → CANCELLED', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const adminCaller = { sub: buyerA, role: 'ADMIN' as const, activeOrg: orgA };
 
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'CUSTOMER_REQUEST',
-      lines: [{ orderItemId, quantity: 1 }],
-    }, buyerCaller);
-    await returnsService.escalateReturn(ret.id);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'CUSTOMER_REQUEST',
+        lines: [{ orderItemId, quantity: 1 }],
+      },
+      buyerCaller,
+    );
+    await returnsService.escalateReturn(ret.id, platformEscalationAuthority(buyerA, orgA));
 
     const resolved = await returnsService.resolveEscalation(
-      ret.id, 'CANCEL', null, adminCaller, 'Cancelled by admin',
+      ret.id,
+      'CANCEL',
+      null,
+      adminCaller,
+      'Cancelled by admin',
     );
     expect(resolved.status).toBe('CANCELLED');
   }, 30_000);
 
   it('P2-04: ESCALATED return counts as active — prevents duplicate', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id, quantity FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(
+      `SELECT id, quantity FROM order_items WHERE order_id = $1`,
+      [orderId],
+    );
     const orderItemId = orderItemsRes.rows[0].id as string;
     const orderedQty = orderItemsRes.rows[0].quantity as number;
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
 
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId, quantity: orderedQty }],
-    }, buyerCaller);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId, quantity: orderedQty }],
+      },
+      buyerCaller,
+    );
 
     // Escalate it
-    await returnsService.escalateReturn(ret.id);
+    await returnsService.escalateReturn(ret.id, platformEscalationAuthority(buyerA, orgA));
 
     // Try creating a second return for the same sub-order — should fail
     await expect(
-      returnsService.createReturnRequest({
-        subOrderId: orderId,
-        reason: 'PRODUCT_NOT_AS_DESCRIBED',
-        lines: [{ orderItemId, quantity: 1 }],
-      }, buyerCaller),
+      returnsService.createReturnRequest(
+        {
+          subOrderId: orderId,
+          reason: 'PRODUCT_NOT_AS_DESCRIBED',
+          lines: [{ orderItemId, quantity: 1 }],
+        },
+        buyerCaller,
+      ),
     ).rejects.toThrow(/cumulative return|active return/i);
   }, 30_000);
 
   it('P2-05: invalid responsibility category rejected during resolution', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const adminCaller = { sub: buyerA, role: 'ADMIN' as const, activeOrg: orgA };
 
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId, quantity: 1 }],
-    }, buyerCaller);
-    await returnsService.escalateReturn(ret.id);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId, quantity: 1 }],
+      },
+      buyerCaller,
+    );
+    await returnsService.escalateReturn(ret.id, platformEscalationAuthority(buyerA, orgA));
 
     await expect(
-      returnsService.resolveEscalation(
-        ret.id, 'APPROVE', 'INVALID_CATEGORY', adminCaller,
-      ),
+      returnsService.resolveEscalation(ret.id, 'APPROVE', 'INVALID_CATEGORY', adminCaller),
     ).rejects.toThrow(/invalid responsibility category/i);
   }, 30_000);
 
   it('P2-06: cannot resolve a non-escalated return', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const adminCaller = { sub: buyerA, role: 'ADMIN' as const, activeOrg: orgA };
 
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId, quantity: 1 }],
-    }, buyerCaller);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId, quantity: 1 }],
+      },
+      buyerCaller,
+    );
     // Still in REQUESTED — not escalated
     expect(ret.status).toBe('REQUESTED');
 
@@ -971,22 +1336,36 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
 
   it('P2-07: concurrent escalation — exactly one succeeds', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
 
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId, quantity: 1 }],
-    }, buyerCaller);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId, quantity: 1 }],
+      },
+      buyerCaller,
+    );
 
     // Fire 3 concurrent escalation attempts
     const attempts = await Promise.allSettled(
-      Array.from({ length: 3 }, () => returnsService.escalateReturn(ret.id)),
+      Array.from({ length: 3 }, () =>
+        returnsService.escalateReturn(ret.id, platformEscalationAuthority(buyerA, orgA)),
+      ),
     );
 
     const succeeded = attempts.filter(
@@ -1009,7 +1388,9 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
     }
 
     // Verify final state
-    const finalStatus = await pool.query(`SELECT status FROM return_requests WHERE id = $1`, [ret.id]);
+    const finalStatus = await pool.query(`SELECT status FROM return_requests WHERE id = $1`, [
+      ret.id,
+    ]);
     expect(finalStatus.rows[0].status).toBe('ESCALATED');
 
     // Verify exactly one ESCALATED event
@@ -1022,20 +1403,32 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
 
   it('P2-08: concurrent admin resolution — exactly one succeeds', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const adminCaller = { sub: buyerA, role: 'ADMIN' as const, activeOrg: orgA };
 
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId, quantity: 1 }],
-    }, buyerCaller);
-    await returnsService.escalateReturn(ret.id);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId, quantity: 1 }],
+      },
+      buyerCaller,
+    );
+    await returnsService.escalateReturn(ret.id, platformEscalationAuthority(buyerA, orgA));
 
     // Fire 3 concurrent resolution attempts
     const attempts = await Promise.allSettled(
@@ -1044,38 +1437,55 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
       ),
     );
 
-    const succeeded = attempts.filter(a => a.status === 'fulfilled');
-    const rejected = attempts.filter(a => a.status === 'rejected');
+    const succeeded = attempts.filter((a) => a.status === 'fulfilled');
+    const rejected = attempts.filter((a) => a.status === 'rejected');
     // Exactly one should succeed
     expect(succeeded.length).toBe(1);
     expect(rejected.length).toBe(2);
 
     // Verify final state
-    const finalStatus = await pool.query(`SELECT status FROM return_requests WHERE id = $1`, [ret.id]);
+    const finalStatus = await pool.query(`SELECT status FROM return_requests WHERE id = $1`, [
+      ret.id,
+    ]);
     expect(finalStatus.rows[0].status).toBe('MERCHANT_APPROVED');
   }, 30_000);
 
   it('P2-09: escalation is idempotent — already-escalated return returns current state', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
 
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId, quantity: 1 }],
-    }, buyerCaller);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId, quantity: 1 }],
+      },
+      buyerCaller,
+    );
 
     // First escalation
-    await returnsService.escalateReturn(ret.id);
+    await returnsService.escalateReturn(ret.id, platformEscalationAuthority(buyerA, orgA));
     // Second escalation — should be idempotent (status !== REQUESTED, returns undefined)
-    const second = await returnsService.escalateReturn(ret.id);
+    const second = await returnsService.escalateReturn(
+      ret.id,
+      platformEscalationAuthority(buyerA, orgA),
+    );
     // The method returns undefined when already processed (early return)
-    expect(second).toBeUndefined();
+    expect(second).toBeNull();
 
     // Verify the return is still ESCALATED in DB
     const dbRow = await pool.query(`SELECT status FROM return_requests WHERE id = $1`, [ret.id]);
@@ -1091,23 +1501,39 @@ describe('P13 — Returns, Refunds & Disputes (PostgreSQL)', () => {
 
   it('P2-10: merchant can still approve after escalation (FSM allows ESCALATED → MERCHANT_APPROVED)', async () => {
     const orderId = await createDeliveredOrder(
-      pool, ordersService, buyerA, merchantA, storeA, variantA, offerA, orgA,
+      pool,
+      ordersService,
+      buyerA,
+      merchantA,
+      storeA,
+      variantA,
+      offerA,
+      orgA,
     );
-    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [orderId]);
+    const orderItemsRes = await pool.query(`SELECT id FROM order_items WHERE order_id = $1`, [
+      orderId,
+    ]);
     const orderItemId = orderItemsRes.rows[0].id as string;
 
     const buyerCaller = { sub: buyerA, role: 'BUYER' as const, activeOrg: orgA };
     const merchantCaller = { sub: merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: orgA };
 
-    const ret = await returnsService.createReturnRequest({
-      subOrderId: orderId,
-      reason: 'PRODUCT_NOT_AS_DESCRIBED',
-      lines: [{ orderItemId, quantity: 1 }],
-    }, buyerCaller);
-    await returnsService.escalateReturn(ret.id);
+    const ret = await returnsService.createReturnRequest(
+      {
+        subOrderId: orderId,
+        reason: 'PRODUCT_NOT_AS_DESCRIBED',
+        lines: [{ orderItemId, quantity: 1 }],
+      },
+      buyerCaller,
+    );
+    await returnsService.escalateReturn(ret.id, platformEscalationAuthority(buyerA, orgA));
 
     // Merchant approves even though return is escalated
-    const approved = await returnsService.transitionReturn(ret.id, 'MERCHANT_APPROVED', merchantCaller);
+    const approved = await returnsService.transitionReturn(
+      ret.id,
+      'MERCHANT_APPROVED',
+      merchantCaller,
+    );
     expect(approved!.status).toBe('MERCHANT_APPROVED');
   }, 30_000);
 });

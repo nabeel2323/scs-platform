@@ -7,6 +7,14 @@ import '../../providers/providers.dart';
 import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
+Future<void> _refreshRead<T>(Future<T> read) async {
+  try {
+    await read;
+  } catch (_) {
+    // Keep refreshing the independent dashboard reads when one source fails.
+  }
+}
+
 /// Merchant dashboard hub — entry point to all store-management tools.
 /// Gated on the merchant having an active org + store; otherwise shows an
 /// onboarding CTA. Mirrors the web /merchant hub.
@@ -24,61 +32,177 @@ class MerchantDashboardScreen extends ConsumerWidget {
     final profile = ref.watch(profileProvider);
     final storeAsync = ref.watch(activeStoreProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Merchant Dashboard'), actions: [
-        IconButton(
+      appBar: AppBar(
+        title: const Text('Merchant Dashboard'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh merchant dashboard',
             icon: const Icon(Icons.refresh),
-            onPressed: () {
-              ref.invalidate(profileProvider);
-              ref.invalidate(myStoresProvider);
-            }),
-      ]),
+            onPressed: () => _refreshDashboard(ref),
+          ),
+        ],
+      ),
       body: profile.when(
-        loading: () => const LoadingSpinner(),
-        error: (e, _) => EmptyState(
-            title: 'Error',
-            description: ApiService.errorMessage(e),
-            onAction: () => ref.invalidate(profileProvider)),
+        skipLoadingOnRefresh: true,
+        skipLoadingOnReload: true,
+        skipError: true,
         data: (p) {
           final effectiveOrgId =
               ref.watch(activeOrgIdProvider) ?? p.activeOrgId;
           final hasOrg = effectiveOrgId != null && effectiveOrgId.isNotEmpty;
+          final notices = <Widget>[
+            if (profile.isRefreshing)
+              _readNotice(
+                'Refreshing merchant identity… showing the last successfully loaded profile.',
+                () => ref.invalidate(profileProvider),
+              ),
+            if (profile.hasError)
+              _readNotice(
+                'Could not refresh merchant identity: ${ApiService.errorMessage(profile.error!)}. Showing the last successfully loaded profile.',
+                () => ref.invalidate(profileProvider),
+              ),
+          ];
+
           if (!hasOrg) {
-            return _onboardCta(
-              context,
-              icon: Icons.store_outlined,
-              title: 'No business yet',
-              message:
-                  'Register your store to start managing products and orders.',
-              actionLabel: 'Register Your Store',
+            return _withReadNotices(
+              _onboardCta(
+                context,
+                icon: Icons.store_outlined,
+                title: p.hasPermission('identity:organizations:create')
+                    ? 'No business yet'
+                    : 'No active business',
+                message: p.hasPermission('identity:organizations:create')
+                    ? 'Register your store to start managing products and orders.'
+                    : 'Use an invitation code to join an existing business before managing merchant tools.',
+                actionLabel:
+                    p.hasPermission('identity:organizations:create')
+                        ? 'Register Your Store'
+                        : 'Join an Organization',
+              ),
+              notices,
             );
           }
+
           return storeAsync.when(
-            loading: () => const LoadingSpinner(),
-            error: (e, _) => EmptyState(
-                title: 'Error',
-                description: ApiService.errorMessage(e),
-                onAction: () => ref.invalidate(myStoresProvider)),
+            skipLoadingOnRefresh: true,
+            skipLoadingOnReload: true,
+            skipError: true,
             data: (store) {
-              if (store == null) {
-                return _onboardCta(
-                  context,
-                  icon: Icons.storefront_outlined,
-                  title: 'No store yet',
-                  message:
-                      'Your organization has no storefront. Complete registration to create one.',
-                  actionLabel: 'Create Your Store',
+              final allNotices = [...notices];
+              if (storeAsync.isRefreshing) {
+                allNotices.add(
+                  _readNotice(
+                    'Refreshing storefront… showing the last successfully loaded store.',
+                    () => ref.invalidate(activeStoreProvider),
+                  ),
                 );
               }
-              return _hub(context, ref, store);
+              if (storeAsync.hasError) {
+                allNotices.add(
+                  _readNotice(
+                    'Could not refresh storefront: ${ApiService.errorMessage(storeAsync.error!)}. Showing the last successfully loaded store.',
+                    () => ref.invalidate(activeStoreProvider),
+                  ),
+                );
+              }
+
+              final content = store == null
+                  ? (p.hasPermission('merchant:stores:write')
+                      ? _onboardCta(
+                          context,
+                          icon: Icons.storefront_outlined,
+                          title: 'No store yet',
+                          message:
+                              'Your organization has no storefront. Complete registration to create one.',
+                          actionLabel: 'Create Your Store',
+                        )
+                      : const EmptyState(
+                          title: 'No store available',
+                          description:
+                              'Your active organization can view merchant tools but does not have merchant:stores:write to create a storefront.',
+                          icon: Icons.lock_outline,
+                        ))
+                  : _hub(context, ref, store, p);
+
+              return _withReadNotices(
+                content,
+                allNotices,
+                onRefresh: store == null ? null : () => _refreshDashboard(ref),
+              );
             },
+            loading: () => const LoadingSpinner(),
+            error: (e, _) => EmptyState(
+              title: 'Error',
+              description: ApiService.errorMessage(e),
+              onAction: () => ref.invalidate(activeStoreProvider),
+            ),
           );
         },
+        loading: () => const LoadingSpinner(),
+        error: (e, _) => EmptyState(
+          title: 'Error',
+          description: ApiService.errorMessage(e),
+          onAction: () => ref.invalidate(profileProvider),
+        ),
       ),
     );
   }
 
-  Widget _hub(BuildContext context, WidgetRef ref, Store store) =>
-      ListView(padding: const EdgeInsets.all(16), children: [
+  Future<void> _refreshDashboard(WidgetRef ref) async {
+    await Future.wait<void>([
+      _refreshRead(ref.refresh(profileProvider.future)),
+      _refreshRead(ref.refresh(activeStoreProvider.future)),
+      _refreshRead(ref.refresh(merchantKpisProvider.future)),
+    ]);
+  }
+
+  Widget _withReadNotices(
+    Widget content,
+    List<Widget> notices, {
+    Future<void> Function()? onRefresh,
+  }) {
+    final body = onRefresh == null
+        ? content
+        : RefreshIndicator(
+            onRefresh: onRefresh,
+            child: content,
+          );
+    if (notices.isEmpty) return body;
+    return Column(
+      children: [
+        ...notices,
+        Expanded(child: body),
+      ],
+    );
+  }
+
+  Widget _readNotice(String message, VoidCallback onRetry) => Container(
+        width: double.infinity,
+        margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: TaifTokens.err.withValues(alpha: 0.06),
+          border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
+          borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(fontSize: 12, color: TaifTokens.err),
+              ),
+            ),
+            TextButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
+        ),
+      );
+
+  Widget _hub(BuildContext context, WidgetRef ref, Store store, UserProfile profile) =>
+      ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: [
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -102,7 +226,7 @@ class MerchantDashboardScreen extends ConsumerWidget {
           ]),
         ),
         const SizedBox(height: 20),
-        _kpis(context, ref),
+        if (profile.hasPermission('merchant:orders:read')) _kpis(context, ref),
         const SizedBox(height: 20),
         GridView.count(
           crossAxisCount: 2,
@@ -112,24 +236,34 @@ class MerchantDashboardScreen extends ConsumerWidget {
           crossAxisSpacing: 12,
           childAspectRatio: 1.2,
           children: [
-            _card(context, 'Store Profile', Icons.storefront, '/merchant/store',
+            if (profile.hasPermission('merchant:stores:read'))
+              _card(context, 'Store Profile', Icons.storefront, '/merchant/store',
                 TaifTokens.brandPrimary),
-            _card(context, 'Catalog', Icons.inventory_2, '/merchant/catalog',
+            if (profile.hasPermission('catalog:products:read'))
+              _card(context, 'Catalog', Icons.inventory_2, '/merchant/catalog',
                 TaifTokens.info,
                 onTap: () => _open(context, 'catalog', '/merchant/catalog')),
-            _card(context, 'Inventory', Icons.bar_chart, '/merchant/inventory',
+            if (profile.hasPermission('merchant:inventory:read'))
+              _card(context, 'Inventory', Icons.bar_chart, '/merchant/inventory',
                 const Color(0xFF059669),
                 onTap: () =>
                     _open(context, 'inventory', '/merchant/inventory')),
-            _card(context, 'Categories', Icons.category, '/merchant/categories',
+            if (profile.hasPermission('catalog:categories:read'))
+              _card(context, 'Categories', Icons.category, '/merchant/categories',
                 TaifTokens.warn),
-            _card(context, 'Orders', Icons.receipt_long, '/merchant/orders',
+            if (profile.hasPermission('merchant:orders:read'))
+              _card(context, 'Orders', Icons.receipt_long, '/merchant/orders',
                 const Color(0xFF7C3AED),
                 onTap: () => _open(context, 'orders', '/merchant/orders')),
-            _card(context, 'Customers', Icons.people, '/merchant/customers',
+            if (profile.hasPermission('merchant:orders:read'))
+              _card(context, 'Customers', Icons.people, '/merchant/customers',
                 TaifTokens.ok),
-            _card(context, 'Offers', Icons.local_offer, '/merchant/offers',
+            if (profile.hasPermission('merchant:stores:read'))
+              _card(context, 'Offers', Icons.local_offer, '/merchant/offers',
                 TaifTokens.brandAccent),
+            if (profile.hasPermission('merchant:pricing:read'))
+              _card(context, 'Pricing', Icons.price_change, '/merchant/pricing',
+                TaifTokens.info),
             _card(context, 'Organization', Icons.business, '/organizations',
                 const Color(0xFF0891B2)),
           ],
@@ -167,13 +301,57 @@ class MerchantDashboardScreen extends ConsumerWidget {
   /// KPI strip (audit row 190 / spec §29). Every figure is real API data; a
   /// `null` (endpoint unavailable) renders "—", never a fabricated zero.
   Widget _kpis(BuildContext context, WidgetRef ref) {
+    final canReadInventory = ref.watch(profileProvider).valueOrNull?.hasPermission('merchant:inventory:read') ?? false;
     final kpis = ref.watch(merchantKpisProvider);
     return kpis.when(
+      skipLoadingOnRefresh: true,
+      skipError: true,
       loading: () =>
           const SizedBox(height: 96, child: Center(child: LoadingSpinner())),
-      error: (e, _) => const Text('KPIs unavailable',
-          style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
-      data: (k) => GridView.count(
+      error: (e, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('KPIs unavailable',
+              style: TextStyle(fontSize: 12, color: TaifTokens.muted)),
+          TextButton.icon(
+            onPressed: () => ref.invalidate(merchantKpisProvider),
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('Retry KPIs'),
+          ),
+        ],
+      ),
+      data: (k) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (kpis.isRefreshing)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Text('Refreshing dashboard metrics… showing the last successful values.',
+                  style: TextStyle(fontSize: 11, color: TaifTokens.muted)),
+            ),
+          if (kpis.hasError)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: TaifTokens.err.withValues(alpha: 0.06),
+                border: Border.all(color: TaifTokens.err.withValues(alpha: 0.3)),
+                borderRadius: BorderRadius.circular(TaifTokens.radiusMd),
+              ),
+              child: Row(children: [
+                Expanded(
+                  child: Text(
+                    'Could not refresh dashboard metrics: ${ApiService.errorMessage(kpis.error!)}. Showing the last successful values.',
+                    style: const TextStyle(fontSize: 11, color: TaifTokens.err),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => ref.invalidate(merchantKpisProvider),
+                  child: const Text('Retry'),
+                ),
+              ]),
+            ),
+          GridView.count(
         crossAxisCount: 2,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
@@ -196,11 +374,14 @@ class MerchantDashboardScreen extends ConsumerWidget {
               sub: 'awaiting action',
               accent: k.pendingCount > 0 ? TaifTokens.warn : null,
               onTap: () => _open(context, 'orders', '/merchant/orders')),
-          _kpiTile(context, 'Low stock',
-              k.lowStockCount == null ? '—' : '${k.lowStockCount}',
-              sub: 'at/below reorder',
-              accent: (k.lowStockCount ?? 0) > 0 ? TaifTokens.err : null,
-              onTap: () => _open(context, 'inventory', '/merchant/inventory')),
+          if (canReadInventory)
+            _kpiTile(context, 'Low stock',
+                k.lowStockCount == null ? '—' : '${k.lowStockCount}',
+                sub: 'at/below reorder',
+                accent: (k.lowStockCount ?? 0) > 0 ? TaifTokens.err : null,
+                onTap: () => _open(context, 'inventory', '/merchant/inventory')),
+        ],
+          ),
         ],
       ),
     );

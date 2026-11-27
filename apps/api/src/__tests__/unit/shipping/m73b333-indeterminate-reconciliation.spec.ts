@@ -143,11 +143,19 @@ describe('M7.3-B.3.3.3 — Reconciliation Logic', () => {
       set: vi.fn().mockReturnThis(),
       where: vi.fn().mockResolvedValue(undefined),
     };
+    const actorContexts: Array<{ actorKind: string; workerId?: string }> = [];
+    const withActorContext = vi.fn(async (context: any, operation: () => Promise<unknown>) => {
+      actorContexts.push(context);
+      return operation();
+    });
     return {
       db: {
+        query: { orders: { findFirst: vi.fn().mockResolvedValue({ storeId: 'store-1' }) } },
         update: vi.fn().mockReturnValue(updateChain),
         execute: vi.fn().mockResolvedValue({ rows: [] }),
       },
+      withActorContext,
+      actorContexts,
       updateChain,
     };
   }
@@ -197,6 +205,8 @@ describe('M7.3-B.3.3.3 — Reconciliation Logic', () => {
 
     // Mock raw PostgreSQL row shape (snake_case) from RETURNING *
     const shipment = {
+      order_id: 'order-1',
+      store_id: 'store-1',
       id: 'ship-001',
       carrier_cancel_status: 'UNKNOWN',
       carrier_cancel_attempted_at: new Date(),
@@ -209,6 +219,13 @@ describe('M7.3-B.3.3.3 — Reconciliation Logic', () => {
     expect(result.outcome).toBe('cancel_succeeded');
     // Verify DB was updated to SUCCEEDED
     expect(mockDb.db.update).toHaveBeenCalled();
+    expect(mockDb.withActorContext).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorKind: 'worker',
+        workerId: expect.stringContaining('carrier-reconciliation-'),
+      }),
+      expect.any(Function),
+    );
   });
 
   it('B333-U-11b: PICKUP_CANCELLED is NOT definitive evidence → deferred (M7.3-B.3.4 BD-3.4-09/C7)', async () => {
@@ -221,6 +238,8 @@ describe('M7.3-B.3.3.3 — Reconciliation Logic', () => {
     const { service } = createServiceWithMocks({ trackingStatus: 'PICKUP_CANCELLED' });
 
     const shipment = {
+      order_id: 'order-1',
+      store_id: 'store-1',
       id: 'ship-001b',
       carrier_cancel_status: 'UNKNOWN',
       carrier_cancel_attempted_at: new Date(),
@@ -238,6 +257,8 @@ describe('M7.3-B.3.3.3 — Reconciliation Logic', () => {
     const { service, mockDb } = createServiceWithMocks({ trackingStatus: 'IN_TRANSIT' });
 
     const shipment = {
+      order_id: 'order-1',
+      store_id: 'store-1',
       id: 'ship-002',
       carrier_cancel_status: 'UNKNOWN',
       carrier_cancel_attempted_at: new Date(),
@@ -257,6 +278,8 @@ describe('M7.3-B.3.3.3 — Reconciliation Logic', () => {
     const { service, mockDb } = createServiceWithMocks({ trackingStatus: null });
 
     const shipment = {
+      order_id: 'order-1',
+      store_id: 'store-1',
       id: 'ship-003',
       carrier_cancel_status: 'UNKNOWN',
       carrier_cancel_attempted_at: new Date(),
@@ -283,6 +306,8 @@ describe('M7.3-B.3.3.3 — Reconciliation Logic', () => {
     });
 
     const shipment = {
+      order_id: 'order-1',
+      store_id: 'store-1',
       id: 'ship-004',
       carrier_cancel_status: 'UNKNOWN',
       carrier_cancel_attempted_at: new Date(),
@@ -306,6 +331,8 @@ describe('M7.3-B.3.3.3 — Reconciliation Logic', () => {
     const { service, mockDb } = createServiceWithMocks({ trackingStatus: null });
 
     const shipment = {
+      order_id: 'order-1',
+      store_id: 'store-1',
       id: 'ship-005',
       carrier_cancel_status: 'UNKNOWN',
       carrier_cancel_attempted_at: new Date(),
@@ -329,6 +356,8 @@ describe('M7.3-B.3.3.3 — Reconciliation Logic', () => {
     const { service, mockDb } = createServiceWithMocks();
 
     const shipment = {
+      order_id: 'order-1',
+      store_id: 'store-1',
       id: 'ship-006',
       carrier_cancel_status: 'SUCCEEDED',
       carrier_cancel_attempted_at: new Date(Date.now() - 48 * 3600 * 1000), // 48h ago
@@ -345,6 +374,8 @@ describe('M7.3-B.3.3.3 — Reconciliation Logic', () => {
     const { service } = createServiceWithMocks();
 
     const shipment = {
+      order_id: 'order-1',
+      store_id: 'store-1',
       id: 'ship-006b',
       carrier_cancel_status: 'NOT_REQUIRED',
       carrier_cancel_attempted_at: null,
@@ -359,6 +390,8 @@ describe('M7.3-B.3.3.3 — Reconciliation Logic', () => {
     const { service, mockDb } = createServiceWithMocks();
 
     const shipment = {
+      order_id: 'order-1',
+      store_id: 'store-1',
       id: 'ship-007',
       carrier_cancel_status: 'UNKNOWN',
       carrier_cancel_attempted_at: new Date(Date.now() - 25 * 3600 * 1000), // 25h ago

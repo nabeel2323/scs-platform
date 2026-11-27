@@ -39,6 +39,9 @@ class _MerchantOffersScreenState extends ConsumerState<MerchantOffersScreen> {
     final storeAsync = ref.watch(activeStoreProvider);
     final offersAsync = ref.watch(merchantOffersProvider);
     final analyticsAsync = ref.watch(merchantOfferAnalyticsProvider);
+    final canWriteOffers = ref.watch(profileProvider).valueOrNull
+            ?.hasPermission('catalog:offers:write') ??
+        false;
 
     return Scaffold(
       appBar: AppBar(
@@ -98,11 +101,14 @@ class _MerchantOffersScreenState extends ConsumerState<MerchantOffersScreen> {
                   if (offers.isEmpty) {
                     return EmptyState(
                       title: 'No offers yet',
-                      description:
-                          'Create your first offer to set pricing and start selling products.',
+                      description: canWriteOffers
+                          ? 'Create your first offer to set pricing and start selling products.'
+                          : 'No offers are available for this store yet.',
                       icon: Icons.local_offer_outlined,
-                      onAction: () => context.push('/merchant/offers/new'),
-                      actionLabel: 'Create Offer',
+                      onAction: canWriteOffers
+                          ? () => context.push('/merchant/offers/new')
+                          : null,
+                      actionLabel: canWriteOffers ? 'Create Offer' : null,
                     );
                   }
 
@@ -141,13 +147,15 @@ class _MerchantOffersScreenState extends ConsumerState<MerchantOffersScreen> {
           ]);
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/merchant/offers/new'),
-        backgroundColor: TaifTokens.brandPrimary,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('New Offer'),
-      ),
+      floatingActionButton: canWriteOffers
+          ? FloatingActionButton.extended(
+              onPressed: () => context.push('/merchant/offers/new'),
+              backgroundColor: TaifTokens.brandPrimary,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add),
+              label: const Text('New Offer'),
+            )
+          : null,
     );
   }
 

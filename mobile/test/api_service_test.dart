@@ -205,8 +205,24 @@ void main() {
               ));
 
       final order = await api.checkout(
-          deliveryAddress: {'city': 'Riyadh'}, idempotencyKey: 'idem-1');
+        deliveryAddress: {'city': 'Riyadh'},
+        idempotencyKey: 'idem-1',
+        paymentMethod: 'BANK_TRANSFER',
+        shippingSelections: [
+          {'storeId': 's1', 'fulfillmentMethod': 'MERCHANT_DELIVERY', 'shippingMethodId': 'ship-1'},
+        ],
+      );
       expect(order.id, 'mo-1');
+      verify(() => dio.post('/v1/checkout',
+          data: {
+            'deliveryAddress': {'city': 'Riyadh'},
+            'idempotencyKey': 'idem-1',
+            'paymentMethod': 'BANK_TRANSFER',
+            'shippingSelections': [
+              {'storeId': 's1', 'fulfillmentMethod': 'MERCHANT_DELIVERY', 'shippingMethodId': 'ship-1'},
+            ],
+          },
+          options: any(named: 'options'))).called(1);
     });
 
     test('acceptOrder calls POST /v1/orders/:id/accept', () async {
@@ -219,6 +235,109 @@ void main() {
 
       await api.acceptOrder('o1');
       verify(() => dio.post('/v1/orders/o1/accept')).called(1);
+    });
+
+    test('fetchShippingEstimate requests the buyer-facing store estimate', () async {
+      when(() => dio.get('/v1/shipping/estimate',
+              queryParameters: any(named: 'queryParameters')))
+          .thenAnswer((_) async => Response(
+                data: {
+                  'storeId': 's1',
+                  'subtotalMinor': 2500,
+                  'currency': 'SAR',
+                  'deliveryAvailable': true,
+                  'methods': [
+                    {'methodId': 'ship-1', 'fulfillmentMethod': 'MERCHANT_DELIVERY', 'feeMinor': 500, 'currency': 'SAR', 'status': 'AVAILABLE'}
+                  ],
+                },
+                requestOptions: RequestOptions(path: '/v1/shipping/estimate'),
+                statusCode: 200,
+              ));
+      final estimate = await api.fetchShippingEstimate(
+        storeId: 's1',
+        subtotalMinor: 2500,
+        city: 'Riyadh',
+      );
+      expect(estimate['storeId'], 's1');
+      expect((estimate['methods'] as List).first['fulfillmentMethod'], 'MERCHANT_DELIVERY');
+      verify(() => dio.get('/v1/shipping/estimate',
+          queryParameters: {
+            'storeId': 's1',
+            'subtotal': 2500,
+            'city': 'Riyadh',
+          })).called(1);
+    });
+
+    test('previewCheckout posts per-store selections and returns server totals', () async {
+      when(() => dio.post('/v1/checkout/preview', data: any(named: 'data')))
+          .thenAnswer((_) async => Response(
+                data: {
+                  'isEstimate': true,
+                  'vatRate': 0.15,
+                  'stores': [],
+                  'totalsByCurrency': {'SAR': 11500},
+                  'hasUnpricedAmounts': false,
+                },
+                requestOptions: RequestOptions(path: '/v1/checkout/preview'),
+                statusCode: 201,
+              ));
+      final preview = await api.previewCheckout(
+        deliveryAddress: {'street': 'Main St', 'city': 'Riyadh'},
+        shippingSelections: [
+          {'storeId': 's1', 'fulfillmentMethod': 'PICKUP'},
+        ],
+      );
+      expect(preview['totalsByCurrency'], {'SAR': 11500});
+      verify(() => dio.post('/v1/checkout/preview', data: {
+        'deliveryAddress': {'street': 'Main St', 'city': 'Riyadh'},
+        'shippingSelections': [
+          {'storeId': 's1', 'fulfillmentMethod': 'PICKUP'},
+        ],
+      })).called(1);
+    });
+  });
+
+  group('Search endpoints', () {
+    test('search serializes selected attribute facet filters', () async {
+      when(() => dio.get('/v1/search',
+              queryParameters: any(named: 'queryParameters')))
+          .thenAnswer((_) async => Response(
+                data: {
+                  'items': [],
+                  'total': 0,
+                  'query': 'laptop',
+                  'facets': [],
+                },
+                requestOptions: RequestOptions(path: '/v1/search'),
+                statusCode: 200,
+              ));
+
+      final result = await api.search(
+        q: 'laptop',
+        attributeFilters: {
+          'ram-gb': ['16'],
+        },
+      );
+
+      expect(result.total, 0);
+      verify(() => dio.get('/v1/search', queryParameters: {
+            'q': 'laptop',
+            'attrFilters': '{"ram-gb":["16"]}',
+          })).called(1);
+    });
+  });
+
+  group('Cart promotion endpoints', () {
+    test('removePromo calls DELETE /v1/cart/promo', () async {
+      when(() => dio.delete('/v1/cart/promo')).thenAnswer((_) async => Response(
+            data: {'promoCode': null, 'promotionId': null},
+            requestOptions: RequestOptions(path: '/v1/cart/promo'),
+            statusCode: 200,
+          ));
+
+      await api.removePromo();
+
+      verify(() => dio.delete('/v1/cart/promo')).called(1);
     });
   });
 }

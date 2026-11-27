@@ -2,25 +2,32 @@
  * Clean round-trip test: export → re-import → verify idempotency
  */
 import { Pool } from 'pg';
+import { assertLocalUatExecution } from './local-uat-safety';
 
 const API = 'http://localhost:3000/v1';
+const DB_URL = 'postgresql://scs:scs_dev_2026@localhost:5432/scs_platform';
+assertLocalUatExecution('m5-roundtrip-check', { databaseUrl: DB_URL, apiUrl: API });
 
 async function main() {
-  const loginData = await (await fetch(`${API}/auth/login/password`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      email: 'admin@scsp.dev', password: 'Admin@2026!',
-      deviceId: 'uat-device-001', deviceInfo: { platform: 'Windows', userAgent: 'UAT/1.0' },
-    }),
-  })).json();
+  const loginData = await (
+    await fetch(`${API}/auth/login/password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: 'admin@scsp.dev',
+        password: 'Admin@2026!',
+        deviceId: 'uat-device-001',
+        deviceInfo: { platform: 'Windows', userAgent: 'UAT/1.0' },
+      }),
+    })
+  ).json();
   const T = loginData.accessToken;
-  const jsonHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${T}` };
+  const jsonHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${T}` };
 
   console.log('Auth OK');
 
   // Pre-export counts
-  const pool = new Pool({ connectionString: 'postgresql://scs:scs_dev_2026@localhost:5432/scs_platform' });
+  const pool = new Pool({ connectionString: DB_URL });
   const before = await pool.query(`
     SELECT 'categories' AS tbl, COUNT(*) FROM categories WHERE store_id IS NULL
     UNION ALL SELECT 'product_types', COUNT(*) FROM product_types
@@ -40,7 +47,8 @@ async function main() {
 
   // Export
   const expRes = await fetch(`${API}/admin/catalog-imports/export`, {
-    method: 'POST', headers: jsonHeaders,
+    method: 'POST',
+    headers: jsonHeaders,
   });
   const buf = Buffer.from(await expRes.arrayBuffer());
   console.log(`\nExport: ${buf.length} bytes, isXlsx: ${buf[0] === 0x50}`);
@@ -48,29 +56,42 @@ async function main() {
   // Re-import upload
   const bnd = '----B' + Date.now();
   const parts = [
-    Buffer.from(`--${bnd}\r\nContent-Disposition: form-data; name="file"; filename="re.xlsx"\r\nContent-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\r\n\r\n`),
+    Buffer.from(
+      `--${bnd}\r\nContent-Disposition: form-data; name="file"; filename="re.xlsx"\r\nContent-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\r\n\r\n`,
+    ),
     buf,
     Buffer.from(`\r\n--${bnd}--\r\n`),
   ];
   const body = Buffer.concat(parts);
 
-  const upRes = await (await fetch(`${API}/admin/catalog-imports/upload`, {
-    method: 'POST',
-    headers: { 'Content-Type': `multipart/form-data; boundary=${bnd}`, 'Authorization': `Bearer ${T}` },
-    body,
-  })).json();
+  const upRes = await (
+    await fetch(`${API}/admin/catalog-imports/upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${bnd}`,
+        Authorization: `Bearer ${T}`,
+      },
+      body,
+    })
+  ).json();
   console.log(`Re-import upload: ${upRes.id}`);
 
   // Preview
-  const preview = await (await fetch(`${API}/admin/catalog-imports/${upRes.id}/preview`, {
-    headers: jsonHeaders,
-  })).json();
+  const preview = await (
+    await fetch(`${API}/admin/catalog-imports/${upRes.id}/preview`, {
+      headers: jsonHeaders,
+    })
+  ).json();
   console.log(`Preview: ${JSON.stringify(preview.plan?.summary ?? preview).slice(0, 500)}`);
 
   // Execute
-  const execRes = await (await fetch(`${API}/admin/catalog-imports/${upRes.id}/execute`, {
-    method: 'POST', headers: jsonHeaders, body: '{}',
-  })).json();
+  const execRes = await (
+    await fetch(`${API}/admin/catalog-imports/${upRes.id}/execute`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: '{}',
+    })
+  ).json();
   console.log(`\nRe-import exec:`, JSON.stringify(execRes));
 
   // Post-reimport counts
@@ -103,14 +124,23 @@ async function main() {
   }
 
   // Third import for idempotency
-  const upRes2 = await (await fetch(`${API}/admin/catalog-imports/upload`, {
-    method: 'POST',
-    headers: { 'Content-Type': `multipart/form-data; boundary=${bnd}`, 'Authorization': `Bearer ${T}` },
-    body,
-  })).json();
-  const execRes2 = await (await fetch(`${API}/admin/catalog-imports/${upRes2.id}/execute`, {
-    method: 'POST', headers: jsonHeaders, body: '{}',
-  })).json();
+  const upRes2 = await (
+    await fetch(`${API}/admin/catalog-imports/upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${bnd}`,
+        Authorization: `Bearer ${T}`,
+      },
+      body,
+    })
+  ).json();
+  const execRes2 = await (
+    await fetch(`${API}/admin/catalog-imports/${upRes2.id}/execute`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: '{}',
+    })
+  ).json();
   console.log(`\nThird import:`, JSON.stringify(execRes2));
 
   console.log(`\nRound-trip verdict: created=${execRes.created} (expected 0 for true idempotency)`);
@@ -118,4 +148,7 @@ async function main() {
   await pool.end();
 }
 
-main().catch(e => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

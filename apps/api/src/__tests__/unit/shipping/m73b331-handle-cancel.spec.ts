@@ -141,6 +141,12 @@ function createMocks(shipment: ShipmentRow) {
       shipments: {
         findFirst: vi.fn(async () => shipment),
       },
+      stores: {
+        findFirst: vi.fn(async () => ({ orgId: 'org-001' })),
+      },
+      orders: {
+        findFirst: vi.fn(async () => ({ storeId: shipment.storeId })),
+      },
       carrierWebhookEvents: {
         findFirst: vi.fn(async () => null),
       },
@@ -162,7 +168,15 @@ function createMocks(shipment: ShipmentRow) {
     execute: vi.fn(async () => ({ rows: [] })),
   };
 
-  const db = { db: innerDb };
+  const db = {
+    db: innerDb,
+    withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()),
+  };
+  const storage = {} as any;
+  const merchant = {
+    getStoreTenantContextForSystem: vi.fn(async () => ({ orgId: 'org-001' })),
+  };
+  const webhookRouting = {} as any;
   const registry = new ShippingProviderRegistry();
   const credentials = {} as any;
   const configurations = {} as any;
@@ -186,10 +200,26 @@ function createMocks(shipment: ShipmentRow) {
     recordFailure: vi.fn(),
   } as unknown as CarrierCircuitBreaker;
 
-  return { db, registry, credentials, configurations, observability, emailResolver, retryPolicy, circuitBreaker, updateSets };
+  return {
+    db,
+    registry,
+    credentials,
+    configurations,
+    observability,
+    emailResolver,
+    retryPolicy,
+    circuitBreaker,
+    storage,
+    merchant,
+    webhookRouting,
+    updateSets,
+  };
 }
 
-function createWorker(mocks: ReturnType<typeof createMocks>, provider?: ShippingProvider): ShippingCarrierWorker {
+function createWorker(
+  mocks: ReturnType<typeof createMocks>,
+  provider?: ShippingProvider,
+): ShippingCarrierWorker {
   if (provider) {
     mocks.registry.register(provider);
   }
@@ -202,6 +232,9 @@ function createWorker(mocks: ReturnType<typeof createMocks>, provider?: Shipping
     mocks.emailResolver,
     mocks.retryPolicy,
     mocks.circuitBreaker,
+    mocks.storage,
+    mocks.merchant,
+    mocks.webhookRouting,
   );
 }
 
@@ -222,7 +255,11 @@ describe('B331-U-01: Successful Cancellation → SUCCEEDED', () => {
     const shipment = makeShipment();
     const mocks = createMocks(shipment);
     const provider = new TestCarrierProvider();
-    provider.cancelPickupMock.mockResolvedValue({ supported: true, cancelled: true, carrierStatus: 'CANCELLED' });
+    provider.cancelPickupMock.mockResolvedValue({
+      supported: true,
+      cancelled: true,
+      carrierStatus: 'CANCELLED',
+    });
     const worker = createWorker(mocks, provider);
 
     await (worker as any).handleCancel(makeEvent());
@@ -394,7 +431,7 @@ describe('B331-U-10: Tenant Mismatch', () => {
 
     await expect(
       (worker as any).handleCancel(makeEvent({ metadata: { storeId: 'store-A' } })),
-    ).rejects.toThrow(/Tenant mismatch/);
+    ).rejects.toThrow(/outbox event store does not match its shipment/);
   });
 });
 
@@ -429,7 +466,9 @@ describe('B331-U-12: CancelPickupRequest Mapping', () => {
     provider.cancelPickupMock.mockResolvedValue({ supported: true, cancelled: true });
     const worker = createWorker(mocks, provider);
 
-    await (worker as any).handleCancel(makeEvent({ aggregateId: 'ship-XYZ', metadata: { storeId: 'store-XYZ' } }));
+    await (worker as any).handleCancel(
+      makeEvent({ aggregateId: 'ship-XYZ', metadata: { storeId: 'store-XYZ' } }),
+    );
 
     expect(provider.cancelPickupMock).toHaveBeenCalledWith({
       carrierPickupId: 'PU-99999',
@@ -458,9 +497,8 @@ describe('B331-U-13: Provider Resolution', () => {
     const shipment = makeShipment({ shippingProviderKey: null });
     const mocks = createMocks(shipment);
     // Register a manual provider with key 'manual-driver'
-    const { ManualDeliveryProvider } = await import(
-      '../../../modules/shipping/providers/manual-delivery.provider'
-    );
+    const { ManualDeliveryProvider } =
+      await import('../../../modules/shipping/providers/manual-delivery.provider');
     const manualProvider = new ManualDeliveryProvider();
     const worker = createWorker(mocks, manualProvider);
 
@@ -487,10 +525,10 @@ describe('B331-U-14: Credential Safety', () => {
     const mocks = createMocks(shipment);
     const provider = new TestCarrierProvider();
     provider.cancelPickupMock.mockRejectedValue(
-      new AuthenticationCarrierError(
-        'Invalid credentials',
-        { providerKey: 'test-carrier', operation: 'cancelPickup' },
-      ),
+      new AuthenticationCarrierError('Invalid credentials', {
+        providerKey: 'test-carrier',
+        operation: 'cancelPickup',
+      }),
     );
     const worker = createWorker(mocks, provider);
 
@@ -583,9 +621,8 @@ describe('B331-U-17: Provider Returns Unsupported Result', () => {
 
 describe('B331-U-18: Manual Provider → NOT_REQUIRED', () => {
   it('sets NOT_REQUIRED for manual-driver provider without calling cancelPickup', async () => {
-    const { ManualDeliveryProvider } = await import(
-      '../../../modules/shipping/providers/manual-delivery.provider'
-    );
+    const { ManualDeliveryProvider } =
+      await import('../../../modules/shipping/providers/manual-delivery.provider');
     const shipment = makeShipment({ shippingProviderKey: 'manual-driver' });
     const mocks = createMocks(shipment);
     const manualProvider = new ManualDeliveryProvider();

@@ -158,7 +158,10 @@ describe('IdentityService.switchOrg — prior-token revocation (API-B9)', () => 
       getAvailableChannels: vi.fn().mockReturnValue([]),
     };
     service = new IdentityService(
-      { db: mocks.db } as any,
+      {
+        db: mocks.db,
+        withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()),
+      } as any,
       { client: mocks.redis.client } as any,
       mocks.jwt as any,
       mocks.rateLimit as any,
@@ -185,7 +188,7 @@ describe('IdentityService.switchOrg — prior-token revocation (API-B9)', () => 
 
   it('denylists the presenting token jti for its remaining lifetime', async () => {
     const exp = Math.floor(Date.now() / 1000) + 600;
-    await service.switchOrg('u1', 'org-2', 'sess-1', { jti: 'prior-jti', exp });
+    await service.switchOrg('u1', 'org-2', { role: 'MERCHANT_OWNER', activeOrg: 'org-1' }, 'sess-1', { jti: 'prior-jti', exp });
 
     expect(mocks.redis.client.set).toHaveBeenCalledTimes(1);
     const [key, value, mode, ttl] = mocks.redis.client.set.mock.calls[0]!;
@@ -198,7 +201,7 @@ describe('IdentityService.switchOrg — prior-token revocation (API-B9)', () => 
 
   it('mints the new token with a fresh jti and the carried sid', async () => {
     const exp = Math.floor(Date.now() / 1000) + 600;
-    await service.switchOrg('u1', 'org-2', 'sess-1', { jti: 'prior-jti', exp });
+    await service.switchOrg('u1', 'org-2', { role: 'MERCHANT_OWNER', activeOrg: 'org-1' }, 'sess-1', { jti: 'prior-jti', exp });
 
     const payload = mocks.jwt.sign.mock.calls[0]![0];
     expect(payload.sid).toBe('sess-1');
@@ -208,13 +211,13 @@ describe('IdentityService.switchOrg — prior-token revocation (API-B9)', () => 
   });
 
   it('does not denylist when no prior token is supplied (back-compat)', async () => {
-    await service.switchOrg('u1', 'org-2', 'sess-1');
+    await service.switchOrg('u1', 'org-2', { role: 'MERCHANT_OWNER', activeOrg: 'org-1' }, 'sess-1');
     expect(mocks.redis.client.set).not.toHaveBeenCalled();
   });
 
   it('does not denylist an already-expired prior token (ttl 0)', async () => {
     const exp = Math.floor(Date.now() / 1000) - 10;
-    await service.switchOrg('u1', 'org-2', 'sess-1', { jti: 'old-jti', exp });
+    await service.switchOrg('u1', 'org-2', { role: 'MERCHANT_OWNER', activeOrg: 'org-1' }, 'sess-1', { jti: 'old-jti', exp });
     expect(mocks.redis.client.set).not.toHaveBeenCalled();
   });
 });

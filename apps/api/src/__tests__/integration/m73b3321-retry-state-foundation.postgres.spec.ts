@@ -50,8 +50,9 @@ const MIGRATIONS_DIR = path.resolve(__dirname, '../../../../../infra/drizzle/mig
 const EXCLUDED = new Set(['0013_analytics.sql', '0018_analytics_retention.sql']);
 
 async function applyAllMigrations(pool: Pool) {
-  const files = fs.readdirSync(MIGRATIONS_DIR)
-    .filter(f => f.endsWith('.sql') && !EXCLUDED.has(f))
+  const files = fs
+    .readdirSync(MIGRATIONS_DIR)
+    .filter((f) => f.endsWith('.sql') && !EXCLUDED.has(f))
     .sort();
   for (const file of files) {
     const content = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
@@ -66,16 +67,24 @@ class RetryableErrorProvider extends ShippingProvider {
   readonly key = 'retryable-error';
   readonly name = 'Retryable Error';
   readonly capabilities: ProviderCapabilities = {
-    canCreateShipment: true, canCancel: false, canCancelPickup: true,
-    canGenerateLabel: false, canTrack: false, canValidateAddress: false, canReceiveWebhooks: false,
+    canCreateShipment: true,
+    canCancel: false,
+    canCancelPickup: true,
+    canGenerateLabel: false,
+    canTrack: false,
+    canValidateAddress: false,
+    canReceiveWebhooks: false,
   };
   callCount = 0;
   errorToThrow: Error;
   constructor(errorToThrow?: Error) {
     super();
-    this.errorToThrow = errorToThrow ?? new RetryableCarrierError('Server error (HTTP 503)', {
-      providerKey: 'retryable-error', operation: 'cancelPickup',
-    });
+    this.errorToThrow =
+      errorToThrow ??
+      new RetryableCarrierError('Server error (HTTP 503)', {
+        providerKey: 'retryable-error',
+        operation: 'cancelPickup',
+      });
   }
   async createShipment(_r: CreateShipmentRequest): Promise<CreateShipmentResult> {
     return { providerKey: this.key };
@@ -91,8 +100,13 @@ class TerminalErrorProvider extends ShippingProvider {
   readonly key = 'terminal-error';
   readonly name = 'Terminal Error';
   readonly capabilities: ProviderCapabilities = {
-    canCreateShipment: true, canCancel: false, canCancelPickup: true,
-    canGenerateLabel: false, canTrack: false, canValidateAddress: false, canReceiveWebhooks: false,
+    canCreateShipment: true,
+    canCancel: false,
+    canCancelPickup: true,
+    canGenerateLabel: false,
+    canTrack: false,
+    canValidateAddress: false,
+    canReceiveWebhooks: false,
   };
   callCount = 0;
   async createShipment(_r: CreateShipmentRequest): Promise<CreateShipmentResult> {
@@ -101,7 +115,8 @@ class TerminalErrorProvider extends ShippingProvider {
   override async cancelPickup(_req: CancelPickupRequest): Promise<CancelPickupResult> {
     this.callCount++;
     throw new AuthenticationCarrierError('Invalid API key', {
-      providerKey: 'terminal-error', operation: 'cancelPickup',
+      providerKey: 'terminal-error',
+      operation: 'cancelPickup',
     });
   }
 }
@@ -111,8 +126,13 @@ class TimeoutErrorProvider extends ShippingProvider {
   readonly key = 'timeout-error';
   readonly name = 'Timeout Error';
   readonly capabilities: ProviderCapabilities = {
-    canCreateShipment: true, canCancel: false, canCancelPickup: true,
-    canGenerateLabel: false, canTrack: false, canValidateAddress: false, canReceiveWebhooks: false,
+    canCreateShipment: true,
+    canCancel: false,
+    canCancelPickup: true,
+    canGenerateLabel: false,
+    canTrack: false,
+    canValidateAddress: false,
+    canReceiveWebhooks: false,
   };
   callCount = 0;
   async createShipment(_r: CreateShipmentRequest): Promise<CreateShipmentResult> {
@@ -148,8 +168,15 @@ function createWorkerWithProvider(
     {} as any,
     { incrementCounter: vi.fn(), recordHistogram: vi.fn() } as any,
     { tryResolve: vi.fn(async () => null) } as any,
-    retryPolicy ?? ({ classify: vi.fn(() => ({ isFinal: false, safeMessage: '', nextAttemptAt: null })) } as any),
-    circuitBreaker ?? ({ canRequest: vi.fn(() => true), recordSuccess: vi.fn(), recordFailure: vi.fn() } as any),
+    retryPolicy ??
+      ({
+        classify: vi.fn(() => ({ isFinal: false, safeMessage: '', nextAttemptAt: null })),
+      } as any),
+    circuitBreaker ??
+      ({ canRequest: vi.fn(() => true), recordSuccess: vi.fn(), recordFailure: vi.fn() } as any),
+    {} as any,
+    { getStoreTenantContextForSystem: vi.fn(async () => ({ orgId: 'test-org' })) } as any,
+    {} as any,
   );
 }
 
@@ -200,7 +227,11 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
     dbService = makeDbService(pool, db);
 
     const client = await pool.connect();
-    try { await seedPlatformRbac(client); } finally { client.release(); }
+    try {
+      await seedPlatformRbac(client);
+    } finally {
+      client.release();
+    }
 
     await pool.query(
       `INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Org A', 'SA')`,
@@ -218,7 +249,9 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
   }, 180_000);
 
   afterAll(async () => {
-    try { await pool?.query(`DROP DATABASE IF EXISTS ${testDbName}`); } catch {}
+    try {
+      await pool?.query(`DROP DATABASE IF EXISTS ${testDbName}`);
+    } catch {}
     await pool?.end();
     await adminPool?.query(`DROP DATABASE IF EXISTS ${testDbName}`).catch(() => {});
     await adminPool?.end();
@@ -238,10 +271,10 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
     const orderId = randomUUID();
 
     // Create FK chain: user (buyerA) → master_order → order → shipment
-    await pool.query(
-      `INSERT INTO master_orders (id, buyer_id) VALUES ($1, $2)`,
-      [masterOrderId, buyerA],
-    );
+    await pool.query(`INSERT INTO master_orders (id, buyer_id) VALUES ($1, $2)`, [
+      masterOrderId,
+      buyerA,
+    ]);
     await pool.query(
       `INSERT INTO orders (id, master_order_id, store_id, buyer_id) VALUES ($1, $2, $3, $4)`,
       [orderId, masterOrderId, storeA, buyerA],
@@ -250,7 +283,15 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
     await pool.query(
       `INSERT INTO shipments (id, order_id, store_id, status, shipping_provider_key, carrier_pickup_id, carrier_cancel_status, carrier_cancel_retries)
        VALUES ($1, $2, $3, 'PREPARING', $4, $5, $6, $7)`,
-      [shipmentId, orderId, storeA, providerKey, carrierPickupId, overrides.cancelStatus ?? 'PENDING', overrides.cancelRetries ?? 0],
+      [
+        shipmentId,
+        orderId,
+        storeA,
+        providerKey,
+        carrierPickupId,
+        overrides.cancelStatus ?? 'PENDING',
+        overrides.cancelRetries ?? 0,
+      ],
     );
 
     await pool.query(
@@ -273,14 +314,19 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
     // Use camelCase event (DB rows are snake_case — handleCancel expects camelCase)
     try {
       await (worker as any).handleCancel({
-        id: randomUUID(), eventType: 'shipping.carrier.cancel', aggregateId: shipmentId,
+        id: randomUUID(),
+        eventType: 'shipping.carrier.cancel',
+        aggregateId: shipmentId,
         metadata: { storeId: storeA },
       });
     } catch {
       // Expected: re-thrown for handleFailure
     }
 
-    const row = await pool.query(`SELECT carrier_cancel_retries, carrier_cancel_status, carrier_cancel_error FROM shipments WHERE id = $1`, [shipmentId]);
+    const row = await pool.query(
+      `SELECT carrier_cancel_retries, carrier_cancel_status, carrier_cancel_error FROM shipments WHERE id = $1`,
+      [shipmentId],
+    );
     expect(row.rows[0].carrier_cancel_retries).toBe(1);
     expect(row.rows[0].carrier_cancel_status).toBe('PENDING');
     expect(row.rows[0].carrier_cancel_error).toBeTruthy();
@@ -296,17 +342,27 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
     const { shipmentId, eventId } = await insertShipmentAndEvent('retryable-error');
 
     // Mark as PROCESSING (simulating claim)
-    await pool.query(`UPDATE outbox_events SET status = 'PROCESSING', locked_at = NOW(), locked_by = 'test-worker' WHERE id = $1`, [eventId]);
+    await pool.query(
+      `UPDATE outbox_events SET status = 'PROCESSING', locked_at = NOW(), locked_by = $2 WHERE id = $1`,
+      [eventId, worker.workerId],
+    );
 
     // processEvent expects camelCase properties (DB rows are snake_case)
     await (worker as any).processEvent({
-      id: eventId, eventType: 'shipping.carrier.cancel', aggregateId: shipmentId,
-      status: 'PROCESSING', attempts: 0,
-      lockedAt: new Date(), lockedBy: 'test-worker',
+      id: eventId,
+      eventType: 'shipping.carrier.cancel',
+      aggregateId: shipmentId,
+      status: 'PROCESSING',
+      attempts: 0,
+      lockedAt: new Date(),
+      lockedBy: 'test-worker',
       metadata: { storeId: storeA },
     });
 
-    const outboxRow = await pool.query(`SELECT status, next_attempt_at, attempts FROM outbox_events WHERE id = $1`, [eventId]);
+    const outboxRow = await pool.query(
+      `SELECT status, next_attempt_at, attempts FROM outbox_events WHERE id = $1`,
+      [eventId],
+    );
     expect(outboxRow.rows[0].status).toBe('PENDING');
     expect(outboxRow.rows[0].next_attempt_at).toBeTruthy();
     expect(outboxRow.rows[0].attempts).toBe(1);
@@ -320,11 +376,19 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
 
     const { shipmentId } = await insertShipmentAndEvent('terminal-error');
 
-    const event = { id: randomUUID(), eventType: 'shipping.carrier.cancel', aggregateId: shipmentId, metadata: { storeId: storeA } };
+    const event = {
+      id: randomUUID(),
+      eventType: 'shipping.carrier.cancel',
+      aggregateId: shipmentId,
+      metadata: { storeId: storeA },
+    };
 
     await (worker as any).handleCancel(event);
 
-    const row = await pool.query(`SELECT carrier_cancel_status, carrier_cancel_retries FROM shipments WHERE id = $1`, [shipmentId]);
+    const row = await pool.query(
+      `SELECT carrier_cancel_status, carrier_cancel_retries FROM shipments WHERE id = $1`,
+      [shipmentId],
+    );
     expect(row.rows[0].carrier_cancel_status).toBe('FAILED');
     expect(row.rows[0].carrier_cancel_retries).toBe(0);
   });
@@ -339,13 +403,20 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
     const { shipmentId, eventId } = await insertShipmentAndEvent('retryable-error');
 
     // Simulate event at max attempts
-    await pool.query(`UPDATE outbox_events SET status = 'PROCESSING', attempts = 7, locked_at = NOW(), locked_by = 'test-worker' WHERE id = $1`, [eventId]);
+    await pool.query(
+      `UPDATE outbox_events SET status = 'PROCESSING', attempts = 7, locked_at = NOW(), locked_by = $2 WHERE id = $1`,
+      [eventId, worker.workerId],
+    );
 
     // processEvent expects camelCase properties (DB rows are snake_case)
     await (worker as any).processEvent({
-      id: eventId, eventType: 'shipping.carrier.cancel', aggregateId: shipmentId,
-      status: 'PROCESSING', attempts: 7,
-      lockedAt: new Date(), lockedBy: 'test-worker',
+      id: eventId,
+      eventType: 'shipping.carrier.cancel',
+      aggregateId: shipmentId,
+      status: 'PROCESSING',
+      attempts: 7,
+      lockedAt: new Date(),
+      lockedBy: 'test-worker',
       metadata: { storeId: storeA },
     });
 
@@ -362,11 +433,20 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
     const { shipmentId } = await insertShipmentAndEvent('retryable-error');
 
     // First execution
-    const event = { id: randomUUID(), eventType: 'shipping.carrier.cancel', aggregateId: shipmentId, metadata: { storeId: storeA } };
-    try { await (worker as any).handleCancel(event); } catch {}
+    const event = {
+      id: randomUUID(),
+      eventType: 'shipping.carrier.cancel',
+      aggregateId: shipmentId,
+      metadata: { storeId: storeA },
+    };
+    try {
+      await (worker as any).handleCancel(event);
+    } catch {}
 
     // Manually set SUCCEEDED (simulating a concurrent success)
-    await pool.query(`UPDATE shipments SET carrier_cancel_status = 'SUCCEEDED' WHERE id = $1`, [shipmentId]);
+    await pool.query(`UPDATE shipments SET carrier_cancel_status = 'SUCCEEDED' WHERE id = $1`, [
+      shipmentId,
+    ]);
 
     // Second execution — should skip
     const callCountBefore = provider.callCount;
@@ -389,7 +469,9 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
       metadata: { storeId: 'wrong-store-id' },
     };
 
-    await expect((worker as any).handleCancel(event)).rejects.toThrow(/tenant mismatch/i);
+    await expect((worker as any).handleCancel(event)).rejects.toThrow(
+      /outbox event store does not match its shipment/i,
+    );
   });
 
   // ── B3321-PG-07: Retry counter does not lose updates ───────────────────
@@ -402,11 +484,20 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
 
     // Simulate 3 sequential retry attempts
     for (let i = 0; i < 3; i++) {
-      const event = { id: randomUUID(), eventType: 'shipping.carrier.cancel', aggregateId: shipmentId, metadata: { storeId: storeA } };
-      try { await (worker as any).handleCancel(event); } catch {}
+      const event = {
+        id: randomUUID(),
+        eventType: 'shipping.carrier.cancel',
+        aggregateId: shipmentId,
+        metadata: { storeId: storeA },
+      };
+      try {
+        await (worker as any).handleCancel(event);
+      } catch {}
     }
 
-    const row = await pool.query(`SELECT carrier_cancel_retries FROM shipments WHERE id = $1`, [shipmentId]);
+    const row = await pool.query(`SELECT carrier_cancel_retries FROM shipments WHERE id = $1`, [
+      shipmentId,
+    ]);
     expect(row.rows[0].carrier_cancel_retries).toBe(3);
   });
 
@@ -427,7 +518,10 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
 
     await (worker as any).recoverStaleLeases();
 
-    const row = await pool.query(`SELECT status, locked_at, locked_by FROM outbox_events WHERE id = $1`, [eventId]);
+    const row = await pool.query(
+      `SELECT status, locked_at, locked_by FROM outbox_events WHERE id = $1`,
+      [eventId],
+    );
     expect(row.rows[0].status).toBe('PENDING');
     expect(row.rows[0].locked_at).toBeNull();
     expect(row.rows[0].locked_by).toBeNull();
@@ -444,16 +538,19 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
     // 100 concurrent claim attempts
     const claimPromises = Array.from({ length: 100 }, (_, i) => {
       const workerId = `worker-${i}`;
-      return pool.query(`
+      return pool.query(
+        `
         UPDATE outbox_events
         SET status = 'PROCESSING', locked_at = NOW(), locked_by = $1
         WHERE id = $2 AND status = 'PENDING'
         RETURNING id
-      `, [workerId, eventId]);
+      `,
+        [workerId, eventId],
+      );
     });
 
     const results = await Promise.all(claimPromises);
-    const claimed = results.filter(r => r.rows.length > 0);
+    const claimed = results.filter((r) => r.rows.length > 0);
     expect(claimed.length).toBe(1);
   });
 
@@ -466,10 +563,15 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
     const { shipmentId: retryShipment } = await insertShipmentAndEvent('retryable-error');
     try {
       await (retryWorker as any).handleCancel({
-        id: randomUUID(), eventType: 'shipping.carrier.cancel', aggregateId: retryShipment, metadata: { storeId: storeA },
+        id: randomUUID(),
+        eventType: 'shipping.carrier.cancel',
+        aggregateId: retryShipment,
+        metadata: { storeId: storeA },
       });
     } catch {}
-    const retryRow = await pool.query(`SELECT carrier_cancel_status FROM shipments WHERE id = $1`, [retryShipment]);
+    const retryRow = await pool.query(`SELECT carrier_cancel_status FROM shipments WHERE id = $1`, [
+      retryShipment,
+    ]);
     expect(retryRow.rows[0].carrier_cancel_status).toBe('PENDING');
 
     // Terminal
@@ -477,9 +579,14 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
     const termWorker = createWorkerWithProvider(dbService, termProvider);
     const { shipmentId: termShipment } = await insertShipmentAndEvent('terminal-error');
     await (termWorker as any).handleCancel({
-      id: randomUUID(), eventType: 'shipping.carrier.cancel', aggregateId: termShipment, metadata: { storeId: storeA },
+      id: randomUUID(),
+      eventType: 'shipping.carrier.cancel',
+      aggregateId: termShipment,
+      metadata: { storeId: storeA },
     });
-    const termRow = await pool.query(`SELECT carrier_cancel_status FROM shipments WHERE id = $1`, [termShipment]);
+    const termRow = await pool.query(`SELECT carrier_cancel_status FROM shipments WHERE id = $1`, [
+      termShipment,
+    ]);
     expect(termRow.rows[0].carrier_cancel_status).toBe('FAILED');
   });
 
@@ -492,10 +599,16 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
     const { shipmentId } = await insertShipmentAndEvent('timeout-error');
 
     await (worker as any).handleCancel({
-      id: randomUUID(), eventType: 'shipping.carrier.cancel', aggregateId: shipmentId, metadata: { storeId: storeA },
+      id: randomUUID(),
+      eventType: 'shipping.carrier.cancel',
+      aggregateId: shipmentId,
+      metadata: { storeId: storeA },
     });
 
-    const row = await pool.query(`SELECT carrier_cancel_status, carrier_cancel_retries, carrier_cancel_error_class FROM shipments WHERE id = $1`, [shipmentId]);
+    const row = await pool.query(
+      `SELECT carrier_cancel_status, carrier_cancel_retries, carrier_cancel_error_class FROM shipments WHERE id = $1`,
+      [shipmentId],
+    );
     expect(row.rows[0].carrier_cancel_status).toBe('UNKNOWN');
     expect(row.rows[0].carrier_cancel_retries).toBe(0);
     expect(row.rows[0].carrier_cancel_error_class).toBe('timeout');

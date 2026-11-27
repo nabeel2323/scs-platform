@@ -98,7 +98,7 @@ async function createOrderAtStatus(
     buyerId,
     deliveryAddress: {},
     idempotencyKey: `b1-${randomUUID()}`,
-  });
+  }, { sub: buyerId, role: 'BUYER', activeOrg: null });
   const orderId = co.subOrders[0]!.id;
   const caller = { sub: merchantId, role: 'MERCHANT_OWNER', activeOrg: orgId };
 
@@ -144,7 +144,7 @@ async function createOrderPendingConfirmation(
     buyerId,
     deliveryAddress: {},
     idempotencyKey: `b1-pc-${randomUUID()}`,
-  });
+  }, { sub: buyerId, role: 'BUYER', activeOrg: null });
   return co.subOrders[0]!.id;
 }
 
@@ -237,7 +237,7 @@ describe('M7.3-B.1 — Cancellation Concurrency (PostgreSQL)', () => {
 
     // Store + Warehouse
     await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-a-b1', 'Store A', 'APPROVED')`,
+      `INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-a-b1', 'Store A', 'ACTIVE', 'VERIFIED')`,
       [storeA, orgA],
     );
     await pool.query(
@@ -778,7 +778,7 @@ describe('M7.3-B.1 — Failure Injection (PostgreSQL)', () => {
 
     // Store + Warehouse
     await pool.query(
-      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-fi', 'Store FI', 'APPROVED')`,
+      `INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'store-fi', 'Store FI', 'ACTIVE', 'VERIFIED')`,
       [storeA, orgA],
     );
     await pool.query(
@@ -826,7 +826,7 @@ describe('M7.3-B.1 — Failure Injection (PostgreSQL)', () => {
       buyerId: buyerA,
       deliveryAddress: {},
       idempotencyKey: `fi-${randomUUID()}`,
-    });
+    }, { sub: buyerA, role: 'BUYER', activeOrg: null });
     const orderId = co.subOrders[0]!.id;
     const caller = { sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA };
     await ordersService.acceptOrder(orderId, merchantA, caller);
@@ -957,7 +957,7 @@ describe('M7.3-B.1 — Failure Injection (PostgreSQL)', () => {
       buyerId: buyerA,
       deliveryAddress: {},
       idempotencyKey: `fi-net-${randomUUID()}`,
-    });
+    }, { sub: buyerA, role: 'BUYER', activeOrg: null });
     const orderId = co.subOrders[0]!.id;
     const caller = { sub: merchantA, role: 'MERCHANT_OWNER', activeOrg: orgA };
     await ordersService.acceptOrder(orderId, merchantA, caller);

@@ -73,8 +73,8 @@ describe('P12 Independent Runtime Verification', () => {
   const adminUser = randomUUID();
   const modUser = randomUUID();
 
-  const callerBuyerA: CallerContext = { sub: buyerA, role: null, activeOrg: null };
-  const callerBuyerB: CallerContext = { sub: buyerB, role: null, activeOrg: null };
+  const callerBuyerA: CallerContext = { sub: buyerA, role: 'BUYER', activeOrg: null };
+  const callerBuyerB: CallerContext = { sub: buyerB, role: 'BUYER', activeOrg: null };
   const callerAdmin: CallerContext = { sub: adminUser, role: 'ADMIN', activeOrg: null };
   const callerMod: CallerContext = { sub: modUser, role: 'MODERATOR', activeOrg: null };
   const callerMerchA1: CallerContext = { sub: merchantA1, role: 'MERCHANT_OWNER', activeOrg: orgA };
@@ -466,7 +466,7 @@ describe('P12 Independent Runtime Verification', () => {
         ),
       );
       const successes = results.filter(r => r.status === 'fulfilled').length;
-      expect(successes).toBe(1);
+      expect(successes).toBe(5);
       const cntRows = await cnt(pool, `SELECT COUNT(*)::text AS cnt FROM refunds WHERE payment_record_id=$1 AND idempotency_key=$2`, [pid, key]);
       expect(cntRows).toBe(1);
     });
@@ -562,8 +562,22 @@ describe('P12 Independent Runtime Verification', () => {
       const oid = await seedOrder(storeA1, buyerA);
       const pid = await seedPayment(oid, 'BANK_TRANSFER', 'AWAITING_VERIFICATION', 50000);
       await payments.verifyPayment(pid, 'CONFIRMED', adminUser, callerAdmin);
-      await payments.calculateSettlement(oid, adminUser, callerAdmin);
-      await expect(payments.calculateSettlement(oid, adminUser, callerAdmin)).rejects.toThrow(/duplicate key|idx_settlement_order_payment/);
+      const settlement = await payments.calculateSettlement(oid, adminUser, callerAdmin);
+      // Service retries are idempotent; exercise the database uniqueness constraint directly.
+      await expect(
+        pool.query(
+          `INSERT INTO settlement_records (
+             id, sub_order_id, payment_record_id, merchant_store_id,
+             gross_minor, refund_minor, commission_minor, fee_minor, net_minor,
+             currency, status, calculated_at
+           )
+           SELECT $1, sub_order_id, payment_record_id, merchant_store_id,
+                  gross_minor, refund_minor, commission_minor, fee_minor, net_minor,
+                  currency, 'CALCULATED', now()
+           FROM settlement_records WHERE id = $2`,
+          [randomUUID(), settlement.id],
+        ),
+      ).rejects.toThrow(/duplicate key|idx_settlement_order_payment/);
     });
   });
 

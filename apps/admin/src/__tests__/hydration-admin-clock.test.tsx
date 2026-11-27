@@ -44,7 +44,7 @@ const ORIGINAL_TZ = process.env['TZ'];
 const BROWSER_DATE_LABEL = 'Saturday, March 14, 2026';
 const BROWSER_TIME_LABEL = '06:33 PM';
 /** A dashboard landmark that is in server HTML with or without the clock. */
-const DASHBOARD_LANDMARK = 'Total Users';
+const DASHBOARD_LANDMARK = 'Dashboard';
 
 beforeEach(() => {
   // UTC pins the expected strings; the suites below reintroduce a non-UTC

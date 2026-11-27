@@ -13,7 +13,7 @@ describe('ShippingCarrierWorker event ownership', () => {
       where: vi.fn().mockResolvedValue(undefined),
     });
     const update = vi.fn().mockReturnValue({ set });
-    const db = { db: { update } };
+    const db = { db: { update }, withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()) };
     const worker = new ShippingCarrierWorker(
       db as any,
       {} as any,
@@ -22,6 +22,9 @@ describe('ShippingCarrierWorker event ownership', () => {
       {} as any,
       {} as any,
       new CarrierRetryPolicy(),
+      {} as any,
+      {} as any,
+      {} as any,
       {} as any,
     );
 

@@ -141,6 +141,7 @@ function createReconciliationService(
 function createWorkerWithProvider(
   dbService: DatabaseService,
   provider: ShippingProvider,
+  activeOrgId: string,
 ): ShippingCarrierWorker {
   const registry = new ShippingProviderRegistry();
   registry.register(provider);
@@ -153,6 +154,9 @@ function createWorkerWithProvider(
     { tryResolve: vi.fn(async () => null) } as any,
     { classify: vi.fn(() => ({ isFinal: false, safeMessage: '', nextAttemptAt: null })) } as any,
     { canRequest: vi.fn(() => true), recordSuccess: vi.fn(), recordFailure: vi.fn() } as any,
+    {} as any,
+    { getStoreTenantContextForSystem: vi.fn(async () => ({ orgId: activeOrgId })) } as any,
+    {} as any,
   );
 }
 
@@ -488,7 +492,7 @@ describe('M7.3-B.3.3.3 — Indeterminate Outcome Reconciliation (PostgreSQL)', (
 
     const provider = new TrackingCancelledProvider();
     const service = createReconciliationService(dbService, provider);
-    const worker = createWorkerWithProvider(dbService, provider);
+    const worker = createWorkerWithProvider(dbService, provider, orgA);
 
     // Run reconciliation and worker cancel concurrently
     const [reconResult, workerResult] = await Promise.allSettled([
@@ -563,7 +567,7 @@ describe('M7.3-B.3.3.3 — Indeterminate Outcome Reconciliation (PostgreSQL)', (
     );
 
     const provider = new TimeoutCancelProvider();
-    const worker = createWorkerWithProvider(dbService, provider);
+    const worker = createWorkerWithProvider(dbService, provider, orgA);
 
     await (worker as any).handleCancel({
       id: randomUUID(),

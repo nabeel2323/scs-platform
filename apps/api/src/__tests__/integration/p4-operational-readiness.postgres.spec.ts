@@ -11,6 +11,7 @@
  * started inside the spec. An alert is only claimed "operational" here when a
  * row (and where applicable a delivered payload) exists.
  */
+import { NotFoundException } from '@nestjs/common';
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import { AddressInfo } from 'node:net';
@@ -31,9 +32,15 @@ import { OpsControlService } from '../../modules/operations/ops-control.service'
 import { PilotControlService } from '../../modules/operations/pilot-control.service';
 import { P13MonitorService } from '../../modules/operations/p13-monitor.service';
 import {
-  P13_LEASE_KEY, P13_PAUSE_CONTROL_KEY, P13_PILOT_FLAG_KEY,
+  P13_LEASE_KEY,
+  P13_PAUSE_CONTROL_KEY,
+  P13_PILOT_FLAG_KEY,
 } from '../../modules/operations/p13-ops.config';
-import { resetOpsCounters, recordOpsCounter, getOpsCounter } from '../../modules/operations/ops-counters';
+import {
+  resetOpsCounters,
+  recordOpsCounter,
+  getOpsCounter,
+} from '../../modules/operations/ops-counters';
 import { verifySignature } from '../../modules/operations/ops-alert-signing';
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
 import * as schema from '../../drizzle/schema';
@@ -183,6 +190,7 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
   const orgB = randomUUID();
   const buyerA = randomUUID();
   const actorAdmin = randomUUID();
+  const adminCaller = { sub: actorAdmin, role: 'SUPER_ADMIN', activeOrg: null };
   let storeA: string;
   let storeB: string;
   let orderA: string;
@@ -201,12 +209,14 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
     pool = new Pool({ connectionString: started.getConnectionUri() });
 
     const db = drizzle(pool, { schema }) as unknown as DatabaseService['db'];
-    database = { db } as unknown as DatabaseService;
+    database = new DatabaseService();
+    database.db = db;
 
     await pool.query(
       `CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`,
     );
-    const files = fs.readdirSync(MIGRATIONS_DIR)
+    const files = fs
+      .readdirSync(MIGRATIONS_DIR)
       .filter((f) => f.endsWith('.sql') && !EXCLUDED.has(f))
       .sort();
     for (const file of files) {
@@ -222,21 +232,51 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
     }
 
     const client = await pool.connect();
-    try { await seedPlatformRbac(client); } finally { client.release(); }
+    try {
+      await seedPlatformRbac(client);
+    } finally {
+      client.release();
+    }
 
     // ── Two-organization fixture with the P13 FK chain ──
-    await pool.query(`INSERT INTO organizations (id, type, name, country) VALUES ($1,'WHOLESALER','P4 Org A','SY'),($2,'WHOLESALER','P4 Org B','SY')`, [orgA, orgB]);
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1,'Buyer A','+966501000001'),($2,'Actor Admin','+966501000002')`, [buyerA, actorAdmin]);
-    storeA = randomUUID(); storeB = randomUUID();
-    await pool.query(`INSERT INTO stores (id, org_id, slug, display_name, currency, status, verification_status) VALUES ($1,$2,'p4-store-a','P4 Store A','SYP','ACTIVE','VERIFIED'),($3,$4,'p4-store-b','P4 Store B','SYP','ACTIVE','VERIFIED')`, [storeA, orgA, storeB, orgB]);
-    const masterA = randomUUID(); const masterB = randomUUID();
-    await pool.query(`INSERT INTO master_orders (id, buyer_id, status) VALUES ($1,$2,'SUBMITTED'),($3,$2,'SUBMITTED')`, [masterA, buyerA, masterB]);
-    orderA = randomUUID(); orderB = randomUUID();
-    await pool.query(`INSERT INTO orders (id, master_order_id, store_id, buyer_id, status, subtotal_minor, discount_minor, delivery_fee_minor, tax_minor, total_minor) VALUES ($1,$2,$3,$4,'DELIVERED',5000,0,500,0,5500),($5,$6,$7,$4,'DELIVERED',7000,0,500,0,7500)`, [orderA, masterA, storeA, buyerA, orderB, masterB, storeB]);
-    payA = randomUUID(); payB = randomUUID();
-    await pool.query(`INSERT INTO payment_records (id, order_id, payment_method, status, amount_minor, currency) VALUES ($1,$2,'CASH_ON_DELIVERY','CONFIRMED',5500,'SYP'),($3,$4,'CASH_ON_DELIVERY','CONFIRMED',7500,'SYP')`, [payA, orderA, payB, orderB]);
-    retA = randomUUID(); retB = randomUUID();
-    await pool.query(`INSERT INTO return_requests (id, sub_order_id, payment_record_id, buyer_id, status, reason, requested_refund_minor, expires_at) VALUES ($1,$2,$3,$4,'REQUESTED','PRODUCT_NOT_AS_DESCRIBED',5000, now() - interval '5 minutes'),($5,$6,$7,$4,'REQUESTED','PRODUCT_NOT_AS_DESCRIBED',7000, now() - interval '5 minutes')`, [retA, orderA, payA, buyerA, retB, orderB, payB]);
+    await pool.query(
+      `INSERT INTO organizations (id, type, name, country) VALUES ($1,'WHOLESALER','P4 Org A','SY'),($2,'WHOLESALER','P4 Org B','SY')`,
+      [orgA, orgB],
+    );
+    await pool.query(
+      `INSERT INTO users (id, full_name, phone) VALUES ($1,'Buyer A','+966501000001'),($2,'Actor Admin','+966501000002')`,
+      [buyerA, actorAdmin],
+    );
+    storeA = randomUUID();
+    storeB = randomUUID();
+    await pool.query(
+      `INSERT INTO stores (id, org_id, slug, display_name, currency, status, verification_status) VALUES ($1,$2,'p4-store-a','P4 Store A','SYP','ACTIVE','VERIFIED'),($3,$4,'p4-store-b','P4 Store B','SYP','ACTIVE','VERIFIED')`,
+      [storeA, orgA, storeB, orgB],
+    );
+    const masterA = randomUUID();
+    const masterB = randomUUID();
+    await pool.query(
+      `INSERT INTO master_orders (id, buyer_id, status) VALUES ($1,$2,'SUBMITTED'),($3,$2,'SUBMITTED')`,
+      [masterA, buyerA, masterB],
+    );
+    orderA = randomUUID();
+    orderB = randomUUID();
+    await pool.query(
+      `INSERT INTO orders (id, master_order_id, store_id, buyer_id, status, subtotal_minor, discount_minor, delivery_fee_minor, tax_minor, total_minor) VALUES ($1,$2,$3,$4,'DELIVERED',5000,0,500,0,5500),($5,$6,$7,$4,'DELIVERED',7000,0,500,0,7500)`,
+      [orderA, masterA, storeA, buyerA, orderB, masterB, storeB],
+    );
+    payA = randomUUID();
+    payB = randomUUID();
+    await pool.query(
+      `INSERT INTO payment_records (id, order_id, payment_method, status, amount_minor, currency) VALUES ($1,$2,'CASH_ON_DELIVERY','CONFIRMED',5500,'SYP'),($3,$4,'CASH_ON_DELIVERY','CONFIRMED',7500,'SYP')`,
+      [payA, orderA, payB, orderB],
+    );
+    retA = randomUUID();
+    retB = randomUUID();
+    await pool.query(
+      `INSERT INTO return_requests (id, sub_order_id, payment_record_id, buyer_id, status, reason, requested_refund_minor, expires_at) VALUES ($1,$2,$3,$4,'REQUESTED','PRODUCT_NOT_AS_DESCRIBED',5000, now() - interval '5 minutes'),($5,$6,$7,$4,'REQUESTED','PRODUCT_NOT_AS_DESCRIBED',7000, now() - interval '5 minutes')`,
+      [retA, orderA, payA, buyerA, retB, orderB, payB],
+    );
 
     // ── Real operational services ──
     outboxPublish = vi.fn().mockResolvedValue(undefined);
@@ -249,12 +289,13 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
     alerts = new OpsAlertService(database);
     audit = new AuditService(database);
     controls = new OpsControlService(database, audit, alerts);
-    pilotLegacy = new PilotControlService(database, audit, alerts);
+    pilotLegacy = new PilotControlService(database, audit, alerts, {} as never, {} as never);
     monitor = new P13MonitorService(database, alerts, leases);
 
     const calendar = new BusinessCalendarService(database);
     returnsService = new ReturnsService(
-      database, outbox,
+      database,
+      outbox,
       // Not reached: the pilot gate fires before any payment interaction.
       {} as unknown as ConstructorParameters<typeof ReturnsService>[2],
       calendar,
@@ -271,12 +312,16 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
 
   /** Unheld lease at a known epoch, plus no alerts/controls, between tests. */
   beforeEach(async () => {
-    await pool.query(`UPDATE worker_leases SET holder_id=NULL, holder_host=NULL, holder_pid=NULL, acquired_at=NULL, heartbeat_at=NULL, expires_at=NULL, poll_failures=0, last_error_code=NULL, last_job_at=NULL, last_job_summary=NULL`);
+    await pool.query(
+      `UPDATE worker_leases SET holder_id=NULL, holder_host=NULL, holder_pid=NULL, acquired_at=NULL, heartbeat_at=NULL, expires_at=NULL, poll_failures=0, last_error_code=NULL, last_job_at=NULL, last_job_summary=NULL`,
+    );
     await pool.query(`DELETE FROM ops_alerts`);
     await pool.query(`DELETE FROM ops_control_audit`);
     await pool.query(`DELETE FROM ops_controls`);
     await pool.query(`DELETE FROM return_request_events`);
-    await pool.query(`UPDATE return_requests SET status='REQUESTED', expires_at = now() - interval '5 minutes', escalated_at=NULL, escalation_deadline=NULL`);
+    await pool.query(
+      `UPDATE return_requests SET status='REQUESTED', expires_at = now() - interval '5 minutes', escalated_at=NULL, escalation_deadline=NULL`,
+    );
     await pool.query(`DELETE FROM refunds`);
     await pool.query(`DELETE FROM outbox_events`);
     await pool.query(`DELETE FROM p13_pilot_allowlist`);
@@ -288,7 +333,8 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
     const { rows } = await pool.query(
       `SELECT holder_id, epoch, poll_failures, last_error_code, heartbeat_at, expires_at,
               last_job_at, last_job_summary
-       FROM worker_leases WHERE lease_key = $1`, [P13_LEASE_KEY],
+       FROM worker_leases WHERE lease_key = $1`,
+      [P13_LEASE_KEY],
     );
     return rows[0];
   }
@@ -305,7 +351,8 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
 
   async function escalatedEventCount(id: string): Promise<number> {
     const { rows } = await pool.query(
-      `SELECT COUNT(*)::int AS c FROM return_request_events WHERE return_request_id = $1 AND event_type = 'ESCALATED'`, [id],
+      `SELECT COUNT(*)::int AS c FROM return_request_events WHERE return_request_id = $1 AND event_type = 'ESCALATED'`,
+      [id],
     );
     return rows[0].c;
   }
@@ -374,7 +421,10 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       const a = makeWorker(database, returnsService, 'A');
       // retB is NOT yet past its SLA, so neither A's first cycle nor B's takeover
       // can process it. It only becomes overdue while A is partitioned away.
-      await pool.query(`UPDATE return_requests SET expires_at = now() + interval '24 hours' WHERE id = $1`, [retB]);
+      await pool.query(
+        `UPDATE return_requests SET expires_at = now() + interval '24 hours' WHERE id = $1`,
+        [retB],
+      );
       const first = await a.worker.tick();
       expect(first.executed).toBe(true);
       expect(await statusOf(retA)).toBe('ESCALATED');
@@ -386,7 +436,10 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       expect((await b.worker.tick()).acquired).toBe(true);
 
       // New overdue work appears after A was partitioned.
-      await pool.query(`UPDATE return_requests SET status='REQUESTED', expires_at = now() - interval '5 minutes' WHERE id = $1`, [retB]);
+      await pool.query(
+        `UPDATE return_requests SET status='REQUESTED', expires_at = now() - interval '5 minutes' WHERE id = $1`,
+        [retB],
+      );
 
       const report = await a.worker.runBatch();
       expect(report.executed).toBe(false);
@@ -399,7 +452,9 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
 
     it('WX-07: competing workers racing the same expired lease produce exactly one owner', async () => {
       await leases.forceExpire(P13_LEASE_KEY);
-      const contenders = Array.from({ length: 5 }, (_, i) => withHolder(new WorkerLeaseService(database), `c${i}`));
+      const contenders = Array.from({ length: 5 }, (_, i) =>
+        withHolder(new WorkerLeaseService(database), `c${i}`),
+      );
 
       const results = await Promise.all(contenders.map((c) => c.tryAcquire(P13_LEASE_KEY)));
       const winners = results.filter((r) => r.acquired);
@@ -412,7 +467,12 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
 
     it('WX-08: startup fails closed when the database is unreachable', async () => {
       const brokenDb = {
-        db: { execute: async () => { throw new Error('connection refused'); } },
+        db: {
+          execute: async () => {
+            throw new Error('connection refused');
+          },
+        },
+        withActorContext: async (_actor: unknown, operation: () => Promise<unknown>) => operation(),
       } as unknown as DatabaseService;
 
       const brokenLease = new WorkerLeaseService(brokenDb);
@@ -421,7 +481,11 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       expect(acquired.reason).toBe('DB_ERROR');
       expect(acquired.epoch).toBe(0);
 
-      const brokenReturns = { escalateReturn: async () => { throw new Error('must not be reached'); } } as unknown as ReturnsService;
+      const brokenReturns = {
+        escalateReturn: async () => {
+          throw new Error('must not be reached');
+        },
+      } as unknown as ReturnsService;
       const w = makeWorker(brokenDb, brokenReturns, 'broken');
       const report = await w.worker.tick();
       expect(report.executed).toBe(false);
@@ -465,12 +529,15 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       expect(afterFirst.last_job_summary).toMatch(/claimed=|escalated=/);
       expect(Number(afterFirst.poll_failures)).toBe(0);
 
-      await pool.query(`UPDATE return_requests SET status='REQUESTED', expires_at = now() - interval '5 minutes'`);
+      await pool.query(
+        `UPDATE return_requests SET status='REQUESTED', expires_at = now() - interval '5 minutes'`,
+      );
       const renewed = await w.leases.renewAndFence(await leaseEpoch(), P13_LEASE_KEY);
       expect(renewed).toBe(true);
       const afterRenew = await leaseRow();
-      expect(new Date(afterRenew.heartbeat_at).getTime())
-        .toBeGreaterThanOrEqual(new Date(afterFirst.heartbeat_at).getTime());
+      expect(new Date(afterRenew.heartbeat_at).getTime()).toBeGreaterThanOrEqual(
+        new Date(afterFirst.heartbeat_at).getTime(),
+      );
     });
 
     it('WX-12: voluntary release lets a standby take over immediately', async () => {
@@ -528,8 +595,14 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
     });
 
     it('AL-03 (alert 2): a return past its merchant SLA is escalation-overdue; a healthy one is not', async () => {
-      await pool.query(`UPDATE return_requests SET expires_at = now() - interval '30 minutes' WHERE id = $1`, [retA]);
-      await pool.query(`UPDATE return_requests SET expires_at = now() + interval '24 hours' WHERE id = $1`, [retB]);
+      await pool.query(
+        `UPDATE return_requests SET expires_at = now() - interval '30 minutes' WHERE id = $1`,
+        [retA],
+      );
+      await pool.query(
+        `UPDATE return_requests SET expires_at = now() + interval '24 hours' WHERE id = $1`,
+        [retB],
+      );
 
       const { findings } = await monitor.collectFindings();
       const overdue = findings.filter((f) => f.conditionKey === 'p13.return.escalation_overdue');
@@ -560,7 +633,10 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
 
     it('AL-06 (alert 4): a heartbeat older than five minutes is CRITICAL', async () => {
       await leases.tryAcquire(P13_LEASE_KEY);
-      await pool.query(`UPDATE worker_leases SET heartbeat_at = now() - interval '6 minutes' WHERE lease_key = $1`, [P13_LEASE_KEY]);
+      await pool.query(
+        `UPDATE worker_leases SET heartbeat_at = now() - interval '6 minutes' WHERE lease_key = $1`,
+        [P13_LEASE_KEY],
+      );
 
       const { findings } = await monitor.collectFindings();
       const stale = findings.find((f) => f.conditionKey === 'p13.worker.heartbeat_stale');
@@ -570,8 +646,14 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
     });
 
     it('AL-07 (alert 5): failed, stuck and manual-review refunds are each detected', async () => {
-      await pool.query(`INSERT INTO refunds (id, payment_record_id, order_id, amount_minor, currency, status, reason, return_request_id, created_at) VALUES ($1,$2,$3,1000,'SYP','FAILED','QUALITY_ISSUE',$4, now())`, [randomUUID(), payA, orderA, retA]);
-      await pool.query(`INSERT INTO refunds (id, payment_record_id, order_id, amount_minor, currency, status, reason, return_request_id, created_at) VALUES ($1,$2,$3,1000,'SYP','PROCESSING','QUALITY_ISSUE',$4, now() - interval '45 minutes')`, [randomUUID(), payA, orderA, retA]);
+      await pool.query(
+        `INSERT INTO refunds (id, payment_record_id, order_id, amount_minor, currency, status, reason, return_request_id, created_at) VALUES ($1,$2,$3,1000,'SYP','FAILED','QUALITY_ISSUE',$4, now())`,
+        [randomUUID(), payA, orderA, retA],
+      );
+      await pool.query(
+        `INSERT INTO refunds (id, payment_record_id, order_id, amount_minor, currency, status, reason, return_request_id, created_at) VALUES ($1,$2,$3,1000,'SYP','PROCESSING','QUALITY_ISSUE',$4, now() - interval '45 minutes')`,
+        [randomUUID(), payA, orderA, retA],
+      );
       await pool.query(`UPDATE return_requests SET status='REFUND_FAILED' WHERE id = $1`, [retB]);
 
       const { findings } = await monitor.collectFindings();
@@ -583,7 +665,10 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
     });
 
     it('AL-08: refund alert detail carries no monetary amount (sensitive data excluded)', async () => {
-      await pool.query(`INSERT INTO refunds (id, payment_record_id, order_id, amount_minor, currency, status, reason, return_request_id, created_at) VALUES ($1,$2,$3,4711,'SYP','FAILED','QUALITY_ISSUE',$4, now())`, [randomUUID(), payA, orderA, retA]);
+      await pool.query(
+        `INSERT INTO refunds (id, payment_record_id, order_id, amount_minor, currency, status, reason, return_request_id, created_at) VALUES ($1,$2,$3,4711,'SYP','FAILED','QUALITY_ISSUE',$4, now())`,
+        [randomUUID(), payA, orderA, retA],
+      );
       const { findings } = await monitor.collectFindings();
       const failed = findings.find((f) => f.conditionKey === 'p13.refund.failed')!;
       // Assert the alert payload shape rather than searching its serialized JSON:
@@ -598,36 +683,57 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
     });
 
     it('AL-09 (alert 6): reversal FAILED rows and duplicate-attempt counters both alert', async () => {
-      await pool.query(`INSERT INTO commission_reversals (id, return_request_id, original_commission_minor, reversal_minor, responsibility_category, idempotency_key, status, currency, org_id) VALUES ($1,$2,200,200,'MERCHANT',$3,'FAILED','SYP',$4)`, [randomUUID(), retA, `failed-${randomUUID()}`, orgA]);
+      await pool.query(
+        `INSERT INTO commission_reversals (id, return_request_id, original_commission_minor, reversal_minor, responsibility_category, idempotency_key, status, currency, org_id) VALUES ($1,$2,200,200,'MERCHANT',$3,'FAILED','SYP',$4)`,
+        [randomUUID(), retA, `failed-${randomUUID()}`, orgA],
+      );
       recordOpsCounter('commission_reversal_duplicate_attempts_total', 2, 'idem-key');
 
       const { findings } = await monitor.collectFindings();
       expect(findings.some((f) => f.conditionKey === 'p13.commission.reversal_failed')).toBe(true);
-      const dup = findings.find((f) => f.conditionKey === 'p13.commission.reversal_duplicate_attempt');
+      const dup = findings.find(
+        (f) => f.conditionKey === 'p13.commission.reversal_duplicate_attempt',
+      );
       expect(dup!.severity).toBe('WARN');
       expect(dup!.detail).toMatchObject({ duplicateAttempts: 2 });
     });
 
     it('AL-10 (alert 7): over-reversal beyond the original commission is an invariant violation', async () => {
-      await pool.query(`INSERT INTO commission_reversals (id, return_request_id, original_commission_minor, reversal_minor, responsibility_category, idempotency_key, status, currency, org_id) VALUES ($1,$2,100,100,'MERCHANT',$3,'POSTED','SYP',$4),($5,$2,100,50,'PLATFORM',$6,'POSTED','SYP',$4)`, [randomUUID(), retA, `a-${randomUUID()}`, orgA, randomUUID(), `b-${randomUUID()}`]);
-
-      const { findings } = await monitor.collectFindings();
-      const violation = findings.find((f) => f.conditionKey === 'p13.financial.invariant_violation');
-      expect(violation).toBeDefined();
-      expect(violation!.severity).toBe('CRITICAL');
-      expect(violation!.detail).toMatchObject({ violation: 'reversal_exceeds_original_commission' });
-    });
-
-    it('AL-11 (alert 7): refunds exceeding the captured payment is an invariant violation', async () => {
-      await pool.query(`INSERT INTO refunds (id, payment_record_id, order_id, amount_minor, currency, status, reason, payment_ref_counter, created_at) VALUES ($1,$2,$3,6000,'SYP','SUCCEEDED','QUALITY_ISSUE','r1', now()),($4,$2,$3,1000,'SYP','SUCCEEDED','QUALITY_ISSUE','r2', now())`, [randomUUID(), payA, orderA, randomUUID()]).catch(async () => {
-        // payment_ref_counter may not exist; retry without it.
-        await pool.query(`INSERT INTO refunds (id, payment_record_id, order_id, amount_minor, currency, status, reason, created_at) VALUES ($1,$2,$3,6000,'SYP','SUCCEEDED','QUALITY_ISSUE', now()),($4,$2,$3,1000,'SYP','SUCCEEDED','QUALITY_ISSUE', now())`, [randomUUID(), payA, orderA, randomUUID()]);
-      });
+      await pool.query(
+        `INSERT INTO commission_reversals (id, return_request_id, original_commission_minor, reversal_minor, responsibility_category, idempotency_key, status, currency, org_id) VALUES ($1,$2,100,100,'MERCHANT',$3,'POSTED','SYP',$4),($5,$2,100,50,'PLATFORM',$6,'POSTED','SYP',$4)`,
+        [randomUUID(), retA, `a-${randomUUID()}`, orgA, randomUUID(), `b-${randomUUID()}`],
+      );
 
       const { findings } = await monitor.collectFindings();
       const violation = findings.find(
-        (f) => f.conditionKey === 'p13.financial.invariant_violation'
-          && f.detail!['violation'] === 'refund_exceeds_payment',
+        (f) => f.conditionKey === 'p13.financial.invariant_violation',
+      );
+      expect(violation).toBeDefined();
+      expect(violation!.severity).toBe('CRITICAL');
+      expect(violation!.detail).toMatchObject({
+        violation: 'reversal_exceeds_original_commission',
+      });
+    });
+
+    it('AL-11 (alert 7): refunds exceeding the captured payment is an invariant violation', async () => {
+      await pool
+        .query(
+          `INSERT INTO refunds (id, payment_record_id, order_id, amount_minor, currency, status, reason, payment_ref_counter, created_at) VALUES ($1,$2,$3,6000,'SYP','SUCCEEDED','QUALITY_ISSUE','r1', now()),($4,$2,$3,1000,'SYP','SUCCEEDED','QUALITY_ISSUE','r2', now())`,
+          [randomUUID(), payA, orderA, randomUUID()],
+        )
+        .catch(async () => {
+          // payment_ref_counter may not exist; retry without it.
+          await pool.query(
+            `INSERT INTO refunds (id, payment_record_id, order_id, amount_minor, currency, status, reason, created_at) VALUES ($1,$2,$3,6000,'SYP','SUCCEEDED','QUALITY_ISSUE', now()),($4,$2,$3,1000,'SYP','SUCCEEDED','QUALITY_ISSUE', now())`,
+            [randomUUID(), payA, orderA, randomUUID()],
+          );
+        });
+
+      const { findings } = await monitor.collectFindings();
+      const violation = findings.find(
+        (f) =>
+          f.conditionKey === 'p13.financial.invariant_violation' &&
+          f.detail!['violation'] === 'refund_exceeds_payment',
       );
       expect(violation).toBeDefined();
       // Payment was 5500; 7000 refunded.
@@ -636,12 +742,16 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
 
     it('AL-12 (alert 7): a POSTED adjustment whose FX is still blocked is an invariant violation', async () => {
       const adj = randomUUID();
-      await pool.query(`INSERT INTO settlement_adjustments (id, sub_order_id, adjustment_type, amount_minor, currency, fx_status, status, reason, requires_dual_approval, created_by, org_id) VALUES ($1,$2,'SETTLEMENT_CORRECTION',500,'SYP','BLOCKED','POSTED','posted while blocked',false,$3,$4)`, [adj, orderA, actorAdmin, orgA]);
+      await pool.query(
+        `INSERT INTO settlement_adjustments (id, sub_order_id, adjustment_type, amount_minor, currency, fx_status, status, reason, requires_dual_approval, created_by, org_id) VALUES ($1,$2,'SETTLEMENT_CORRECTION',500,'SYP','BLOCKED','POSTED','posted while blocked',false,$3,$4)`,
+        [adj, orderA, actorAdmin, orgA],
+      );
 
       const { findings } = await monitor.collectFindings();
       const violation = findings.find(
-        (f) => f.conditionKey === 'p13.financial.invariant_violation'
-          && f.detail!['violation'] === 'posted_without_authoritative_fx',
+        (f) =>
+          f.conditionKey === 'p13.financial.invariant_violation' &&
+          f.detail!['violation'] === 'posted_without_authoritative_fx',
       );
       expect(violation).toBeDefined();
       expect(violation!.detail).toMatchObject({ adjustmentId: adj, fxStatus: 'BLOCKED' });
@@ -649,7 +759,10 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
 
     it('AL-13 (alert 8): an adjustment scoped to a non-owning organization is a tenant-isolation violation', async () => {
       const adj = randomUUID();
-      await pool.query(`INSERT INTO settlement_adjustments (id, sub_order_id, adjustment_type, amount_minor, currency, fx_status, status, reason, requires_dual_approval, created_by, org_id) VALUES ($1,$2,'SETTLEMENT_CORRECTION',500,'SYP','BLOCKED','DRAFT','cross-org',false,$3,$4)`, [adj, orderA, actorAdmin, orgB]);
+      await pool.query(
+        `INSERT INTO settlement_adjustments (id, sub_order_id, adjustment_type, amount_minor, currency, fx_status, status, reason, requires_dual_approval, created_by, org_id) VALUES ($1,$2,'SETTLEMENT_CORRECTION',500,'SYP','BLOCKED','DRAFT','cross-org',false,$3,$4)`,
+        [adj, orderA, actorAdmin, orgB],
+      );
 
       const { findings } = await monitor.collectFindings();
       const iso = findings.find((f) => f.conditionKey === 'p13.tenant.isolation_violation');
@@ -668,19 +781,33 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
     });
 
     it('AL-15 (alert 9): a FAILED/DEAD_LETTER P13 outbox event is CRITICAL', async () => {
-      await pool.query(`INSERT INTO outbox_events (id, event_type, aggregate_id, payload, status, attempts, created_at) VALUES ($1,'return.escalated',$2,'{}'::jsonb,'DEAD_LETTER',5, now())`, [randomUUID(), retA]);
-      await pool.query(`INSERT INTO outbox_events (id, event_type, aggregate_id, payload, status, attempts, created_at) VALUES ($1,'inventory.released',$2,'{}'::jsonb,'FAILED',5, now())`, [randomUUID(), orderA]);
+      await pool.query(
+        `INSERT INTO outbox_events (id, event_type, aggregate_id, payload, status, attempts, created_at) VALUES ($1,'return.escalated',$2,'{}'::jsonb,'DEAD_LETTER',5, now())`,
+        [randomUUID(), retA],
+      );
+      await pool.query(
+        `INSERT INTO outbox_events (id, event_type, aggregate_id, payload, status, attempts, created_at) VALUES ($1,'inventory.released',$2,'{}'::jsonb,'FAILED',5, now())`,
+        [randomUUID(), orderA],
+      );
 
       const { findings } = await monitor.collectFindings();
       const outbox = findings.filter((f) => f.conditionKey === 'p13.outbox.delivery_failed');
       expect(outbox).toHaveLength(1);
-      expect(outbox[0]!.detail).toMatchObject({ eventType: 'return.escalated', status: 'DEAD_LETTER' });
+      expect(outbox[0]!.detail).toMatchObject({
+        eventType: 'return.escalated',
+        status: 'DEAD_LETTER',
+      });
     });
 
     it('AL-16 (alert 9): an audit write failure raises a CRITICAL durability alert', async () => {
       // Exercise the real writer against a table that cannot accept the row.
       await pool.query(`ALTER TABLE audit_logs ADD CONSTRAINT p4_probe_fail CHECK (FALSE)`);
-      await audit.record({ actorType: 'ADMIN', actorId: actorAdmin, action: 'p4.probe', resource: 'probe' });
+      await audit.record({
+        actorType: 'ADMIN',
+        actorId: actorAdmin,
+        action: 'p4.probe',
+        resource: 'probe',
+      });
       await pool.query(`ALTER TABLE audit_logs DROP CONSTRAINT p4_probe_fail`);
 
       expect(getOpsCounter('audit_write_failures_total')).toBe(1);
@@ -757,7 +884,10 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
         expect(svc.channelName).toBe('log-only');
 
         const result = await svc.raise({
-          conditionKey: 'p4.sink.nosecret', severity: 'WARN', title: 't', detail: {},
+          conditionKey: 'p4.sink.nosecret',
+          severity: 'WARN',
+          title: 't',
+          detail: {},
         });
         expect(result.status).toBe('SUPPRESSED');
         expect(result.notified).toBe(false);
@@ -783,7 +913,10 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
         svc.config.alertWebhookSecret = null;
 
         const result = await svc.raise({
-          conditionKey: 'p4.sink.tampered', severity: 'CRITICAL', title: 't', detail: {},
+          conditionKey: 'p4.sink.tampered',
+          severity: 'CRITICAL',
+          title: 't',
+          detail: {},
         });
         expect(result.status).toBe('FAILED');
         const row = await alertFor('p4.sink.tampered');
@@ -822,21 +955,37 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
         const signWith = (hmacSecret: string, at: number, body: string) =>
           `sha256=${createHmac('sha256', hmacSecret).update(`${at}.${body}`, 'utf-8').digest('hex')}`;
         const ts = Math.floor(Date.now() / 1000);
-        const genuineBody = JSON.stringify({ id: randomUUID(), conditionKey: 'p4.forged', detail: {} });
+        const genuineBody = JSON.stringify({
+          id: randomUUID(),
+          conditionKey: 'p4.forged',
+          detail: {},
+        });
 
         // (1) Signed with the WRONG secret.
-        let res = await post(genuineBody, signWith('p4-wrong-secret-not-the-sink-secret', ts, genuineBody), String(ts));
+        let res = await post(
+          genuineBody,
+          signWith('p4-wrong-secret-not-the-sink-secret', ts, genuineBody),
+          String(ts),
+        );
         expect(res.status).toBe(401);
         // (2) Valid signature over the ORIGINAL bytes, TAMPERED payload on the wire.
         res = await post(
-          JSON.stringify({ id: randomUUID(), conditionKey: 'p4.tampered', detail: { replaced: true } }),
+          JSON.stringify({
+            id: randomUUID(),
+            conditionKey: 'p4.tampered',
+            detail: { replaced: true },
+          }),
           signWith(P4_TEST_SINK_SECRET, ts, genuineBody),
           String(ts),
         );
         expect(res.status).toBe(401);
         // (3) Correct secret, STALE timestamp (outside the 300s window).
         const stale = ts - 3600;
-        res = await post(genuineBody, signWith(P4_TEST_SINK_SECRET, stale, genuineBody), String(stale));
+        res = await post(
+          genuineBody,
+          signWith(P4_TEST_SINK_SECRET, stale, genuineBody),
+          String(stale),
+        );
         expect(res.status).toBe(401);
 
         expect(sink.deliveries).toHaveLength(0);
@@ -844,7 +993,10 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
 
         // A genuine raise through the same receiver still succeeds.
         const result = await svc.raise({
-          conditionKey: 'p4.sink.genuine', severity: 'WARN', title: 't', detail: {},
+          conditionKey: 'p4.sink.genuine',
+          severity: 'WARN',
+          title: 't',
+          detail: {},
         });
         expect(result.status).toBe('SENT');
         expect(sink.deliveries).toHaveLength(1);
@@ -904,8 +1056,20 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
     });
 
     it('AL-20: deduplication collapses repeats into one row per condition per resource', async () => {
-      const first = await alerts.raise({ conditionKey: 'p4.dup', severity: 'WARN', title: 't', detail: {}, resourceType: 'probe' });
-      const second = await alerts.raise({ conditionKey: 'p4.dup', severity: 'WARN', title: 't', detail: {}, resourceType: 'probe' });
+      const first = await alerts.raise({
+        conditionKey: 'p4.dup',
+        severity: 'WARN',
+        title: 't',
+        detail: {},
+        resourceType: 'probe',
+      });
+      const second = await alerts.raise({
+        conditionKey: 'p4.dup',
+        severity: 'WARN',
+        title: 't',
+        detail: {},
+        resourceType: 'probe',
+      });
 
       expect(first.deduped).toBe(false);
       expect(second.deduped).toBe(true);
@@ -917,11 +1081,23 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
     });
 
     it('AL-21: a cleared condition resolves, and a recurrence reopens as a new incident', async () => {
-      await alerts.raise({ conditionKey: 'p4.reopen', severity: 'WARN', title: 't', detail: {}, resourceType: 'probe' });
+      await alerts.raise({
+        conditionKey: 'p4.reopen',
+        severity: 'WARN',
+        title: 't',
+        detail: {},
+        resourceType: 'probe',
+      });
       expect(await alerts.resolve('p4.reopen:probe')).toBe(true);
       expect((await alertFor('p4.reopen'))!.status).toBe('RESOLVED');
 
-      const again = await alerts.raise({ conditionKey: 'p4.reopen', severity: 'WARN', title: 't', detail: {}, resourceType: 'probe' });
+      const again = await alerts.raise({
+        conditionKey: 'p4.reopen',
+        severity: 'WARN',
+        title: 't',
+        detail: {},
+        resourceType: 'probe',
+      });
       expect(again.deduped).toBe(false);
       expect(again.notified).toBe(false); // SUPPRESSED path (no sink)
       expect((await alertFor('p4.reopen'))!.fire_count).toBe(2);
@@ -929,18 +1105,24 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
     });
 
     it('AL-22: scan() reports every check it ran and is read-only for business data', async () => {
-      const before = await pool.query(`SELECT status, COUNT(*)::int AS c FROM return_requests GROUP BY status`);
+      const before = await pool.query(
+        `SELECT status, COUNT(*)::int AS c FROM return_requests GROUP BY status`,
+      );
       const report = await monitor.scan();
 
       expect(report.checksRun).toHaveLength(10);
       expect(report.raised.length).toBeGreaterThanOrEqual(1);
-      const after = await pool.query(`SELECT status, COUNT(*)::int AS c FROM return_requests GROUP BY status ORDER BY status`);
-      expect(after.rows).toEqual(before.rows.sort((a: any, b: any) => a.status.localeCompare(b.status)));
+      const after = await pool.query(
+        `SELECT status, COUNT(*)::int AS c FROM return_requests GROUP BY status ORDER BY status`,
+      );
+      expect(after.rows).toEqual(
+        before.rows.sort((a: any, b: any) => a.status.localeCompare(b.status)),
+      );
     });
 
     it('AL-23: alert snapshot rolls up status, counters and channel', async () => {
       await alerts.raise({ conditionKey: 'p4.snap', severity: 'CRITICAL', title: 't', detail: {} });
-      const snap = await alerts.snapshot();
+      const snap = await alerts.snapshot(adminCaller);
       expect(snap.channel).toBe('log-only');
       expect(snap.alerts['SUPPRESSED']).toBe(1);
       expect(snap.counters).toBeDefined();
@@ -951,7 +1133,9 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       // counted as a cycle failure, and the third failure alerts without any
       // monitor involvement.
       const failing = {
-        escalateReturn: async () => { throw new Error('provider rejected the refund'); },
+        escalateReturn: async () => {
+          throw new Error('provider rejected the refund');
+        },
       } as unknown as ReturnsService;
       const w = makeWorker(database, failing, 'thr');
 
@@ -990,7 +1174,7 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
   describe('§5 Pause, recovery and rollback', () => {
     it('KS-01: pausing prevents new protected jobs from starting', async () => {
       const w = makeWorker(database, returnsService, 'pause');
-      await w.controls.setPaused({ paused: true, reason: 'phase 4 spec', actorId: actorAdmin });
+      await w.controls.setPaused({ paused: true, reason: 'phase 4 spec', caller: adminCaller });
 
       const report = await w.worker.tick();
       expect(report.executed).toBe(false);
@@ -1005,7 +1189,7 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       const acquired = await w.worker.tick();
       const epochBefore = await leaseEpoch();
 
-      await w.controls.setPaused({ paused: true, reason: 'keep ownership', actorId: actorAdmin });
+      await w.controls.setPaused({ paused: true, reason: 'keep ownership', caller: adminCaller });
       await w.worker.tick();
 
       const row = await leaseRow();
@@ -1039,15 +1223,19 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
     it('KS-04: resume is idempotent — no duplicate escalation, event or outbox emission', async () => {
       const w = makeWorker(database, returnsService, 'resume');
       const outboxCalls = async () =>
-        (await pool.query(`SELECT COUNT(*)::int AS c FROM return_request_events WHERE event_type='ESCALATED'`)).rows[0].c;
+        (
+          await pool.query(
+            `SELECT COUNT(*)::int AS c FROM return_request_events WHERE event_type='ESCALATED'`,
+          )
+        ).rows[0].c;
 
       const first = await w.worker.tick();
       expect(first.escalated).toBe(2);
       const eventsAfterFirst = await outboxCalls();
 
-      await w.controls.setPaused({ paused: true, reason: 'drill', actorId: actorAdmin });
+      await w.controls.setPaused({ paused: true, reason: 'drill', caller: adminCaller });
       await w.worker.tick();
-      await w.controls.setPaused({ paused: false, reason: 'drill complete', actorId: actorAdmin });
+      await w.controls.setPaused({ paused: false, reason: 'drill complete', caller: adminCaller });
 
       const second = await w.worker.tick();
       expect(second.escalated).toBe(0);
@@ -1075,10 +1263,14 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       // test asserts on before producing it.
       await pool.query(`DELETE FROM audit_logs WHERE resource = 'ops_control'`);
       const w = makeWorker(database, returnsService, 'evidence');
-      await w.controls.setPaused({ paused: true, reason: 'incident 4711', actorId: actorAdmin });
-      await w.controls.setPaused({ paused: false, reason: 'incident resolved', actorId: actorAdmin });
+      await w.controls.setPaused({ paused: true, reason: 'incident 4711', caller: adminCaller });
+      await w.controls.setPaused({
+        paused: false,
+        reason: 'incident resolved',
+        caller: adminCaller,
+      });
 
-      const history = await w.controls.history(P13_PAUSE_CONTROL_KEY);
+      const history = await w.controls.history(P13_PAUSE_CONTROL_KEY, 50, adminCaller);
       expect(history).toHaveLength(2);
       expect(history.map((h) => h.paused).sort()).toEqual([false, true]);
 
@@ -1093,9 +1285,9 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
 
     it('KS-07: an unexplained pause is refused — the kill switch cannot be flipped silently', async () => {
       await expect(
-        new OpsControlService(database, audit, alerts).setPaused({ paused: true, reason: '   ' }),
+        new OpsControlService(database, audit, alerts).setPaused({ paused: true, reason: '   ', caller: adminCaller }),
       ).rejects.toThrow(/requires a reason/);
-      expect((await controls.state(P13_PAUSE_CONTROL_KEY)).paused).toBe(false);
+      expect((await controls.state(P13_PAUSE_CONTROL_KEY, adminCaller)).paused).toBe(false);
     });
 
     it('KS-08: a missing control row reads as not-paused, and unrelated work continues', async () => {
@@ -1107,7 +1299,10 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
 
     it('KS-09: after a holder crash, a replacement recovers the work without duplication', async () => {
       // Only retA is overdue when the first holder runs.
-      await pool.query(`UPDATE return_requests SET expires_at = now() + interval '1 day' WHERE id = $1`, [retB]);
+      await pool.query(
+        `UPDATE return_requests SET expires_at = now() + interval '1 day' WHERE id = $1`,
+        [retB],
+      );
 
       const crashed = makeWorker(database, returnsService, 'crashed');
       const first = await crashed.worker.tick();
@@ -1125,13 +1320,19 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       expect(await escalatedEventCount(retA)).toBe(1);
 
       // Work that becomes eligible after the takeover is processed exactly once.
-      await pool.query(`UPDATE return_requests SET expires_at = now() - interval '5 minutes' WHERE id = $1`, [retB]);
+      await pool.query(
+        `UPDATE return_requests SET expires_at = now() - interval '5 minutes' WHERE id = $1`,
+        [retB],
+      );
       const third = await takeover.worker.tick();
       expect(third.escalated).toBe(1);
       expect(await escalatedEventCount(retB)).toBe(1);
 
       // The crashed holder can no longer write anything at all.
-      await expect(crashed.worker.runBatch()).resolves.toMatchObject({ executed: false, skipped: 'fence_lost' });
+      await expect(crashed.worker.runBatch()).resolves.toMatchObject({
+        executed: false,
+        skipped: 'fence_lost',
+      });
 
       const { rows } = await pool.query(
         `SELECT return_request_id, COUNT(*)::int AS c FROM return_request_events WHERE event_type='ESCALATED' GROUP BY return_request_id HAVING COUNT(*) > 1`,
@@ -1162,7 +1363,32 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       if (mode === 'allowlist') process.env['P13_PILOT_MODE'] = 'allowlist';
       else delete process.env['P13_PILOT_MODE'];
       try {
-        return new PilotControlService(db, audit, alerts);
+        const identityContract = {
+          getOrg: async (orgId: string) => {
+            const result = await pool.query('SELECT id FROM organizations WHERE id = $1', [orgId]);
+            const organization = result.rows[0];
+            if (!organization) throw new NotFoundException('Organization not found');
+            return organization;
+          },
+        };
+        const merchantContract = {
+          getStore: async (storeId: string) => {
+            const result = await pool.query(
+              'SELECT id, org_id AS "orgId" FROM stores WHERE id = $1',
+              [storeId],
+            );
+            const store = result.rows[0];
+            if (!store) throw new NotFoundException('Store not found');
+            return store;
+          },
+        };
+        return new PilotControlService(
+          db,
+          audit,
+          alerts,
+          identityContract as never,
+          merchantContract as never,
+        );
       } finally {
         if (previous === undefined) delete process.env['P13_PILOT_MODE'];
         else process.env['P13_PILOT_MODE'] = previous;
@@ -1174,7 +1400,9 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       expect(await legacy.isEnforced()).toBe(false);
       expect(await legacy.isFlagEnabled()).toBe(false);
       expect(await legacy.eligibility(orgA, storeA)).toEqual({
-        enforced: false, eligible: true, reason: 'not_enforced',
+        enforced: false,
+        eligible: true,
+        reason: 'not_enforced',
       });
       await expect(legacy.assertEligible(null)).resolves.toBeUndefined();
     });
@@ -1190,7 +1418,12 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
 
     it('PL-03: an allowlisted organization is eligible and a neighbouring one is not', async () => {
       const strict = enforcing(database, 'allowlist');
-      await strict.addAllowlistEntry({ orgId: orgA, storeId: null, note: 'pilot', actorId: actorAdmin });
+      await strict.addAllowlistEntry({
+        orgId: orgA,
+        storeId: null,
+        note: 'pilot',
+        caller: adminCaller,
+      });
 
       expect((await strict.eligibility(orgA)).reason).toBe('eligible_org_wide');
       expect((await strict.eligibility(orgB)).reason).toBe('org_not_allowlisted');
@@ -1200,7 +1433,12 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
 
     it('PL-04: a store-scoped entry narrows eligibility and does not grant the whole org', async () => {
       const strict = enforcing(database, 'allowlist');
-      await strict.addAllowlistEntry({ orgId: orgA, storeId: storeA, note: 'store pilot', actorId: actorAdmin });
+      await strict.addAllowlistEntry({
+        orgId: orgA,
+        storeId: storeA,
+        note: 'store pilot',
+        caller: adminCaller,
+      });
 
       expect((await strict.eligibility(orgA, storeA)).reason).toBe('eligible_store');
       expect((await strict.eligibility(orgA, randomUUID())).reason).toBe('org_not_allowlisted');
@@ -1209,14 +1447,27 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
 
     it('PL-05: revoking disables without deleting, preserving durable records', async () => {
       const strict = enforcing(database, 'allowlist');
-      await strict.addAllowlistEntry({ orgId: orgA, storeId: null, note: 'pilot', actorId: actorAdmin });
+      await strict.addAllowlistEntry({
+        orgId: orgA,
+        storeId: null,
+        note: 'pilot',
+        caller: adminCaller,
+      });
       expect((await strict.eligibility(orgA)).eligible).toBe(true);
 
-      const affected = await strict.revokeAllowlistEntry({ orgId: orgA, storeId: null, note: 'paused pilot', actorId: actorAdmin });
+      const affected = await strict.revokeAllowlistEntry({
+        orgId: orgA,
+        storeId: null,
+        note: 'paused pilot',
+        caller: adminCaller,
+      });
       expect(affected).toBe(1);
       expect((await strict.eligibility(orgA)).reason).toBe('entry_disabled');
 
-      const { rows } = await pool.query(`SELECT enabled, note FROM p13_pilot_allowlist WHERE org_id = $1`, [orgA]);
+      const { rows } = await pool.query(
+        `SELECT enabled, note FROM p13_pilot_allowlist WHERE org_id = $1`,
+        [orgA],
+      );
       expect(rows).toHaveLength(1);
       expect(rows[0].enabled).toBe(false);
     });
@@ -1251,7 +1502,7 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       const legacy = enforcing(database, 'legacy');
       expect(await legacy.isEnforced()).toBe(false);
 
-      await legacy.setFlag(true, actorAdmin, 'phase 4 spec');
+      await legacy.setFlag(true, adminCaller, 'phase 4 spec');
       expect(await legacy.isEnforced()).toBe(true);
       expect((await legacy.eligibility(orgA)).reason).toBe('org_not_allowlisted');
 
@@ -1267,7 +1518,7 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       // The env floor: clearing the flag cannot disable enforcement where the
       // deployment requires it.
       const strict = enforcing(database, 'allowlist');
-      await strict.setFlag(false, actorAdmin, 'attempt to disable');
+      await strict.setFlag(false, adminCaller, 'attempt to disable');
       expect(await strict.isEnforced()).toBe(true);
     });
 
@@ -1283,10 +1534,12 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
         strict,
       );
 
-      await expect(gated.createReturnRequest(
-        { subOrderId: orderA, reason: 'PRODUCT_NOT_AS_DESCRIBED', lines: [] } as never,
-        { sub: buyerA, role: 'BUYER', activeOrg: null },
-      )).rejects.toThrow(/org_not_allowlisted/);
+      await expect(
+        gated.createReturnRequest(
+          { subOrderId: orderA, reason: 'PRODUCT_NOT_AS_DESCRIBED', lines: [] } as never,
+          { sub: buyerA, role: 'BUYER', activeOrg: null },
+        ),
+      ).rejects.toThrow(/org_not_allowlisted/);
 
       const { rows } = await pool.query(`SELECT COUNT(*)::int AS c FROM return_requests`);
       expect(rows[0].c).toBe(2);
@@ -1294,7 +1547,12 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
 
     it('PL-10: an allowlisted organization passes the gate and continues into the normal flow', async () => {
       const strict = enforcing(database, 'allowlist');
-      await strict.addAllowlistEntry({ orgId: orgA, storeId: null, note: 'pilot', actorId: actorAdmin });
+      await strict.addAllowlistEntry({
+        orgId: orgA,
+        storeId: null,
+        note: 'pilot',
+        caller: adminCaller,
+      });
       const gated = new ReturnsService(
         database,
         { publish: async () => undefined } as unknown as OutboxDispatcher,
@@ -1306,15 +1564,22 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
       );
 
       // Past the 403 gate, into Phase 3 validation, which fails on empty lines.
-      await expect(gated.createReturnRequest(
-        { subOrderId: orderA, reason: 'PRODUCT_NOT_AS_DESCRIBED', lines: [] } as never,
-        { sub: buyerA, role: 'BUYER', activeOrg: orgA },
-      )).rejects.toThrow(/at least one return line/i);
+      await expect(
+        gated.createReturnRequest(
+          { subOrderId: orderA, reason: 'PRODUCT_NOT_AS_DESCRIBED', lines: [] } as never,
+          { sub: buyerA, role: 'BUYER', activeOrg: orgA },
+        ),
+      ).rejects.toThrow(/at least one return line/i);
     });
 
     it('PL-11: a buyer from another organization is still denied by object ownership first', async () => {
       const strict = enforcing(database, 'allowlist');
-      await strict.addAllowlistEntry({ orgId: orgA, storeId: null, note: 'pilot', actorId: actorAdmin });
+      await strict.addAllowlistEntry({
+        orgId: orgA,
+        storeId: null,
+        note: 'pilot',
+        caller: adminCaller,
+      });
       const gated = new ReturnsService(
         database,
         { publish: async () => undefined } as unknown as OutboxDispatcher,
@@ -1324,23 +1589,40 @@ describe('P13 Phase 4 — Operational Readiness (PostgreSQL)', () => {
         {} as never,
         strict,
       );
-      await expect(gated.createReturnRequest(
-        { subOrderId: orderA, reason: 'PRODUCT_NOT_AS_DESCRIBED', lines: [] } as never,
-        { sub: randomUUID(), role: 'BUYER', activeOrg: orgB },
-      )).rejects.toThrow(/your own orders/);
+      await expect(
+        gated.createReturnRequest(
+          { subOrderId: orderA, reason: 'PRODUCT_NOT_AS_DESCRIBED', lines: [] } as never,
+          { sub: randomUUID(), role: 'BUYER', activeOrg: orgB },
+        ),
+      ).rejects.toThrow(/your own orders/);
     });
 
     it('PL-12: the pilot snapshot reports mode, flag, enforcement and entry counts', async () => {
       const strict = enforcing(database, 'allowlist');
-      await strict.addAllowlistEntry({ orgId: orgA, storeId: null, note: 'pilot', actorId: actorAdmin });
-      const snap = await strict.snapshot();
-      expect(snap).toMatchObject({ mode: 'allowlist', enforced: true, allowlistCount: 1, enabledCount: 1 });
+      await strict.addAllowlistEntry({
+        orgId: orgA,
+        storeId: null,
+        note: 'pilot',
+        caller: adminCaller,
+      });
+      const snap = await strict.snapshot(adminCaller);
+      expect(snap).toMatchObject({
+        mode: 'allowlist',
+        enforced: true,
+        allowlistCount: 1,
+        enabledCount: 1,
+      });
     });
 
     it('PL-13: disabling the pilot preserves durable records and does not mutate in-flight returns', async () => {
       const strict = enforcing(database, 'allowlist');
-      await strict.addAllowlistEntry({ orgId: orgA, storeId: null, note: 'pilot', actorId: actorAdmin });
-      await strict.setFlag(false, actorAdmin, 'wind down');
+      await strict.addAllowlistEntry({
+        orgId: orgA,
+        storeId: null,
+        note: 'pilot',
+        caller: adminCaller,
+      });
+      await strict.setFlag(false, adminCaller, 'wind down');
       await pool.query(`DELETE FROM p13_pilot_allowlist WHERE org_id = $1`, [orgA]);
 
       expect((await strict.eligibility(orgA)).reason).toBe('org_not_allowlisted');

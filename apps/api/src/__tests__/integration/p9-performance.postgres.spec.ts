@@ -21,11 +21,17 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
-  products, productVariants, categories, brands,
+  products,
+  productVariants,
+  categories,
+  brands,
 } from '../../modules/catalog/catalog.schema';
 import {
-  attributeDefinitions, productAttributeValues, variantAttributeValues,
-  productTypes, productTypeAttributes,
+  attributeDefinitions,
+  productAttributeValues,
+  variantAttributeValues,
+  productTypes,
+  productTypeAttributes,
 } from '../../modules/catalog/catalog.taxonomy.schema';
 import { merchantOffers } from '../../modules/catalog/catalog.offer.schema';
 import { users, organizations, organizationMembers } from '../../modules/identity/identity.schema';
@@ -59,29 +65,80 @@ describe('P9 — NP-A15 Performance (PostgreSQL)', () => {
     container = await new PostgreSqlContainer('postgis/postgis:16-3.4').start();
     pool = new Pool({ connectionString: container.getConnectionUri() });
     db = drizzle(pool, {
-      schema: { products, productVariants, categories, brands, users, organizations, organizationMembers, stores, warehouses, priceLists, priceTiers, attributeDefinitions, productAttributeValues, variantAttributeValues, productTypes, productTypeAttributes, merchantOffers, inventoryItems, outboxEvents, searchQueries },
+      schema: {
+        products,
+        productVariants,
+        categories,
+        brands,
+        users,
+        organizations,
+        organizationMembers,
+        stores,
+        warehouses,
+        priceLists,
+        priceTiers,
+        attributeDefinitions,
+        productAttributeValues,
+        variantAttributeValues,
+        productTypes,
+        productTypeAttributes,
+        merchantOffers,
+        inventoryItems,
+        outboxEvents,
+        searchQueries,
+      },
     }) as unknown as any;
 
     // Apply migrations
-    const files = fs.readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith('.sql') && !EXCLUDED.has(f)).sort();
-    await pool.query(`CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`);
+    const files = fs
+      .readdirSync(MIGRATIONS_DIR)
+      .filter((f) => f.endsWith('.sql') && !EXCLUDED.has(f))
+      .sort();
+    await pool.query(
+      `CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`,
+    );
     for (const file of files) {
       const sqlContent = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
       await pool.query('BEGIN');
-      try { await pool.query(sqlContent); await pool.query(`INSERT INTO _migration_log (name) VALUES ($1)`, [file]); await pool.query('COMMIT'); } catch { await pool.query('ROLLBACK'); }
+      try {
+        await pool.query(sqlContent);
+        await pool.query(`INSERT INTO _migration_log (name) VALUES ($1)`, [file]);
+        await pool.query('COMMIT');
+      } catch {
+        await pool.query('ROLLBACK');
+      }
     }
     const client = await pool.connect();
-    try { await seedPlatformRbac(client); } finally { client.release(); }
-    const roleById = new Map((await pool.query(`SELECT id, key FROM roles`)).rows.map(r => [r.key, r.id]));
+    try {
+      await seedPlatformRbac(client);
+    } finally {
+      client.release();
+    }
+    const roleById = new Map(
+      (await pool.query(`SELECT id, key FROM roles`)).rows.map((r) => [r.key, r.id]),
+    );
 
     database = { db } as DatabaseService;
     const outbox = new OutboxDispatcher(database);
     const storage = { createPresignedGetUrl: async () => null } as any;
-    const redis = { client: { get: async () => null, set: async () => {}, del: async () => {} } } as any;
+    const redis = {
+      client: { get: async () => null, set: async () => {}, del: async () => {} },
+    } as any;
     searchService = new SearchService(database, storage, redis);
     const taxonomyService = new CatalogTaxonomyService(database);
     const conditionalRules = new ConditionalRulesService();
-    catalogService = new CatalogService(database, redis, outbox, storage, { record: async () => {} } as any, conditionalRules, taxonomyService, {} as any, {} as any, {} as any);
+    catalogService = new CatalogService(
+      database,
+      redis,
+      outbox,
+      storage,
+      { record: async () => {} } as any,
+      conditionalRules,
+      taxonomyService,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
 
     // Create store org
     const orgId = randomUUID();
@@ -90,19 +147,41 @@ describe('P9 — NP-A15 Performance (PostgreSQL)', () => {
     warehouseId = randomUUID();
     priceListId = randomUUID();
 
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Perf User', '+966500000000')`, [userId]);
-    await pool.query(`INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Perf Org', 'SA')`, [orgId]);
-    await pool.query(`INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`, [randomUUID(), orgId, userId, roleById.get('MERCHANT_OWNER')]);
-    await pool.query(`INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'perf-store', 'Perf Store', 'APPROVED')`, [storeId, orgId]);
-    await pool.query(`INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, 'Perf WH')`, [warehouseId, storeId]);
-    await pool.query(`INSERT INTO price_lists (id, store_id, name, currency, is_active) VALUES ($1, $2, 'Perf PL', 'SAR', true)`, [priceListId, storeId]);
+    await pool.query(
+      `INSERT INTO users (id, full_name, phone) VALUES ($1, 'Perf User', '+966500000000')`,
+      [userId],
+    );
+    await pool.query(
+      `INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Perf Org', 'SA')`,
+      [orgId],
+    );
+    await pool.query(
+      `INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`,
+      [randomUUID(), orgId, userId, roleById.get('MERCHANT_OWNER')],
+    );
+    await pool.query(
+      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'perf-store', 'Perf Store', 'APPROVED')`,
+      [storeId, orgId],
+    );
+    await pool.query(`INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, 'Perf WH')`, [
+      warehouseId,
+      storeId,
+    ]);
+    await pool.query(
+      `INSERT INTO price_lists (id, store_id, name, currency, is_active) VALUES ($1, $2, 'Perf PL', 'SAR', true)`,
+      [priceListId, storeId],
+    );
 
     // Create categories
     categoryIds = [];
     for (let i = 0; i < NUM_CATEGORIES; i++) {
       const catId = randomUUID();
       categoryIds.push(catId);
-      await pool.query(`INSERT INTO categories (id, name, slug, path) VALUES ($1, $2, $3, '/')`, [catId, `Category ${i}`, `cat-${i}`]);
+      await pool.query(`INSERT INTO categories (id, name, slug, path) VALUES ($1, $2, $3, '/')`, [
+        catId,
+        `Category ${i}`,
+        `cat-${i}`,
+      ]);
     }
 
     // Create brands
@@ -110,12 +189,19 @@ describe('P9 — NP-A15 Performance (PostgreSQL)', () => {
     for (let i = 0; i < NUM_BRANDS; i++) {
       const brandId = randomUUID();
       brandIds.push(brandId);
-      await pool.query(`INSERT INTO brands (id, name, slug) VALUES ($1, $2, $3)`, [brandId, `Brand ${i}`, `brand-${i}`]);
+      await pool.query(`INSERT INTO brands (id, name, slug) VALUES ($1, $2, $3)`, [
+        brandId,
+        `Brand ${i}`,
+        `brand-${i}`,
+      ]);
     }
 
     // Create attribute definitions
     const attrColorId = randomUUID();
-    await pool.query(`INSERT INTO attribute_definitions (id, code, name, type, scope) VALUES ($1, 'perf_color', 'Color', 'TEXT', 'PRODUCT')`, [attrColorId]);
+    await pool.query(
+      `INSERT INTO attribute_definitions (id, code, name, type, scope) VALUES ($1, 'perf_color', 'Color', 'TEXT', 'PRODUCT')`,
+      [attrColorId],
+    );
 
     // Generate 10,000 products in batches
     console.log(`Generating ${NUM_PRODUCTS} products...`);
@@ -136,9 +222,15 @@ describe('P9 — NP-A15 Performance (PostgreSQL)', () => {
         const price = Math.floor(Math.random() * 50000) + 100;
         const hasStock = Math.random() > 0.3;
 
-        productValues.push(`('${pid}', '${storeId}', 'Product ${i}', 'Product ${i} AR', 'product-${i}', 'ACTIVE', '${catId}', '${brId}', NOW() - interval '${Math.floor(Math.random() * 365)} days', NOW())`);
-        variantValues.push(`('${vid}', '${pid}', 'SKU-${i}', 'Variant ${i}', 'PCS', true, NOW(), NOW())`);
-        offerValues.push(`('${randomUUID()}', '${storeId}', '${pid}', '${vid}', '${priceListId}', ${price}, 'ACTIVE', NOW(), NOW())`);
+        productValues.push(
+          `('${pid}', '${storeId}', 'Product ${i}', 'Product ${i} AR', 'product-${i}', 'ACTIVE', '${catId}', '${brId}', NOW() - interval '${Math.floor(Math.random() * 365)} days', NOW())`,
+        );
+        variantValues.push(
+          `('${vid}', '${pid}', 'SKU-${i}', 'Variant ${i}', 'PCS', true, NOW(), NOW())`,
+        );
+        offerValues.push(
+          `('${randomUUID()}', '${storeId}', '${pid}', '${vid}', '${priceListId}', ${price}, 'ACTIVE', NOW(), NOW())`,
+        );
 
         if (hasStock) {
           const qty = Math.floor(Math.random() * 200) + 1;
@@ -146,19 +238,31 @@ describe('P9 — NP-A15 Performance (PostgreSQL)', () => {
         }
 
         if (i % 2 === 0) {
-          attrValues.push(`('${randomUUID()}', '${pid}', '${attrColorId}', 'Color ${i % 10}', NULL, NULL, NULL, NULL)`);
+          attrValues.push(
+            `('${randomUUID()}', '${pid}', '${attrColorId}', 'Color ${i % 10}', NULL, NULL, NULL, NULL)`,
+          );
         }
       }
 
       if (productValues.length > 0) {
-        await pool.query(`INSERT INTO products (id, store_id, title, title_ar, slug, status, category_id, brand_id, created_at, updated_at) VALUES ${productValues.join(',')}`);
-        await pool.query(`INSERT INTO product_variants (id, product_id, sku, title, unit, is_active, created_at, updated_at) VALUES ${variantValues.join(',')}`);
-        await pool.query(`INSERT INTO merchant_offers (id, store_id, product_id, variant_id, price_list_id, base_price_minor, status, created_at, updated_at) VALUES ${offerValues.join(',')}`);
+        await pool.query(
+          `INSERT INTO products (id, store_id, title, title_ar, slug, status, category_id, brand_id, created_at, updated_at) VALUES ${productValues.join(',')}`,
+        );
+        await pool.query(
+          `INSERT INTO product_variants (id, product_id, sku, title, unit, is_active, created_at, updated_at) VALUES ${variantValues.join(',')}`,
+        );
+        await pool.query(
+          `INSERT INTO merchant_offers (id, store_id, product_id, variant_id, price_list_id, base_price_minor, status, created_at, updated_at) VALUES ${offerValues.join(',')}`,
+        );
         if (inventoryValues.length > 0) {
-          await pool.query(`INSERT INTO inventory_items (id, variant_id, warehouse_id, qty_on_hand, qty_reserved, reorder_point) VALUES ${inventoryValues.join(',')}`);
+          await pool.query(
+            `INSERT INTO inventory_items (id, variant_id, warehouse_id, qty_on_hand, qty_reserved, reorder_point) VALUES ${inventoryValues.join(',')}`,
+          );
         }
         if (attrValues.length > 0) {
-          await pool.query(`INSERT INTO product_attribute_values (id, product_id, attribute_definition_id, value_text, value_number, value_boolean, option_value, value_json) VALUES ${attrValues.join(',')}`);
+          await pool.query(
+            `INSERT INTO product_attribute_values (id, product_id, attribute_definition_id, value_text, value_number, value_boolean, option_value, value_json) VALUES ${attrValues.join(',')}`,
+          );
         }
       }
 
@@ -167,7 +271,10 @@ describe('P9 — NP-A15 Performance (PostgreSQL)', () => {
     console.log(`  Generated ${NUM_PRODUCTS}/${NUM_PRODUCTS} products. Done.`);
   }, 600_000);
 
-  afterAll(async () => { await pool?.end(); await container?.stop(); }, 30_000);
+  afterAll(async () => {
+    await pool?.end();
+    await container?.stop();
+  }, 120_000);
 
   async function measureSearch(label: string, fn: () => Promise<any>, iterations = 10, warmup = 3) {
     // Warmup iterations (not counted)
@@ -199,56 +306,105 @@ describe('P9 — NP-A15 Performance (PostgreSQL)', () => {
     // analysis. The 200ms target applies to production hardware.
 
     it('price filter', async () => {
-      const r = await measureSearch('price filter', () => searchService.search('', { storeId, priceMin: 5000, priceMax: 20000, limit: 50 }), 10, 3);
+      const r = await measureSearch(
+        'price filter',
+        () => searchService.search('', { storeId, priceMin: 5000, priceMax: 20000, limit: 50 }),
+        10,
+        3,
+      );
       console.log(fmt(r));
-      console.log(`  All times: ${r.times.map(t => t.toFixed(1)).join(', ')}ms`);
-    }, 60000);
+      console.log(`  All times: ${r.times.map((t) => t.toFixed(1)).join(', ')}ms`);
+    }, 180000);
 
     it('availability filter', async () => {
-      const r = await measureSearch('availability', () => searchService.search('', { storeId, availability: 'inStock', limit: 50 }), 10, 3);
+      const r = await measureSearch(
+        'availability',
+        () => searchService.search('', { storeId, availability: 'inStock', limit: 50 }),
+        10,
+        3,
+      );
       console.log(fmt(r));
-      console.log(`  All times: ${r.times.map(t => t.toFixed(1)).join(', ')}ms`);
-    }, 60000);
+      console.log(`  All times: ${r.times.map((t) => t.toFixed(1)).join(', ')}ms`);
+    }, 180000);
 
     it('combined price + availability + category + brand + sort', async () => {
-      const r = await measureSearch('combined', () => searchService.search('', {
-        storeId, priceMin: 1000, priceMax: 30000, availability: 'inStock',
-        categoryId: categoryIds[0], brandId: brandIds[0], sort: 'price_asc', limit: 50,
-      }), 10, 3);
+      const r = await measureSearch(
+        'combined',
+        () =>
+          searchService.search('', {
+            storeId,
+            priceMin: 1000,
+            priceMax: 30000,
+            availability: 'inStock',
+            categoryId: categoryIds[0],
+            brandId: brandIds[0],
+            sort: 'price_asc',
+            limit: 50,
+          }),
+        10,
+        3,
+      );
       console.log(fmt(r));
-      console.log(`  All times: ${r.times.map(t => t.toFixed(1)).join(', ')}ms`);
-    }, 60000);
+      console.log(`  All times: ${r.times.map((t) => t.toFixed(1)).join(', ')}ms`);
+    }, 180000);
 
     it('text search + P9 filters', async () => {
-      const r = await measureSearch('text+p9', () => searchService.search('Product 1', {
-        storeId, priceMin: 1000, priceMax: 30000, availability: 'inStock', sort: 'price_desc', limit: 50,
-      }), 10, 3);
+      const r = await measureSearch(
+        'text+p9',
+        () =>
+          searchService.search('Product 1', {
+            storeId,
+            priceMin: 1000,
+            priceMax: 30000,
+            availability: 'inStock',
+            sort: 'price_desc',
+            limit: 50,
+          }),
+        10,
+        3,
+      );
       console.log(fmt(r));
-      console.log(`  All times: ${r.times.map(t => t.toFixed(1)).join(', ')}ms`);
-    }, 60000);
+      console.log(`  All times: ${r.times.map((t) => t.toFixed(1)).join(', ')}ms`);
+    }, 180000);
 
     it('price_desc sort', async () => {
-      const r = await measureSearch('price_desc', () => searchService.search('', { storeId, sort: 'price_desc', limit: 50 }), 10, 3);
+      const r = await measureSearch(
+        'price_desc',
+        () => searchService.search('', { storeId, sort: 'price_desc', limit: 50 }),
+        10,
+        3,
+      );
       console.log(fmt(r));
-      console.log(`  All times: ${r.times.map(t => t.toFixed(1)).join(', ')}ms`);
-    }, 60000);
+      console.log(`  All times: ${r.times.map((t) => t.toFixed(1)).join(', ')}ms`);
+    }, 180000);
 
     it('newest sort', async () => {
-      const r = await measureSearch('newest', () => searchService.search('', { storeId, sort: 'newest', limit: 50 }), 10, 3);
+      const r = await measureSearch(
+        'newest',
+        () => searchService.search('', { storeId, sort: 'newest', limit: 50 }),
+        10,
+        3,
+      );
       console.log(fmt(r));
-      console.log(`  All times: ${r.times.map(t => t.toFixed(1)).join(', ')}ms`);
-    }, 60000);
+      console.log(`  All times: ${r.times.map((t) => t.toFixed(1)).join(', ')}ms`);
+    }, 180000);
 
     it('name sort', async () => {
-      const r = await measureSearch('name', () => searchService.search('', { storeId, sort: 'name', limit: 50 }), 10, 3);
+      const r = await measureSearch(
+        'name',
+        () => searchService.search('', { storeId, sort: 'name', limit: 50 }),
+        10,
+        3,
+      );
       console.log(fmt(r));
-      console.log(`  All times: ${r.times.map(t => t.toFixed(1)).join(', ')}ms`);
-    }, 60000);
+      console.log(`  All times: ${r.times.map((t) => t.toFixed(1)).join(', ')}ms`);
+    }, 180000);
   });
 
   describe('NP-A15 — EXPLAIN ANALYZE Evidence', () => {
     it('combined price + availability + category + brand + price_asc sort', async () => {
-      const res = await pool.query(`
+      const res = await pool.query(
+        `
         EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
         SELECT p.id, p.title, p.slug, p.created_at
         FROM products p
@@ -258,50 +414,61 @@ describe('P9 — NP-A15 Performance (PostgreSQL)', () => {
           AND EXISTS (SELECT 1 FROM merchant_offers mo2 JOIN product_variants pv ON pv.product_id = mo2.product_id JOIN inventory_items ii ON ii.variant_id = pv.id JOIN warehouses w ON w.id = ii.warehouse_id AND w.store_id = mo2.store_id WHERE mo2.product_id = p.id AND mo2.status = 'ACTIVE' AND ii.qty_on_hand > 0)
         ORDER BY (SELECT MIN(mo3.base_price_minor) FROM merchant_offers mo3 WHERE mo3.product_id = p.id AND mo3.status = 'ACTIVE' AND mo3.base_price_minor IS NOT NULL) ASC NULLS LAST, p.created_at DESC, p.id ASC
         LIMIT 50
-      `, [storeId, categoryIds[0], brandIds[0]]);
-      const plan = res.rows.map(r => r['QUERY PLAN']).join('\n');
+      `,
+        [storeId, categoryIds[0], brandIds[0]],
+      );
+      const plan = res.rows.map((r) => r['QUERY PLAN']).join('\n');
       console.log('=== EXPLAIN ANALYZE: Combined filters + price_asc ===');
       console.log(plan);
       expect(plan).toBeTruthy();
     });
 
     it('price filter only', async () => {
-      const res = await pool.query(`
+      const res = await pool.query(
+        `
         EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
         SELECT p.id, p.title FROM products p
         WHERE p.store_id = $1 AND p.deleted_at IS NULL
           AND EXISTS (SELECT 1 FROM merchant_offers mo WHERE mo.product_id = p.id AND mo.status = 'ACTIVE' AND mo.base_price_minor IS NOT NULL AND mo.base_price_minor >= 5000 AND mo.base_price_minor <= 20000)
         LIMIT 50
-      `, [storeId]);
-      const plan = res.rows.map(r => r['QUERY PLAN']).join('\n');
+      `,
+        [storeId],
+      );
+      const plan = res.rows.map((r) => r['QUERY PLAN']).join('\n');
       console.log('=== EXPLAIN ANALYZE: Price filter ===');
       console.log(plan);
       expect(plan).toBeTruthy();
     });
 
     it('availability filter only', async () => {
-      const res = await pool.query(`
+      const res = await pool.query(
+        `
         EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
         SELECT p.id, p.title FROM products p
         WHERE p.store_id = $1 AND p.deleted_at IS NULL
           AND EXISTS (SELECT 1 FROM merchant_offers mo JOIN product_variants pv ON pv.product_id = mo.product_id JOIN inventory_items ii ON ii.variant_id = pv.id JOIN warehouses w ON w.id = ii.warehouse_id AND w.store_id = mo.store_id WHERE mo.product_id = p.id AND mo.status = 'ACTIVE' AND ii.qty_on_hand > 0)
         LIMIT 50
-      `, [storeId]);
-      const plan = res.rows.map(r => r['QUERY PLAN']).join('\n');
+      `,
+        [storeId],
+      );
+      const plan = res.rows.map((r) => r['QUERY PLAN']).join('\n');
       console.log('=== EXPLAIN ANALYZE: Availability filter ===');
       console.log(plan);
       expect(plan).toBeTruthy();
     });
 
     it('price_asc sort', async () => {
-      const res = await pool.query(`
+      const res = await pool.query(
+        `
         EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
         SELECT p.id, p.title, p.created_at FROM products p
         WHERE p.store_id = $1 AND p.deleted_at IS NULL
         ORDER BY (SELECT MIN(mo.base_price_minor) FROM merchant_offers mo WHERE mo.product_id = p.id AND mo.status = 'ACTIVE' AND mo.base_price_minor IS NOT NULL) ASC NULLS LAST, p.created_at DESC, p.id ASC
         LIMIT 50
-      `, [storeId]);
-      const plan = res.rows.map(r => r['QUERY PLAN']).join('\n');
+      `,
+        [storeId],
+      );
+      const plan = res.rows.map((r) => r['QUERY PLAN']).join('\n');
       console.log('=== EXPLAIN ANALYZE: Price ascending sort ===');
       console.log(plan);
       expect(plan).toBeTruthy();

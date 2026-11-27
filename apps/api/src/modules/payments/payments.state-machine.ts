@@ -19,7 +19,7 @@ import {
  *
  * Manual path:  CREATED → AWAITING_PAYMENT → AWAITING_VERIFICATION → CONFIRMED
  *                                                       ↓ (reject)
- *                                                   REJECTED → AWAITING_PAYMENT
+ *                                                   REJECTED → AWAITING_PAYMENT / AWAITING_VERIFICATION
  * Digital path: CREATED → AWAITING_PAYMENT → PROCESSING → AUTHORIZED → CAPTURED
  *                                                          ↓
  *                                                      PARTIALLY_REFUNDED → REFUNDED
@@ -42,7 +42,8 @@ const PAYMENT_TRANSITIONS: Record<string, string[]> = {
     'CANCELLED',             // order cancelled
   ],
   REJECTED: [
-    'AWAITING_PAYMENT',      // buyer re-submits
+    'AWAITING_PAYMENT',      // buyer re-selects the payment method
+    'AWAITING_VERIFICATION', // buyer directly re-submits replacement proof
     'CANCELLED',             // buyer gives up
   ],
   PROCESSING: [
@@ -136,6 +137,7 @@ export function resolvePaymentEventType(
     'PARTIALLY_REFUNDED→REFUNDED': 'PAYMENT_REFUND_SUCCEEDED',
     'FAILED→AWAITING_PAYMENT': 'PAYMENT_METHOD_SELECTED',
     'FAILED→CANCELLED': 'PAYMENT_CANCELLED',
+    'REJECTED→AWAITING_VERIFICATION': 'PAYMENT_PROOF_SUBMITTED',
     'REJECTED→CANCELLED': 'PAYMENT_CANCELLED',
   };
 

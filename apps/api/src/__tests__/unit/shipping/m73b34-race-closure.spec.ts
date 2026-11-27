@@ -49,6 +49,7 @@ function createMockDb(opts: { executeRows?: any[]; executeImpl?: () => Promise<a
   const insertChain = { values: vi.fn().mockResolvedValue(undefined) };
 
   const db = {
+    query: { orders: { findFirst: vi.fn().mockResolvedValue({ storeId: 'store-b34-001' }) } },
     update: vi.fn().mockReturnValue(updateChain),
     insert: vi.fn().mockReturnValue(insertChain),
     execute: vi.fn().mockImplementation(
@@ -56,7 +57,9 @@ function createMockDb(opts: { executeRows?: any[]; executeImpl?: () => Promise<a
     ),
   };
 
-  return { db, updateChain, insertChain };
+  const withActorContext = vi.fn(async (_context: any, operation: () => Promise<unknown>) => operation());
+
+  return { db, withActorContext, updateChain, insertChain };
 }
 
 /**
@@ -151,6 +154,7 @@ function createPoller(opts: {
     carrierTrackingId: 'TRACK-B34',
     carrierStatusMapped: opts.carrierStatusMapped ?? 'OUT_FOR_DELIVERY',
     order_id: 'order-b34-001',
+    store_id: 'store-b34-001',
     carrier_shipment_id: 'CAR-B34',
     // Deliberately snake_case — this is a raw PostgreSQL row.
     carrier_cancel_status: opts.cancelStatus ?? null,
@@ -525,6 +529,8 @@ describe('M7.3-B.3.4 — PICKUP_CANCELLED Removal (BD-3.4-09 / C7)', () => {
   function cancelShipmentFixture() {
     return {
       id: 'ship-pickup-cancel',
+      order_id: 'order-b34-001',
+      store_id: 'store-b34-001',
       carrier_cancel_status: 'UNKNOWN',
       carrier_cancel_attempted_at: new Date(),
       carrier_cancel_retries: 0,
@@ -682,6 +688,8 @@ describe('M7.3-B.3.4 — Schema Vocabulary and Cancellation Regression Guarantee
 
     await service.reconcileCancelShipment({
       id: 'ship-no-resurrect',
+      order_id: 'order-b34-001',
+      store_id: 'store-b34-001',
       carrier_cancel_status: 'UNKNOWN',
       carrier_cancel_attempted_at: new Date(),
       carrier_cancel_retries: 0,
@@ -711,6 +719,8 @@ describe('M7.3-B.3.4 — Schema Vocabulary and Cancellation Regression Guarantee
 
     await service.reconcileCancelShipment({
       id: 'ship-no-recancel',
+      order_id: 'order-b34-001',
+      store_id: 'store-b34-001',
       carrier_cancel_status: 'UNKNOWN',
       carrier_cancel_attempted_at: new Date(),
       carrier_cancel_retries: 0,

@@ -50,15 +50,15 @@ scs-platform/
 
 ## Engineering Decisions
 
-| # | Decision | Choice |
-|---|---|---|
-| E1 | Monorepo | pnpm workspaces + Turborepo |
-| E2 | ORM | Drizzle ORM + drizzle-kit (per-module schemas) |
-| E3 | Contracts | zod → OpenAPI 3.1 → generated TS/Dart clients |
-| E4 | Feature flags | `flags` table + typed client |
-| E5 | Partitions | pg_partman for time-series tables |
-| E6 | Boundary lint | eslint-plugin-boundaries in CI |
-| E7 | Load testing | k6 scripts in infra/load/ |
+| #   | Decision      | Choice                                         |
+| --- | ------------- | ---------------------------------------------- |
+| E1  | Monorepo      | pnpm workspaces + Turborepo                    |
+| E2  | ORM           | Drizzle ORM + drizzle-kit (per-module schemas) |
+| E3  | Contracts     | zod → OpenAPI 3.1 → generated TS/Dart clients  |
+| E4  | Feature flags | `flags` table + typed client                   |
+| E5  | Partitions    | pg_partman for time-series tables              |
+| E6  | Boundary lint | eslint-plugin-boundaries in CI                 |
+| E7  | Load testing  | k6 scripts in infra/load/                      |
 
 ## Key Commands
 
@@ -123,13 +123,17 @@ pnpm --filter @scs/admin test             # Admin UI tests (Vitest + jsdom)
 
 Integration tests require Docker (Testcontainers PostgreSQL 16). Two migrations (`0013_analytics.sql`, `0018_analytics_retention.sql`) are excluded from the test harness because they depend on `pg_partman`.
 
+## Project Handover Memory
+
+- [Start Here — Project Memory](./project-memory/START-HERE.md) — mandatory entry point for resuming work in a new ChatGPT conversation; links to the current checkpoint, roadmap, decisions, work log, open issues and CI/release evidence.
+- The project-memory files are a handover index and checkpoint. The remediation plan and progress tracker remain authoritative for technical scope, finding status and acceptance evidence.
+
 ## Documentation
 
 ### Current remediation programme (November 2026)
 
 - [Audit-Driven Remediation & Testability Implementation Plan](./docs/remediation/IMPLEMENTATION-PLAN.md) — authoritative phase sequence, dependencies, acceptance criteria and final release gates.
 - [Audit-Driven Implementation Progress Tracker](./docs/remediation/IMPLEMENTATION-PROGRESS.md) — living status, evidence, decisions and next tasks. Updated alongside implementation work.
-
 
 - [Development & Implementation Plan](./Smart_Commerce_Development_Implementation_Plan.md) — developer-ready specification
 - [Implementation & UX Plan](./Smart_Commerce_Platform_Implementation_and_UX_Plan.md) — architecture + design strategy

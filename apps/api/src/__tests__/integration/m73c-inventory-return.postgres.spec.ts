@@ -66,7 +66,7 @@ async function checkoutOutForDelivery(
       [randomUUID(), cartId, storeId, variantId, qty, qty * 1000, ctx.offerForVariant(variantId)],
     );
   }
-  const co = await svc.checkout({ buyerId: ctx.buyerA, deliveryAddress: {}, idempotencyKey: `c-${randomUUID()}` });
+  const co = await svc.checkout({ buyerId: ctx.buyerA, deliveryAddress: {}, idempotencyKey: `c-${randomUUID()}` }, { sub: ctx.buyerA, role: 'BUYER', activeOrg: null });
   const orderId = co.subOrders[0]!.id;
   const mc = { sub: ctx.merchantA, role: 'MERCHANT_OWNER' as const, activeOrg: ctx.orgA };
   await svc.acceptOrder(orderId, ctx.merchantA, mc);
@@ -154,7 +154,13 @@ describe('M7.3-C — Inventory Return-to-Stock (PostgreSQL)', () => {
     outbox = new OutboxDispatcher(database);
     const promotions = new PromotionsService(database);
     inventoryService = new InventoryService(database, outbox);
-    ordersService = new OrdersService(database, outbox, promotions, realtime, undefined, notifications);
+    // These inventory-return tests exercise delivery/return behavior, not carrier policy.
+    // Keep the explicit fail-closed driver-eligibility dependency available in the harness.
+    const shipping = {
+      validateCheckoutSelection: vi.fn().mockResolvedValue(undefined),
+      assertDriverEligibleForStore: vi.fn().mockResolvedValue(undefined),
+    } as any;
+    ordersService = new OrdersService(database, outbox, promotions, realtime, undefined, notifications, shipping);
 
     const roles = await poolRef.query(`SELECT id, key FROM roles`);
     const roleById = new Map(roles.rows.map((r: any) => [r.key, r.id] as const));
@@ -175,8 +181,8 @@ describe('M7.3-C — Inventory Return-to-Stock (PostgreSQL)', () => {
       await poolRef.query(`INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`, [randomUUID(), oid, uid, roleById.get(rk)]);
     }
 
-    await poolRef.query(`INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'c-store-a', 'Store A', 'APPROVED')`, [storeA, orgA]);
-    await poolRef.query(`INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'c-store-b', 'Store B', 'APPROVED')`, [storeB, orgB]);
+    await poolRef.query(`INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'c-store-a', 'Store A', 'ACTIVE', 'VERIFIED')`, [storeA, orgA]);
+    await poolRef.query(`INSERT INTO stores (id, org_id, slug, display_name, status, verification_status) VALUES ($1, $2, 'c-store-b', 'Store B', 'ACTIVE', 'VERIFIED')`, [storeB, orgB]);
     await poolRef.query(`INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, 'WH A')`, [warehouseA, storeA]);
     await poolRef.query(`INSERT INTO warehouses (id, store_id, name) VALUES ($1, $2, 'WH B')`, [warehouseB, storeA]);
 

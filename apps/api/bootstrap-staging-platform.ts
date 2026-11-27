@@ -1,6 +1,7 @@
 import { Client } from 'pg';
 import * as fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { assertStagingBootstrapTarget, setStagingBootstrapActorContext } from './scripts/staging-bootstrap-safety';
 
 async function main() {
   const connectionString = process.env['DATABASE_URL'];
@@ -27,15 +28,14 @@ async function main() {
   await client.connect();
 
   try {
-    const identity = await client.query(`
-      SELECT current_database(), current_user, version()
-    `);
+    const identity = await assertStagingBootstrapTarget(client, 'bootstrap-staging-platform');
 
     console.log('\n=== TAIF Staging Platform Bootstrap ===');
-    console.log(`Database: ${identity.rows[0].current_database}`);
-    console.log(`User:     ${identity.rows[0].current_user}`);
+    console.log(`Database: ${identity.current_database}`);
+    console.log(`User:     ${identity.current_user}`);
 
     await client.query('BEGIN');
+    await setStagingBootstrapActorContext(client, 'bootstrap-staging-platform');
 
     /*
      * ------------------------------------------------------------
@@ -49,13 +49,11 @@ async function main() {
       FROM roles
       WHERE key = 'SUPER_ADMIN'
       LIMIT 1
-      `
+      `,
     );
 
     if (roleResult.rows.length !== 1) {
-      throw new Error(
-        'SUPER_ADMIN role was not found. Run bootstrap-staging-rbac.ts first.'
-      );
+      throw new Error('SUPER_ADMIN role was not found. Run bootstrap-staging-rbac.ts first.');
     }
 
     const superAdminRoleId = roleResult.rows[0].id;
@@ -75,7 +73,7 @@ async function main() {
       WHERE name = 'SCS Platform Ops'
         AND type = 'PLATFORM'
       LIMIT 1
-      `
+      `,
     );
 
     let orgId: string;
@@ -106,7 +104,7 @@ async function main() {
           'VERIFIED'
         )
         `,
-        [orgId]
+        [orgId],
       );
 
       console.log(`Created Platform organization: ${orgId}`);
@@ -124,7 +122,7 @@ async function main() {
       FROM users
       WHERE phone = '+966500000001'
       LIMIT 1
-      `
+      `,
     );
 
     let userId: string;
@@ -153,7 +151,7 @@ async function main() {
           'ACTIVE'
         )
         `,
-        [userId]
+        [userId],
       );
 
       console.log(`Created SUPER_ADMIN user: ${userId}`);
@@ -180,7 +178,7 @@ async function main() {
         AND om.user_id = $2
       LIMIT 1
       `,
-      [orgId, userId]
+      [orgId, userId],
     );
 
     if (existingMembership.rows.length > 0) {
@@ -188,7 +186,7 @@ async function main() {
 
       if (membership.role_key !== 'SUPER_ADMIN') {
         throw new Error(
-          `Existing membership ${membership.id} has role ${membership.role_key}, not SUPER_ADMIN.`
+          `Existing membership ${membership.id} has role ${membership.role_key}, not SUPER_ADMIN.`,
         );
       }
 
@@ -199,14 +197,12 @@ async function main() {
           SET status = 'ACTIVE'
           WHERE id = $1
           `,
-          [membership.id]
+          [membership.id],
         );
 
         console.log(`Reactivated SUPER_ADMIN membership: ${membership.id}`);
       } else {
-        console.log(
-          `SUPER_ADMIN membership already exists: ${membership.id}`
-        );
+        console.log(`SUPER_ADMIN membership already exists: ${membership.id}`);
       }
     } else {
       const membershipId = randomUUID();
@@ -228,7 +224,7 @@ async function main() {
           'ACTIVE'
         )
         `,
-        [membershipId, orgId, userId, superAdminRoleId]
+        [membershipId, orgId, userId, superAdminRoleId],
       );
 
       console.log(`Created SUPER_ADMIN membership: ${membershipId}`);
@@ -265,12 +261,12 @@ async function main() {
       WHERE u.phone = '+966500000001'
         AND o.type = 'PLATFORM'
         AND r.key = 'SUPER_ADMIN'
-      `
+      `,
     );
 
     if (verification.rows.length !== 1) {
       throw new Error(
-        `Expected exactly one Platform SUPER_ADMIN relationship, found ${verification.rows.length}.`
+        `Expected exactly one Platform SUPER_ADMIN relationship, found ${verification.rows.length}.`,
       );
     }
 
@@ -281,21 +277,15 @@ async function main() {
     }
 
     if (row.organization_type !== 'PLATFORM') {
-      throw new Error(
-        `Organization type is ${row.organization_type}, expected PLATFORM`
-      );
+      throw new Error(`Organization type is ${row.organization_type}, expected PLATFORM`);
     }
 
     if (row.verification_status !== 'VERIFIED') {
-      throw new Error(
-        `Platform organization verification status is ${row.verification_status}`
-      );
+      throw new Error(`Platform organization verification status is ${row.verification_status}`);
     }
 
     if (row.membership_status !== 'ACTIVE') {
-      throw new Error(
-        `SUPER_ADMIN membership status is ${row.membership_status}`
-      );
+      throw new Error(`SUPER_ADMIN membership status is ${row.membership_status}`);
     }
 
     const permissionCount = await client.query(
@@ -304,12 +294,12 @@ async function main() {
       FROM role_permissions
       WHERE role_id = $1
       `,
-      [superAdminRoleId]
+      [superAdminRoleId],
     );
 
     if (permissionCount.rows[0].permission_count !== 46) {
       throw new Error(
-        `SUPER_ADMIN has ${permissionCount.rows[0].permission_count} permissions; expected 46.`
+        `SUPER_ADMIN has ${permissionCount.rows[0].permission_count} permissions; expected 46.`,
       );
     }
 

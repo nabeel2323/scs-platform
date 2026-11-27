@@ -48,17 +48,18 @@ final currentUserPhoneProvider = StateProvider<String>((ref) => '');
 final currentUserEmailProvider = StateProvider<String?>((ref) => null);
 final activeOrgIdProvider = StateProvider<String?>((ref) => null);
 
-/// Clears the login-identity cache (S1.38.2).
+/// Clears in-memory login identity, active organization and authenticated
+/// read caches at a user-session boundary (S1.38.2).
 ///
-/// Both providers are written by `LoginScreen._completeLogin` so Home can show
-/// an identity before the profile fetch returns. They are deliberately *not*
-/// providers that recompute from storage, so nothing else resets them: without
-/// this call a signed-out device keeps showing the previous user's phone/email
-/// to whoever signs in next. Single helper on purpose — every logout or
-/// session-expiration path must drop phone and email together, never one.
+/// Phone/email are written by `LoginScreen._completeLogin` so Home can show an
+/// identity before the profile fetch returns. They are not derived from storage;
+/// every logout/session-expiration path must clear them together. New login also
+/// uses this helper before routing so no previous user's cached data survives.
 void resetIdentityProviders(WidgetRef ref) {
   ref.read(currentUserPhoneProvider.notifier).state = '';
   ref.read(currentUserEmailProvider.notifier).state = null;
+  ref.read(activeOrgIdProvider.notifier).state = null;
+  invalidateAuthenticatedSessionProviders(ref);
 }
 
 /// Restores the authentication session from secure storage on cold start.
@@ -119,6 +120,16 @@ final featuredProductsProvider = FutureProvider<SearchResult>(
 final storesProvider = FutureProvider<List<Store>>(
     (ref) => ref.watch(apiServiceProvider).fetchStores(limit: 50));
 
+// Buyer-facing store catalogue. Keep this separate from the merchant catalogue
+// provider: buyer discovery must only expose ACTIVE products.
+final buyerStoreProductsProvider =
+    FutureProvider.autoDispose.family<List<Product>, String>((ref, storeId) {
+  if (storeId.isEmpty) return Future.value(<Product>[]);
+  return ref
+      .watch(apiServiceProvider)
+      .fetchStoreProducts(storeId, status: 'ACTIVE');
+});
+
 /// Seller reviews for a store, keyed by storeId. The reviews API is
 /// store-scoped only (`GET /v1/stores/:id/reviews`), so the PDP surfaces the
 /// *seller's* reputation — the same source the web PDP uses. Shared by the
@@ -169,7 +180,15 @@ final myStoresProvider = FutureProvider<List<Store>>(
 
 /// The merchant's primary store (first of their org's stores), or null.
 final activeStoreProvider = FutureProvider<Store?>((ref) async {
+  final activeOrgId = ref.watch(activeOrgIdProvider);
   final stores = await ref.watch(myStoresProvider.future);
+  if (activeOrgId != null && activeOrgId.isNotEmpty) {
+    // Never fall back to the first cached store from a different organization.
+    for (final store in stores) {
+      if (store.orgId == activeOrgId) return store;
+    }
+    return null;
+  }
   return stores.isNotEmpty ? stores.first : null;
 });
 
@@ -261,6 +280,13 @@ final productVariantsProvider =
 final productMediaProvider = FutureProvider.family<List<MediaItem>, String>(
     (ref, productId) => ref.watch(apiServiceProvider).listMedia(productId));
 
+/// Stable buyer Product Detail read. Keying by product ID prevents rebuilds of
+/// the stateful PDP (gallery, variant selection, offer sorting) from issuing a
+/// new product request on every setState.
+final productDetailProvider =
+    FutureProvider.autoDispose.family<Product, String>(
+        (ref, productId) => ref.watch(apiServiceProvider).fetchProduct(productId));
+
 // ── Merchant Customers ──────────────────────────────────────
 
 final merchantCustomersProvider = FutureProvider<List<CustomerSummary>>(
@@ -291,6 +317,23 @@ final storeInventoryProvider =
       .watch(apiServiceProvider)
       .fetchStoreInventory(args.storeId, offset: args.page * 20);
 });
+
+// ── Merchant Pricing ────────────────────────────────────────
+
+/// Price lists for the active merchant store.
+final merchantPriceListsProvider = FutureProvider<List<PriceList>>((ref) async {
+  final store = await ref.watch(activeStoreProvider.future);
+  if (store == null) return <PriceList>[];
+  return ref.watch(apiServiceProvider).fetchStorePriceLists(store.id);
+});
+
+final priceListDetailProvider =
+    FutureProvider.family<PriceList, String>((ref, id) =>
+        ref.watch(apiServiceProvider).fetchPriceList(id));
+
+final priceListTiersProvider =
+    FutureProvider.family<List<PriceTier>, String>((ref, id) =>
+        ref.watch(apiServiceProvider).fetchPriceListTiers(id));
 
 // ── Merchant Offers (pricing / lifecycle management) ────────
 
@@ -326,3 +369,47 @@ final merchantOfferTrendProvider = FutureProvider.family<List<OfferTrendPoint>,
         days: args.days,
       );
 });
+
+/// Drop all cached reads whose result is scoped to the active organization.
+/// Call only after the replacement organization token has been persisted and
+/// installed in ApiClient. Public catalogue and user-level buyer cart/order
+/// data are deliberately excluded from this narrower operation.
+void invalidateOrganizationScopedProviders(WidgetRef ref) {
+  ref.invalidate(profileProvider);
+  ref.invalidate(myOrganizationsProvider);
+  ref.invalidate(myStoresProvider);
+  ref.invalidate(activeStoreProvider);
+  ref.invalidate(merchantOrdersProvider);
+  ref.invalidate(merchantKpisProvider);
+  ref.invalidate(storeProductsProvider);
+  ref.invalidate(storeCategoriesProvider);
+  ref.invalidate(productVariantsProvider);
+  ref.invalidate(productMediaProvider);
+  ref.invalidate(productDetailProvider);
+  ref.invalidate(merchantCustomersProvider);
+  ref.invalidate(storeWarehousesProvider);
+  ref.invalidate(warehouseInventoryProvider);
+  ref.invalidate(storeInventoryProvider);
+  ref.invalidate(merchantPriceListsProvider);
+  ref.invalidate(priceListDetailProvider);
+  ref.invalidate(priceListTiersProvider);
+  ref.invalidate(merchantOffersProvider);
+  ref.invalidate(merchantOfferDetailProvider);
+  ref.invalidate(merchantOfferAnalyticsProvider);
+  ref.invalidate(merchantOfferTrendProvider);
+}
+
+/// Clear authenticated caches at a user-session boundary (logout or a new
+/// login). This includes organization-scoped data plus user-specific buyer,
+/// notification, organization-detail and driver reads.
+void invalidateAuthenticatedSessionProviders(WidgetRef ref) {
+  invalidateOrganizationScopedProviders(ref);
+  ref.invalidate(orgDetailProvider);
+  ref.invalidate(orgMembersProvider);
+  ref.invalidate(ordersProvider);
+  ref.invalidate(cartProvider);
+  ref.invalidate(cartValidationProvider);
+  ref.invalidate(notificationsProvider);
+  ref.invalidate(unreadCountProvider);
+  ref.invalidate(driverShipmentsProvider);
+}

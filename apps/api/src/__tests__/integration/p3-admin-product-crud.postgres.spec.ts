@@ -38,6 +38,7 @@ describe('P3 admin product CRUD on PostgreSQL', () => {
   let pool: Pool;
   let db: DatabaseService['db'];
   let admin: AdminService;
+  let database: DatabaseService;
   let catalog: CatalogService;
   let taxonomyService: CatalogTaxonomyService;
   const storage = { createPresignedGetUrl: vi.fn(async (_b: string, k: string) => `https://preview.invalid/${k}`) };
@@ -63,7 +64,8 @@ describe('P3 admin product CRUD on PostgreSQL', () => {
       await pool.query(await readFile(path.join(migrations, file), 'utf8'));
     }
 
-    const database = { db } as DatabaseService;
+    database = new DatabaseService();
+    database.db = db;
     taxonomyService = new CatalogTaxonomyService(database);
     catalog = new CatalogService(database, {} as any, { publish: vi.fn() } as any, storage as any, { record: vi.fn() } as any, { evaluate: () => ({ effects: new Map(), errors: [] }) } as any, taxonomyService, {} as any, {} as any, {} as any);
     admin = new AdminService(database, storage as any, { send: vi.fn().mockResolvedValue(undefined) } as any, {} as any, catalog, taxonomyService, {} as any);
@@ -79,6 +81,14 @@ describe('P3 admin product CRUD on PostgreSQL', () => {
       { id: storeId2, orgId: orgId2, slug: 'p3-store-b', displayName: 'P3 Store B' },
     ]);
   }, 180_000);
+
+  function adminActor() {
+    return { sub: actorId, role: 'ADMIN', activeOrg: null };
+  }
+
+  function updateAdminProduct(id: string, input: any, updatedAt?: string) {
+    return admin.adminUpdateProduct(id, input, updatedAt, adminActor());
+  }
 
   afterAll(async () => { await pool?.end(); await container?.stop(); }, 30_000);
 
@@ -127,7 +137,7 @@ describe('P3 admin product CRUD on PostgreSQL', () => {
     const updatedAt = created['updatedAt'] as string;
     expect(updatedAt).toBeDefined();
 
-    const updated = await admin.adminUpdateProduct(created.id, { title: 'Edited Title' } as any, updatedAt);
+    const updated = await updateAdminProduct(created.id, { title: 'Edited Title' } as any, updatedAt);
     expect(updated.title).toBe('Edited Title');
   });
 
@@ -139,7 +149,7 @@ describe('P3 admin product CRUD on PostgreSQL', () => {
     const staleTimestamp = '2020-01-01T00:00:00.000Z';
 
     try {
-      await admin.adminUpdateProduct(created.id, { title: 'Should Fail' } as any, staleTimestamp);
+      await updateAdminProduct(created.id, { title: 'Should Fail' } as any, staleTimestamp);
       expect.fail('Should have thrown ConflictException');
     } catch (err) {
       expect(err).toBeInstanceOf(ConflictException);
@@ -175,13 +185,13 @@ describe('P3 admin product CRUD on PostgreSQL', () => {
     } as any, actorId);
 
     // Admin can read it (no assertProductInOrg)
-    const detail = await catalog.getProductDetail(created.id);
+    const detail = await catalog.getProductDetail(created.id, adminActor());
     expect(detail.title).toBe('Org B Product');
     expect(detail.storeId).toBe(storeId2);
 
     // Admin can edit it
     const updatedAt = detail['updatedAt'] as string;
-    const updated = await admin.adminUpdateProduct(created.id, { title: 'Org B Edited' } as any, updatedAt);
+    const updated = await updateAdminProduct(created.id, { title: 'Org B Edited' } as any, updatedAt);
     expect(updated.title).toBe('Org B Edited');
   });
 
@@ -224,8 +234,8 @@ describe('P3 admin product CRUD on PostgreSQL', () => {
 
     // Both try to edit with the same (now current) updatedAt
     const results = await Promise.allSettled([
-      admin.adminUpdateProduct(created.id, { title: 'Edit A' } as any, updatedAt),
-      admin.adminUpdateProduct(created.id, { title: 'Edit B' } as any, updatedAt),
+      updateAdminProduct(created.id, { title: 'Edit A' } as any, updatedAt),
+      updateAdminProduct(created.id, { title: 'Edit B' } as any, updatedAt),
     ]);
 
     const fulfilled = results.filter(r => r.status === 'fulfilled');
@@ -252,7 +262,7 @@ describe('P3 admin product CRUD on PostgreSQL', () => {
 
     // Sequential stale detection: first edit changes updatedAt, then moderation
     // with the OLD timestamp must get 409.
-    const editResult = await admin.adminUpdateProduct(created.id, { title: 'Edit First' } as any, updatedAt);
+    const editResult = await updateAdminProduct(created.id, { title: 'Edit First' } as any, updatedAt);
     expect(editResult.title).toBe('Edit First');
 
     // Moderation with the stale (pre-edit) updatedAt must fail
@@ -274,7 +284,7 @@ describe('P3 admin product CRUD on PostgreSQL', () => {
     } as any, actorId);
 
     // No updatedAt → no optimistic locking, should always succeed
-    const updated = await admin.adminUpdateProduct(created.id, { title: 'No Lock Updated' } as any);
+    const updated = await updateAdminProduct(created.id, { title: 'No Lock Updated' } as any);
     expect(updated.title).toBe('No Lock Updated');
   });
 });

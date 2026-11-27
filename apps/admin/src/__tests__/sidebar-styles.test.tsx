@@ -36,6 +36,8 @@ function normalizeCss(css: string): string {
   return css
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/;(\s*})/g, '$1')
+    // HTML/CSS sources may quote attribute-selector values differently.
+    .replace(/(\[[^\]]+?=)['\"]([^'\"]+)['\"](\])/g, '$1$2$3')
     .replace(/\s+/g, '')
     .toLowerCase();
 }

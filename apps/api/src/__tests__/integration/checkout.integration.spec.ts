@@ -41,6 +41,7 @@ const mockCartItems = [
     tierMinQty: 1,
     promoSnapshot: {},
     lineTotalMinor: 2000,
+    offerId: 'offer-store-1-v1',
   },
   {
     id: 'ci-002',
@@ -52,6 +53,7 @@ const mockCartItems = [
     tierMinQty: 1,
     promoSnapshot: {},
     lineTotalMinor: 1500,
+    offerId: 'offer-store-1-v2',
   },
   {
     id: 'ci-003',
@@ -63,17 +65,35 @@ const mockCartItems = [
     tierMinQty: 1,
     promoSnapshot: {},
     lineTotalMinor: 600,
+    offerId: 'offer-store-2-v1',
   },
 ];
 
 const mockVariant = { id: VARIANT_1, productId: 'prod-001', sku: 'SKU-001', title: 'Test Product' };
-const mockProduct = { id: 'prod-001', title: 'Test Product', moq: 1 };
+const mockProduct = {
+  id: 'prod-001',
+  title: 'Test Product',
+  moq: 1,
+  storeId: null,
+  status: 'ACTIVE',
+  deletedAt: null,
+};
+const mockOffers = [
+  { id: 'offer-store-1-v1', storeId: STORE_1, productId: 'prod-001', variantId: VARIANT_1, status: 'ACTIVE', isAvailable: true, moq: 1, orderIncrement: 1, currency: 'SAR', priceListId: null, warehouseId: null, basePriceMinor: 200, compareAtPriceMinor: null, leadTimeDays: null },
+  { id: 'offer-store-1-v2', storeId: STORE_1, productId: 'prod-001', variantId: VARIANT_2, status: 'ACTIVE', isAvailable: true, moq: 1, orderIncrement: 1, currency: 'SAR', priceListId: null, warehouseId: null, basePriceMinor: 300, compareAtPriceMinor: null, leadTimeDays: null },
+  { id: 'offer-store-2-v1', storeId: STORE_2, productId: 'prod-001', variantId: VARIANT_1, status: 'ACTIVE', isAvailable: true, moq: 1, orderIncrement: 1, currency: 'SAR', priceListId: null, warehouseId: null, basePriceMinor: 200, compareAtPriceMinor: null, leadTimeDays: null },
+];
 
 // ── Mock Builder ──────────────────────────────────────────────────
 
 function createMocks() {
   const insertValues = vi.fn().mockResolvedValue(undefined);
-  const updateWhere = vi.fn().mockResolvedValue(undefined);
+  const forUpdateRows: unknown[][] = [[mockProduct], mockOffers];
+  const forUpdate = vi.fn().mockImplementation(async () => forUpdateRows.shift() ?? []);
+  const updateWhere = vi.fn().mockImplementation(() => Object.assign(
+    Promise.resolve(undefined),
+    { returning: vi.fn().mockResolvedValue([{ id: 'updated-row' }]) },
+  ));
   const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
 
   const db = {
@@ -82,6 +102,7 @@ function createMocks() {
     select: vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
+          for: forUpdate,
           orderBy: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }),
         }),
       }),
@@ -96,18 +117,32 @@ function createMocks() {
       orderItems: { findMany: vi.fn() },
       orderFinancialBreakdown: { findFirst: vi.fn() },
       orderStatusHistory: { findMany: vi.fn() },
-      productVariants: { findFirst: vi.fn() },
+      productVariants: {
+        findFirst: vi.fn(),
+        findMany: vi.fn().mockResolvedValue([
+          { id: VARIANT_1, productId: 'prod-001', isActive: true },
+          { id: VARIANT_2, productId: 'prod-001', isActive: true },
+        ]),
+      },
+      merchantOffers: { findMany: vi.fn().mockResolvedValue(mockOffers) },
       products: { findFirst: vi.fn() },
-      // A2-4: checkout snapshots each supplier's currency, and the read paths
-      // name the seller. Default to "nothing readable" so a test that does not
-      // care still exercises the honest branch.
-      stores: { findMany: vi.fn().mockResolvedValue([]) },
+      // Checkout fixtures use two active, verified stores by default. Tests
+      // covering unreadable seller metadata explicitly override this with [].
+      stores: {
+        // Most checkout cases use STORE_1 only; multi-store cases override this fixture.
+        findMany: vi.fn().mockResolvedValue([
+          { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+        ]),
+      },
       // A4-4: transitions now consult the stock ledger before writing the status.
       stockMovements: { findMany: vi.fn().mockResolvedValue([]) },
     },
   };
 
-  const mockDbService = { db } as any;
+  const mockDbService = {
+    db,
+    withActorContext: vi.fn(async (_actor: unknown, operation: () => Promise<unknown>) => operation()),
+  } as any;
   const mockOutbox = { publish: vi.fn().mockResolvedValue(undefined) } as any;
   const mockPromotions = {
     resolveApplicable: vi.fn().mockResolvedValue(null),
@@ -117,12 +152,28 @@ function createMocks() {
       .mockResolvedValue({ redemptionId: 'redemption-001', discountMinor: 0 }),
   } as any;
 
-  return { db, mockDbService, mockOutbox, mockPromotions, insertValues, updateSet, updateWhere };
+  return {
+    db,
+    mockDbService,
+    mockOutbox,
+    mockPromotions,
+    insertValues,
+    updateSet,
+    updateWhere,
+    forUpdate,
+    forUpdateRows,
+  };
 }
 
 function createService(mocks: ReturnType<typeof createMocks>) {
   return new OrdersService(mocks.mockDbService, mocks.mockOutbox, mocks.mockPromotions);
 }
+
+function checkoutAsBuyer(service: OrdersService, input: any) {
+  return service.checkout(input, { sub: BUYER_ID, role: 'BUYER' });
+}
+
+
 
 // ═══════════════════════════════════════════════════════════════════
 // Tests
@@ -142,7 +193,7 @@ describe('Checkout Integration', () => {
       mocks.db.query.carts.findFirst.mockResolvedValue(undefined);
 
       await expect(
-        service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } }),
+        checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } }),
       ).rejects.toThrow('No active cart found');
     });
 
@@ -151,7 +202,7 @@ describe('Checkout Integration', () => {
       mocks.db.query.cartItems.findMany.mockResolvedValue([]);
 
       await expect(
-        service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } }),
+        checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } }),
       ).rejects.toThrow('Cart is empty');
     });
   });
@@ -162,10 +213,55 @@ describe('Checkout Integration', () => {
       mocks.db.query.cartItems.findMany.mockResolvedValue([mockCartItems[0]]);
       mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
       mocks.db.query.products.findFirst.mockResolvedValue({ ...mockProduct, moq: 50 });
+      const highMoqOffer = { ...mockOffers[0]!, moq: 50 };
+      mocks.db.query.merchantOffers.findMany.mockResolvedValue([highMoqOffer]);
+      // The authoritative locked-offer read must agree with the initial offer snapshot.
+      mocks.forUpdateRows.splice(1, 1, [highMoqOffer]);
+      mocks.db.query.stores.findMany.mockResolvedValue([
+        { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+      ]);
 
       await expect(
-        service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } }),
+        checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } }),
       ).rejects.toThrow(/Minimum order quantity/);
+    });
+
+    it('revalidates locked offer terms when they change after cart validation', async () => {
+      const cartLine = { ...mockCartItems[0], offerId: 'offer-001', quantity: 8 };
+      const originalOffer = {
+        id: 'offer-001',
+        storeId: STORE_1,
+        productId: 'prod-001',
+        variantId: VARIANT_1,
+        status: 'ACTIVE',
+        isAvailable: true,
+        moq: 5,
+        orderIncrement: 3,
+        currency: 'SAR',
+        priceListId: null,
+        warehouseId: null,
+        basePriceMinor: 200,
+        compareAtPriceMinor: null,
+        leadTimeDays: null,
+      };
+      const updatedOffer = { ...originalOffer, orderIncrement: 4 };
+      mocks.db.query.carts.findFirst.mockResolvedValue(mockCart);
+      mocks.db.query.cartItems.findMany.mockResolvedValue([cartLine]);
+      mocks.db.query.merchantOffers.findMany.mockResolvedValue([originalOffer]);
+      mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
+      mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
+      // First FOR UPDATE result is the product row; second is the current offer row.
+      mocks.db.query.stores.findMany.mockResolvedValue([
+        { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+      ]);
+      mocks.forUpdateRows.splice(1, 1, [updatedOffer]);
+
+      await expect(
+        checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } }),
+      ).rejects.toThrow('increments of 4');
+
+      expect(mocks.forUpdate).toHaveBeenCalledTimes(2);
+      expect(mocks.db.insert).not.toHaveBeenCalled();
     });
 
     it('should pass when quantity meets MOQ', async () => {
@@ -173,6 +269,9 @@ describe('Checkout Integration', () => {
       mocks.db.query.cartItems.findMany.mockResolvedValue([mockCartItems[0]]);
       mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
       mocks.db.query.products.findFirst.mockResolvedValue({ ...mockProduct, moq: 5 });
+      mocks.db.query.stores.findMany.mockResolvedValue([
+        { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+      ]);
       // No idempotency key → getMasterOrder is the only findFirst call
       mocks.db.query.masterOrders.findFirst.mockResolvedValue({
         id: 'new-master',
@@ -181,7 +280,7 @@ describe('Checkout Integration', () => {
       });
       mocks.db.query.orders.findMany.mockResolvedValue([]);
 
-      const result = await service.checkout({
+      const result = await checkoutAsBuyer(service, {
         buyerId: BUYER_ID,
         deliveryAddress: { city: 'Riyadh' },
       });
@@ -195,7 +294,7 @@ describe('Checkout Integration', () => {
       mocks.db.query.masterOrders.findFirst.mockResolvedValue(existingMaster);
       mocks.db.query.orders.findMany.mockResolvedValue([]);
 
-      const result = await service.checkout({
+      const result = await checkoutAsBuyer(service, {
         buyerId: BUYER_ID,
         deliveryAddress: { city: 'Riyadh' },
         idempotencyKey: 'idem-key-001',
@@ -218,9 +317,12 @@ describe('Checkout Integration', () => {
       mocks.db.query.cartItems.findMany.mockResolvedValue([mockCartItems[0]]);
       mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
+      mocks.db.query.stores.findMany.mockResolvedValue([
+        { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+      ]);
       mocks.db.query.orders.findMany.mockResolvedValue([]);
 
-      await service.checkout({
+      await checkoutAsBuyer(service, {
         buyerId: BUYER_ID,
         deliveryAddress: { city: 'Riyadh' },
         idempotencyKey: 'idem-key-002',
@@ -242,9 +344,13 @@ describe('Checkout Integration', () => {
       mocks.db.query.cartItems.findMany.mockResolvedValue(mockCartItems);
       mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
+      mocks.db.query.stores.findMany.mockResolvedValue([
+        { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+        { id: STORE_2, currency: 'SAR', orgId: 'org-2', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+      ]);
       mocks.db.query.orders.findMany.mockResolvedValue([]);
 
-      await service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
+      await checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
 
       // master order + 2 sub-orders + items + financials + history = many inserts
       expect(mocks.db.insert.mock.calls.length).toBeGreaterThan(2);
@@ -264,7 +370,7 @@ describe('Checkout Integration', () => {
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
       mocks.db.query.orders.findMany.mockResolvedValue([]);
 
-      await service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
+      await checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
 
       // Verify update was called (cart status → CONVERTED)
       expect(mocks.db.update).toHaveBeenCalled();
@@ -284,7 +390,7 @@ describe('Checkout Integration', () => {
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
       mocks.db.query.orders.findMany.mockResolvedValue([]);
 
-      await service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
+      await checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
 
       // Checkout now writes the outbox event inside the DB transaction
       // (transactional outbox pattern) rather than calling outbox.publish().
@@ -319,7 +425,7 @@ describe('Checkout Integration', () => {
       });
       mocks.mockPromotions.calculateDiscount.mockReturnValue(500);
 
-      await service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
+      await checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
 
       // netGoods = 1500; VAT = round(1500 * 0.15) = 225; total = 1725.
       const orderRow = findInsert(mocks.insertValues.mock.calls, 'totalMinor');
@@ -364,7 +470,7 @@ describe('Checkout Integration', () => {
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
       mocks.db.query.orders.findMany.mockResolvedValue([]);
 
-      await service.checkout({
+      await checkoutAsBuyer(service, {
         buyerId: BUYER_ID,
         deliveryAddress: { city: 'Riyadh' },
         fulfillmentMethod: 'PICKUP',
@@ -396,7 +502,7 @@ describe('Checkout Integration', () => {
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
       mocks.db.query.orders.findMany.mockResolvedValue([]);
 
-      return service.checkout({ buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
+      return checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
     };
 
     const insertedOrders = () =>
@@ -404,10 +510,10 @@ describe('Checkout Integration', () => {
         .map((c: any[]) => c[0])
         .filter((v: any) => v && 'currency' in v);
 
-    it('records each supplier\'s own currency on its own sub-order', async () => {
+    it("records each supplier's own currency on its own sub-order", async () => {
       mocks.db.query.stores.findMany.mockResolvedValue([
-        { id: STORE_1, currency: 'SAR' },
-        { id: STORE_2, currency: 'AED' },
+        { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+        { id: STORE_2, currency: 'AED', orgId: 'org-2', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
       ]);
 
       await runCheckout();
@@ -421,8 +527,12 @@ describe('Checkout Integration', () => {
     });
 
     it('stores nothing rather than a guessed code', async () => {
-      // An unreadable seller row must not silently become "SAR" on the invoice.
-      mocks.db.query.stores.findMany.mockResolvedValue([]);
+      // The seller is still present and eligible; only its currency is unknown.
+      // Do not invent a currency code for the invoice snapshot.
+      mocks.db.query.stores.findMany.mockResolvedValue([
+        { id: STORE_1, currency: null, orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+        { id: STORE_2, currency: null, orgId: 'org-2', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+      ]);
 
       await runCheckout();
 

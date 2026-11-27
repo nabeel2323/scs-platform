@@ -44,7 +44,8 @@ describe('admin moderation on PostgreSQL', () => {
     for (const file of (await readdir(migrations)).filter(file => file.endsWith('.sql') && !excluded.includes(file)).sort()) {
       await pool.query(await readFile(path.join(migrations, file), 'utf8'));
     }
-    const database = { db } as DatabaseService;
+    const database = new DatabaseService();
+    database.db = db;
     const taxonomyService = new CatalogTaxonomyService(database);
     merchant = new MerchantService(database, { publish: vi.fn() } as any, storage as any);
     catalog = new CatalogService(database, {} as any, { publish: vi.fn() } as any, storage as any, { record: vi.fn() } as any, { evaluate: () => ({ effects: new Map(), errors: [] }) } as any, taxonomyService, {} as any, {} as any, {} as any);
@@ -67,6 +68,10 @@ describe('admin moderation on PostgreSQL', () => {
       await db.insert(auditLogs).values({ id, actorType: 'ADMIN', action: label, resource: 'product', actorId, createdAt: date });
     }
   }, 180_000);
+  function adminActor() {
+    return { sub: actorId, role: 'ADMIN', activeOrg: null };
+  }
+
   afterAll(async () => { await pool?.end(); await container?.stop(); }, 30_000);
 
   it.each(Object.keys(adminTables) as AdminTable[])('%s searches and paginates beyond fifty with stable sorts', async name => {
@@ -158,7 +163,7 @@ describe('admin moderation on PostgreSQL', () => {
     const before = await db.select().from(products);
     const listed = await listAdminTable(db, 'products', { storeId, hasImages: 'true' });
     expect(listed.data.find(row => row['id'] === eligible[0])?.['imageCount']).toBe(1);
-    expect((await catalog.getProductDetail(mediaOnly)).imageCount).toBe(1);
+    expect((await catalog.getProductDetail(mediaOnly, adminActor())).imageCount).toBe(1);
     const result = await merchant.reviewVerification(requestId, actorId, 'APPROVED', 'Reviewed');
     expect(result.autoActivatedProductCount).toBe(3);
     const after = await db.select().from(products);
@@ -174,7 +179,7 @@ describe('admin moderation on PostgreSQL', () => {
     const future = await product(storeId);
     expect((await db.select().from(products).where(eq(products.id, future)))[0]?.status).toBe('DRAFT');
     await expect(merchant.reviewVerification(requestId, actorId, 'APPROVED')).rejects.toThrow('already resolved');
-    await expect(catalog.getProductDetail(invalid[9]!)).rejects.toThrow();
+    await expect(catalog.getProductDetail(invalid[9]!, adminActor())).rejects.toThrow();
   });
 
   it.each(['REJECTED', 'REVISION'] as const)('%s leaves drafts unchanged', async decision => {
@@ -217,12 +222,12 @@ describe('admin moderation on PostgreSQL', () => {
     const variant = randomUUID();
     await db.insert(productVariants).values({ id: variant, productId: id, sku: variant, images: ['products/test/variant.png'] });
     storage.createPresignedGetUrl.mockClear();
-    const previews = await admin.productMediaPreviews(id);
+    const previews = await admin.productMediaPreviews(id, adminActor());
     expect(Object.keys(previews.previews).sort()).toEqual(['products/test/a.png', 'products/test/variant.png']);
     expect(storage.createPresignedGetUrl).toHaveBeenCalledTimes(2);
     await admin.moderateProduct(id, 'ARCHIVED');
     await expect(admin.moderateProduct(id, 'APPROVED')).rejects.toThrow();
-    await expect(admin.productMediaPreviews(id)).rejects.toThrow();
-    await expect(catalog.getProductDetail(randomUUID())).rejects.toThrow();
+    await expect(admin.productMediaPreviews(id, adminActor())).rejects.toThrow();
+    await expect(catalog.getProductDetail(randomUUID(), adminActor())).rejects.toThrow();
   });
 });

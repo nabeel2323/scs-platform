@@ -33,7 +33,10 @@ function createMocks() {
     select: vi.fn(),
   };
 
-  const mockDb = { db } as any;
+  const mockDb = {
+    db,
+    withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()),
+  } as any;
   const mockStorage = { createPresignedGetUrl: vi.fn() } as any;
   const mockNotifications = { send: vi.fn().mockResolvedValue(undefined) } as any;
 
@@ -66,8 +69,17 @@ describe('AdminService.reviewOrgUpdateRequest', () => {
     mocks.updateReturning.mockResolvedValue([{ ...pendingRequest, status: 'APPROVED' }]);
   });
 
+  function reviewRequest(
+    requestId: string,
+    actorId: string,
+    decision: 'APPROVED' | 'REJECTED',
+    notes?: string,
+  ) {
+    return service.reviewOrgUpdateRequest(requestId, actorId, decision, notes, 'ADMIN', null);
+  }
+
   it('applies the payload to the organization on APPROVED', async () => {
-    const result = await service.reviewOrgUpdateRequest('req-1', 'admin-1', 'APPROVED', 'Looks good');
+    const result = await reviewRequest('req-1', 'admin-1', 'APPROVED', 'Looks good');
 
     // First update = organizations (payload applied), second = the request row
     expect(mocks.db.update).toHaveBeenCalledTimes(2);
@@ -75,7 +87,7 @@ describe('AdminService.reviewOrgUpdateRequest', () => {
   });
 
   it('sends org_update.approved notification on APPROVED', async () => {
-    await service.reviewOrgUpdateRequest('req-1', 'admin-1', 'APPROVED', 'Looks good');
+    await reviewRequest('req-1', 'admin-1', 'APPROVED', 'Looks good');
 
     expect(mocks.mockNotifications.send).toHaveBeenCalledWith(
       'user-1',
@@ -87,7 +99,7 @@ describe('AdminService.reviewOrgUpdateRequest', () => {
   it('sends org_update.rejected notification on REJECTED', async () => {
     mocks.updateReturning.mockResolvedValue([{ ...pendingRequest, status: 'REJECTED' }]);
 
-    await service.reviewOrgUpdateRequest('req-1', 'admin-1', 'REJECTED', 'Invalid tax ID');
+    await reviewRequest('req-1', 'admin-1', 'REJECTED', 'Invalid tax ID');
 
     expect(mocks.mockNotifications.send).toHaveBeenCalledWith(
       'user-1',
@@ -99,7 +111,7 @@ describe('AdminService.reviewOrgUpdateRequest', () => {
   it('does not touch the organization on REJECTED', async () => {
     mocks.updateReturning.mockResolvedValue([{ ...pendingRequest, status: 'REJECTED' }]);
 
-    await service.reviewOrgUpdateRequest('req-1', 'admin-1', 'REJECTED', 'Invalid tax ID');
+    await reviewRequest('req-1', 'admin-1', 'REJECTED', 'Invalid tax ID');
 
     // Only the request row is updated
     expect(mocks.db.update).toHaveBeenCalledTimes(1);
@@ -108,14 +120,14 @@ describe('AdminService.reviewOrgUpdateRequest', () => {
   it('throws NotFoundException for unknown request', async () => {
     mocks.findFirstUpdateReq.mockResolvedValue(undefined);
 
-    await expect(service.reviewOrgUpdateRequest('missing', 'admin-1', 'APPROVED'))
+    await expect(reviewRequest('missing', 'admin-1', 'APPROVED'))
       .rejects.toThrow(NotFoundException);
   });
 
   it('throws BadRequestException when the request was already decided', async () => {
     mocks.findFirstUpdateReq.mockResolvedValue({ ...pendingRequest, status: 'APPROVED' });
 
-    await expect(service.reviewOrgUpdateRequest('req-1', 'admin-1', 'APPROVED'))
+    await expect(reviewRequest('req-1', 'admin-1', 'APPROVED'))
       .rejects.toThrow(BadRequestException);
     expect(mocks.db.update).not.toHaveBeenCalled();
   });
@@ -123,7 +135,7 @@ describe('AdminService.reviewOrgUpdateRequest', () => {
   it('throws BadRequestException when the approved payload has no applicable fields', async () => {
     mocks.findFirstUpdateReq.mockResolvedValue({ ...pendingRequest, payload: {} });
 
-    await expect(service.reviewOrgUpdateRequest('req-1', 'admin-1', 'APPROVED'))
+    await expect(reviewRequest('req-1', 'admin-1', 'APPROVED'))
       .rejects.toThrow(BadRequestException);
     expect(mocks.db.update).not.toHaveBeenCalled();
   });

@@ -19,12 +19,14 @@
  *   Local Windows: Docker Desktop port-mapping bug → fall back to direct
  *   connection on the dedicated scs-b21-pg container (port 15432).
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { Pool } from 'pg';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from '../../drizzle/schema';
 import { DatabaseService } from '../../common/database/database.service';
+import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
+import { ShippingCarrierWorker } from '../../modules/shipping/shipping-carrier.worker';
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -56,6 +58,7 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
   const buyerA = randomUUID();
   const storeA = randomUUID();
   const storeB = randomUUID();
+  const webhookCredentialId = randomUUID();
 
   const CARRIER_MASTER_KEY = randomBytes(32).toString('hex');
 
@@ -92,38 +95,84 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
     (database as any).db = db;
 
     // Run migrations
-    const files = fs.readdirSync(MIGRATIONS_DIR)
-      .filter(f => f.endsWith('.sql') && !EXCLUDED.has(f))
+    const files = fs
+      .readdirSync(MIGRATIONS_DIR)
+      .filter((f) => f.endsWith('.sql') && !EXCLUDED.has(f))
       .sort();
-    await pool.query(`CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`);
+    await pool.query(
+      `CREATE TABLE IF NOT EXISTS _migration_log (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`,
+    );
     for (const file of files) {
       const sqlContent = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
       await pool.query('BEGIN');
-      try { await pool.query(sqlContent); await pool.query(`INSERT INTO _migration_log (name) VALUES ($1)`, [file]); await pool.query('COMMIT'); }
-      catch { await pool.query('ROLLBACK'); }
+      try {
+        await pool.query(sqlContent);
+        await pool.query(`INSERT INTO _migration_log (name) VALUES ($1)`, [file]);
+        await pool.query('COMMIT');
+      } catch {
+        await pool.query('ROLLBACK');
+      }
     }
 
     // Seed RBAC
     const client = await pool.connect();
-    try { await seedPlatformRbac(client); } finally { client.release(); }
+    try {
+      await seedPlatformRbac(client);
+    } finally {
+      client.release();
+    }
 
     // Create test orgs, users, stores
     const rolesRes = await pool.query(`SELECT id, key FROM roles`);
     const roleById = new Map(rolesRes.rows.map((r: any) => [r.key, r.id] as const));
 
-    await pool.query(`INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Org A', 'SA')`, [orgA]);
-    await pool.query(`INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Org B', 'SA')`, [orgB]);
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Merchant A', '+966500000001')`, [merchantA]);
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Merchant B', '+966500000002')`, [merchantB]);
-    await pool.query(`INSERT INTO users (id, full_name, phone) VALUES ($1, 'Buyer A', '+966500000099')`, [buyerA]);
-    await pool.query(`INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`, [randomUUID(), orgA, merchantA, roleById.get('MERCHANT_OWNER')]);
-    await pool.query(`INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`, [randomUUID(), orgB, merchantB, roleById.get('MERCHANT_OWNER')]);
-    await pool.query(`INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-a', 'Store A', 'APPROVED')`, [storeA, orgA]);
-    await pool.query(`INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-b', 'Store B', 'APPROVED')`, [storeB, orgB]);
+    await pool.query(
+      `INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Org A', 'SA')`,
+      [orgA],
+    );
+    await pool.query(
+      `INSERT INTO organizations (id, type, name, country) VALUES ($1, 'WHOLESALER', 'Org B', 'SA')`,
+      [orgB],
+    );
+    await pool.query(
+      `INSERT INTO users (id, full_name, phone) VALUES ($1, 'Merchant A', '+966500000001')`,
+      [merchantA],
+    );
+    await pool.query(
+      `INSERT INTO users (id, full_name, phone) VALUES ($1, 'Merchant B', '+966500000002')`,
+      [merchantB],
+    );
+    await pool.query(
+      `INSERT INTO users (id, full_name, phone) VALUES ($1, 'Buyer A', '+966500000099')`,
+      [buyerA],
+    );
+    await pool.query(
+      `INSERT INTO carrier_credentials (id, org_id, provider_key, environment, label, credentials_encrypted, created_by)
+       VALUES ($1, $2, 'aramex', 'production', 'Webhook dedup fixture', 'fixture-encrypted', $3)`,
+      [webhookCredentialId, orgA, merchantA],
+    );
+    await pool.query(
+      `INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`,
+      [randomUUID(), orgA, merchantA, roleById.get('MERCHANT_OWNER')],
+    );
+    await pool.query(
+      `INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE')`,
+      [randomUUID(), orgB, merchantB, roleById.get('MERCHANT_OWNER')],
+    );
+    await pool.query(
+      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-a', 'Store A', 'APPROVED')`,
+      [storeA, orgA],
+    );
+    await pool.query(
+      `INSERT INTO stores (id, org_id, slug, display_name, status) VALUES ($1, $2, 'store-b', 'Store B', 'APPROVED')`,
+      [storeB, orgB],
+    );
   }, 180_000);
 
   afterAll(async () => {
-    try { await pool?.query(`DROP DATABASE IF EXISTS ${testDbName}`); } catch {}
+    try {
+      await pool?.query(`DROP DATABASE IF EXISTS ${testDbName}`);
+    } catch {}
     await pool?.end();
     await adminPool?.query(`DROP DATABASE IF EXISTS ${testDbName}`).catch(() => {});
     await adminPool?.end();
@@ -131,11 +180,92 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
     delete process.env['CARRIER_CREDENTIALS_MASTER_KEY'];
   }, 30_000);
 
+  // ── C-00: Production poller ownership boundary ─────────────────────────
+
+  it('C-00: invokes both production pollers and keeps carrier events exclusively with ShippingCarrierWorker', async () => {
+    // Isolate this ownership assertion from any pending rows created by other
+    // fixtures in this per-suite database.
+    await pool.query(`DELETE FROM outbox_events WHERE status IN ('PENDING', 'PROCESSING')`);
+
+    const carrierEventId = randomUUID();
+    const genericEventId = randomUUID();
+
+    await pool.query(
+      `INSERT INTO outbox_events (id, event_type, aggregate_id, payload, status)
+       VALUES ($1, 'shipping.carrier.unsupported.integration-test', $2, '{}', 'PENDING')`,
+      [carrierEventId, randomUUID()],
+    );
+    await pool.query(
+      `INSERT INTO outbox_events (id, event_type, aggregate_id, payload, status)
+       VALUES ($1, 'integration.generic.ownership-test', $2, '{}', 'PENDING')`,
+      [genericEventId, randomUUID()],
+    );
+
+    // The generic dispatcher is intentionally a write-only outbox provider
+    // until a real delivery adapter is configured. Initialization must not
+    // poll or acknowledge either generic or carrier events.
+    const dispatcher = new OutboxDispatcher(database);
+    dispatcher.onModuleInit();
+
+    const afterGeneric = await pool.query(
+      `SELECT id, status, attempts FROM outbox_events WHERE id = ANY($1::uuid[])`,
+      [[carrierEventId, genericEventId]],
+    );
+    const genericRow = afterGeneric.rows.find((row: any) => row.id === genericEventId);
+    const carrierAfterGeneric = afterGeneric.rows.find((row: any) => row.id === carrierEventId);
+    expect(genericRow.status).toBe('PENDING');
+    expect(Number(genericRow.attempts)).toBe(0);
+    expect(carrierAfterGeneric.status).toBe('PENDING');
+    expect(Number(carrierAfterGeneric.attempts)).toBe(0);
+
+    // Exercise only the dedicated carrier poll method. The unsupported carrier
+    // event deliberately fails safely into retry rather than being acknowledged.
+    const worker = Object.create(ShippingCarrierWorker.prototype) as any;
+    worker.db = database;
+    worker.workerId = 'integration-carrier-owner';
+    worker.running = false;
+    worker.logger = {
+      log: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    };
+    worker.retryPolicy = {
+      classify: vi.fn(() => ({
+        isFinal: false,
+        safeMessage: 'unsupported carrier event type (integration test)',
+        nextAttemptAt: new Date(Date.now() + 30_000),
+      })),
+    };
+
+    await worker.poll();
+
+    const afterCarrier = await pool.query(
+      `SELECT id, status, attempts, locked_at, locked_by
+       FROM outbox_events WHERE id = ANY($1::uuid[])`,
+      [[carrierEventId, genericEventId]],
+    );
+    const carrierRow = afterCarrier.rows.find((row: any) => row.id === carrierEventId);
+    const genericAfterCarrier = afterCarrier.rows.find((row: any) => row.id === genericEventId);
+
+    expect(carrierRow.status).toBe('PENDING');
+    expect(Number(carrierRow.attempts)).toBe(1);
+    expect(carrierRow.locked_at).toBeNull();
+    expect(carrierRow.locked_by).toBeNull();
+    expect(genericAfterCarrier.status).toBe('PENDING');
+    expect(worker.retryPolicy.classify).toHaveBeenCalledTimes(1);
+    expect(worker.retryPolicy.classify.mock.calls[0][0].message).toContain(
+      'shipping.carrier.unsupported.integration-test',
+    );
+  });
+
   // ── C-01: Atomic Claiming (FOR UPDATE SKIP LOCKED) ─────────────────────
 
   it('C-01: outbox atomic claiming uses FOR UPDATE SKIP LOCKED', async () => {
-    // Insert 3 pending carrier events
+    // Insert carrier and non-carrier events in the same outbox table.
+    // The two pollers must partition this set without overlap.
     const eventIds = [randomUUID(), randomUUID(), randomUUID()];
+    const nonCarrierIds = [randomUUID(), randomUUID()];
     for (const id of eventIds) {
       await pool.query(
         `INSERT INTO outbox_events (id, event_type, aggregate_id, payload, status)
@@ -143,11 +273,21 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
         [id, randomUUID()],
       );
     }
+    for (const [id, eventType] of nonCarrierIds.map(
+      (id, index) => [id, index === 0 ? 'order.created' : 'return.created'] as const,
+    )) {
+      await pool.query(
+        `INSERT INTO outbox_events (id, event_type, aggregate_id, payload, status)
+         VALUES ($1, $2, $3, '{}', 'PENDING')`,
+        [id, eventType, randomUUID()],
+      );
+    }
 
     // Claim events using the same SQL the worker uses
     const workerId = 'test-worker-1';
     const now = new Date();
-    const result = await pool.query(`
+    const result = await pool.query(
+      `
       UPDATE outbox_events
       SET status = 'PROCESSING', locked_at = NOW(), locked_by = $1
       WHERE id IN (
@@ -160,7 +300,9 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
         FOR UPDATE SKIP LOCKED
       )
       RETURNING id, status, locked_by
-    `, [workerId, now]);
+    `,
+      [workerId, now],
+    );
 
     expect(result.rows.length).toBe(3);
     for (const row of result.rows) {
@@ -169,7 +311,8 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
     }
 
     // Second claim should find nothing
-    const second = await pool.query(`
+    const second = await pool.query(
+      `
       UPDATE outbox_events
       SET status = 'PROCESSING', locked_at = NOW(), locked_by = $1
       WHERE id IN (
@@ -182,9 +325,37 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
         FOR UPDATE SKIP LOCKED
       )
       RETURNING id
-    `, [workerId, now]);
+    `,
+      [workerId, now],
+    );
 
     expect(second.rows.length).toBe(0);
+
+    // The generic dispatcher consumes only the non-carrier subset. It must
+    // leave carrier events in PROCESSING for the dedicated worker.
+    const generic = await pool.query(
+      `
+      UPDATE outbox_events
+      SET status = 'DISPATCHED'
+      WHERE id = ANY($1::uuid[])
+        AND status = 'PENDING'
+        AND event_type NOT LIKE 'shipping.carrier.%'
+      RETURNING id, event_type
+    `,
+      [nonCarrierIds],
+    );
+    expect(generic.rows).toHaveLength(2);
+    expect(generic.rows.map((row: any) => row.event_type).sort()).toEqual([
+      'order.created',
+      'return.created',
+    ]);
+
+    const carrierStates = await pool.query(
+      `SELECT status FROM outbox_events WHERE id = ANY($1::uuid[])`,
+      [eventIds],
+    );
+    expect(carrierStates.rows).toHaveLength(3);
+    expect(carrierStates.rows.every((row: any) => row.status === 'PROCESSING')).toBe(true);
   });
 
   // ── C-02: 100 Concurrent Workers vs 10 Events ─────────────────────────
@@ -206,7 +377,9 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
     const claimPromises = [];
     for (let w = 0; w < 100; w++) {
       const wid = `worker-${w}`;
-      claimPromises.push(pool.query(`
+      claimPromises.push(
+        pool.query(
+          `
         UPDATE outbox_events
         SET status = 'PROCESSING', locked_at = NOW(), locked_by = $1
         WHERE id IN (
@@ -219,7 +392,10 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
           FOR UPDATE SKIP LOCKED
         )
         RETURNING id, locked_by
-      `, [wid]));
+      `,
+          [wid],
+        ),
+      );
     }
 
     const results = await Promise.all(claimPromises);
@@ -239,27 +415,45 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
 
   // ── C-03: Lease Expiration Recovery ────────────────────────────────────
 
-  it('C-03: stale PROCESSING events are recovered', async () => {
-    const eventId = randomUUID();
-    // Insert a PROCESSING event with locked_at 10 minutes ago
+  it('C-03: stale lease recovery is restricted to carrier events', async () => {
+    const carrierEventId = randomUUID();
+    const unrelatedEventId = randomUUID();
+    // Both event families have stale PROCESSING leases.
     await pool.query(
       `INSERT INTO outbox_events (id, event_type, aggregate_id, payload, status, locked_at, locked_by, attempts)
        VALUES ($1, 'shipping.carrier.create', $2, '{}', 'PROCESSING', NOW() - INTERVAL '10 minutes', 'dead-worker', 1)`,
-      [eventId, randomUUID()],
+      [carrierEventId, randomUUID()],
+    );
+    await pool.query(
+      `INSERT INTO outbox_events (id, event_type, aggregate_id, payload, status, locked_at, locked_by, attempts)
+       VALUES ($1, 'order.created', $2, '{}', 'PROCESSING', NOW() - INTERVAL '10 minutes', 'other-worker', 1)`,
+      [unrelatedEventId, randomUUID()],
     );
 
-    // Recover stale leases (same logic as worker.recoverStaleLeases)
+    // The carrier worker may recover only its own event namespace.
     const cutoff = new Date(Date.now() - 5 * 60 * 1000); // 5 min timeout
-    const recovered = await pool.query(`
+    const recovered = await pool.query(
+      `
       UPDATE outbox_events
       SET status = 'PENDING', locked_at = NULL, locked_by = NULL, attempts = attempts + 1
-      WHERE status = 'PROCESSING' AND locked_at < $1
+      WHERE status = 'PROCESSING'
+        AND locked_at < $1
+        AND event_type LIKE 'shipping.carrier.%'
       RETURNING id, status, attempts
-    `, [cutoff]);
+    `,
+      [cutoff],
+    );
 
-    expect(recovered.rows.length).toBe(1);
+    expect(recovered.rows).toHaveLength(1);
+    expect(recovered.rows[0].id).toBe(carrierEventId);
     expect(recovered.rows[0].status).toBe('PENDING');
     expect(parseInt(recovered.rows[0].attempts)).toBe(2);
+
+    const unrelated = await pool.query(`SELECT status, attempts FROM outbox_events WHERE id = $1`, [
+      unrelatedEventId,
+    ]);
+    expect(unrelated.rows[0].status).toBe('PROCESSING');
+    expect(parseInt(unrelated.rows[0].attempts)).toBe(1);
   });
 
   // ── C-04: Dead-Letter After Max Retries ────────────────────────────────
@@ -273,9 +467,12 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
     );
 
     // Simulate the retry policy decision: at attempt 8 with max 8, mark DEAD_LETTER
-    await pool.query(`
+    await pool.query(
+      `
       UPDATE outbox_events SET status = 'DEAD_LETTER' WHERE id = $1 AND attempts >= 8
-    `, [eventId]);
+    `,
+      [eventId],
+    );
 
     const result = await pool.query(`SELECT status FROM outbox_events WHERE id = $1`, [eventId]);
     expect(result.rows[0].status).toBe('DEAD_LETTER');
@@ -288,18 +485,27 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
     const orderId = randomUUID();
     const shipmentId = randomUUID();
 
-    await pool.query(`INSERT INTO master_orders (id, buyer_id, status, delivery_address, created_at, updated_at) VALUES ($1, $2, 'ACCEPTED', '{}', NOW(), NOW())`, [masterOrderId, buyerA]);
-    await pool.query(`INSERT INTO orders (id, master_order_id, store_id, buyer_id, status, fulfillment_method, subtotal_minor, tax_minor, delivery_fee_minor, discount_minor, total_minor, currency, created_at, updated_at) VALUES ($1, $2, $3, $4, 'ACCEPTED', 'PLATFORM_DELIVERY', 5000, 750, 1000, 0, 6750, 'SAR', NOW(), NOW())`, [orderId, masterOrderId, storeA, buyerA]);
+    await pool.query(
+      `INSERT INTO master_orders (id, buyer_id, status, delivery_address, created_at, updated_at) VALUES ($1, $2, 'ACCEPTED', '{}', NOW(), NOW())`,
+      [masterOrderId, buyerA],
+    );
+    await pool.query(
+      `INSERT INTO orders (id, master_order_id, store_id, buyer_id, status, fulfillment_method, subtotal_minor, tax_minor, delivery_fee_minor, discount_minor, total_minor, currency, created_at, updated_at) VALUES ($1, $2, $3, $4, 'ACCEPTED', 'PLATFORM_DELIVERY', 5000, 750, 1000, 0, 6750, 'SAR', NOW(), NOW())`,
+      [orderId, masterOrderId, storeA, buyerA],
+    );
     await pool.query(
       `INSERT INTO shipments (id, order_id, store_id, status, carrier_create_status, recovery_status, next_reconciliation_at, carrier_create_error_class, shipping_provider_key, created_at, updated_at)
        VALUES ($1, $2, $3, 'PREPARING', 'RECOVERY_REQUIRED', 'PENDING_RECOVERY', NOW(), 'timeout', 'aramex', NOW(), NOW())`,
       [shipmentId, orderId, storeA],
     );
 
-    const result = await pool.query(`
+    const result = await pool.query(
+      `
       SELECT carrier_create_status, recovery_status, next_reconciliation_at, carrier_create_error_class
       FROM shipments WHERE id = $1
-    `, [shipmentId]);
+    `,
+      [shipmentId],
+    );
 
     expect(result.rows[0].carrier_create_status).toBe('RECOVERY_REQUIRED');
     expect(result.rows[0].recovery_status).toBe('PENDING_RECOVERY');
@@ -314,8 +520,14 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
     const orderId = randomUUID();
     const shipmentId = randomUUID();
 
-    await pool.query(`INSERT INTO master_orders (id, buyer_id, status, delivery_address, created_at, updated_at) VALUES ($1, $2, 'ACCEPTED', '{}', NOW(), NOW())`, [masterOrderId, buyerA]);
-    await pool.query(`INSERT INTO orders (id, master_order_id, store_id, buyer_id, status, fulfillment_method, subtotal_minor, tax_minor, delivery_fee_minor, discount_minor, total_minor, currency, created_at, updated_at) VALUES ($1, $2, $3, $4, 'ACCEPTED', 'PLATFORM_DELIVERY', 5000, 750, 1000, 0, 6750, 'SAR', NOW(), NOW())`, [orderId, masterOrderId, storeA, buyerA]);
+    await pool.query(
+      `INSERT INTO master_orders (id, buyer_id, status, delivery_address, created_at, updated_at) VALUES ($1, $2, 'ACCEPTED', '{}', NOW(), NOW())`,
+      [masterOrderId, buyerA],
+    );
+    await pool.query(
+      `INSERT INTO orders (id, master_order_id, store_id, buyer_id, status, fulfillment_method, subtotal_minor, tax_minor, delivery_fee_minor, discount_minor, total_minor, currency, created_at, updated_at) VALUES ($1, $2, $3, $4, 'ACCEPTED', 'PLATFORM_DELIVERY', 5000, 750, 1000, 0, 6750, 'SAR', NOW(), NOW())`,
+      [orderId, masterOrderId, storeA, buyerA],
+    );
     await pool.query(
       `INSERT INTO shipments (id, order_id, store_id, status, carrier_create_status, shipping_provider_key, created_at, updated_at)
        VALUES ($1, $2, $3, 'PREPARING', 'PENDING', 'aramex', NOW(), NOW())`,
@@ -323,20 +535,26 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
     );
 
     // Query for Org B's store — should not find Org A's shipment
-    const orgBShipments = await pool.query(`
+    const orgBShipments = await pool.query(
+      `
       SELECT s.id FROM shipments s
       JOIN stores st ON s.store_id = st.id
       WHERE st.org_id = $1
-    `, [orgB]);
+    `,
+      [orgB],
+    );
 
     expect(orgBShipments.rows.length).toBe(0);
 
     // Query for Org A's store — should find it
-    const orgAShipments = await pool.query(`
+    const orgAShipments = await pool.query(
+      `
       SELECT s.id FROM shipments s
       JOIN stores st ON s.store_id = st.id
       WHERE st.org_id = $1
-    `, [orgA]);
+    `,
+      [orgA],
+    );
 
     expect(orgAShipments.rows.length).toBeGreaterThan(0);
     expect(orgAShipments.rows.some((r: any) => r.id === shipmentId)).toBe(true);
@@ -344,20 +562,20 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
 
   // ── C-07: Duplicate Webhook Dedup ──────────────────────────────────────
 
-  it('C-07: duplicate webhook events are rejected by UNIQUE constraint', async () => {
+  it('C-07: duplicate webhook events are rejected by credential-scoped UNIQUE constraint', async () => {
     const webhookId = randomUUID();
     await pool.query(
-      `INSERT INTO carrier_webhook_events (id, provider_key, event_type, external_delivery_id, payload, processed)
-       VALUES ($1, 'aramex', 'status_update', 'AWB-12345', '{}', false)`,
-      [webhookId],
+      `INSERT INTO carrier_webhook_events (id, provider_key, credential_id, event_type, external_delivery_id, payload, processed)
+       VALUES ($1, 'aramex', $2, 'status_update', 'AWB-12345', '{}', false)`,
+      [webhookId, webhookCredentialId],
     );
 
     // Duplicate insert should fail
     try {
       await pool.query(
-        `INSERT INTO carrier_webhook_events (id, provider_key, event_type, external_delivery_id, payload, processed)
-         VALUES ($1, 'aramex', 'status_update', 'AWB-12345', '{}', false)`,
-        [randomUUID()],
+        `INSERT INTO carrier_webhook_events (id, provider_key, credential_id, event_type, external_delivery_id, payload, processed)
+         VALUES ($1, 'aramex', $2, 'status_update', 'AWB-12345', '{}', false)`,
+        [randomUUID(), webhookCredentialId],
       );
       expect.fail('Should have thrown unique violation');
     } catch (err: any) {
@@ -372,8 +590,14 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
     const orderId = randomUUID();
     const shipmentId = randomUUID();
 
-    await pool.query(`INSERT INTO master_orders (id, buyer_id, status, delivery_address, created_at, updated_at) VALUES ($1, $2, 'ACCEPTED', '{}', NOW(), NOW())`, [masterOrderId, buyerA]);
-    await pool.query(`INSERT INTO orders (id, master_order_id, store_id, buyer_id, status, fulfillment_method, subtotal_minor, tax_minor, delivery_fee_minor, discount_minor, total_minor, currency, created_at, updated_at) VALUES ($1, $2, $3, $4, 'ACCEPTED', 'PLATFORM_DELIVERY', 5000, 750, 1000, 0, 6750, 'SAR', NOW(), NOW())`, [orderId, masterOrderId, storeA, buyerA]);
+    await pool.query(
+      `INSERT INTO master_orders (id, buyer_id, status, delivery_address, created_at, updated_at) VALUES ($1, $2, 'ACCEPTED', '{}', NOW(), NOW())`,
+      [masterOrderId, buyerA],
+    );
+    await pool.query(
+      `INSERT INTO orders (id, master_order_id, store_id, buyer_id, status, fulfillment_method, subtotal_minor, tax_minor, delivery_fee_minor, discount_minor, total_minor, currency, created_at, updated_at) VALUES ($1, $2, $3, $4, 'ACCEPTED', 'PLATFORM_DELIVERY', 5000, 750, 1000, 0, 6750, 'SAR', NOW(), NOW())`,
+      [orderId, masterOrderId, storeA, buyerA],
+    );
     await pool.query(
       `INSERT INTO shipments (id, order_id, store_id, status, created_at, updated_at) VALUES ($1, $2, $3, 'PREPARING', NOW(), NOW())`,
       [shipmentId, orderId, storeA],
@@ -403,8 +627,14 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
     const orderId = randomUUID();
     const shipmentId = randomUUID();
 
-    await pool.query(`INSERT INTO master_orders (id, buyer_id, status, delivery_address, created_at, updated_at) VALUES ($1, $2, 'ACCEPTED', '{}', NOW(), NOW())`, [masterOrderId, buyerA]);
-    await pool.query(`INSERT INTO orders (id, master_order_id, store_id, buyer_id, status, fulfillment_method, subtotal_minor, tax_minor, delivery_fee_minor, discount_minor, total_minor, currency, created_at, updated_at) VALUES ($1, $2, $3, $4, 'ACCEPTED', 'PLATFORM_DELIVERY', 5000, 750, 1000, 0, 6750, 'SAR', NOW(), NOW())`, [orderId, masterOrderId, storeA, buyerA]);
+    await pool.query(
+      `INSERT INTO master_orders (id, buyer_id, status, delivery_address, created_at, updated_at) VALUES ($1, $2, 'ACCEPTED', '{}', NOW(), NOW())`,
+      [masterOrderId, buyerA],
+    );
+    await pool.query(
+      `INSERT INTO orders (id, master_order_id, store_id, buyer_id, status, fulfillment_method, subtotal_minor, tax_minor, delivery_fee_minor, discount_minor, total_minor, currency, created_at, updated_at) VALUES ($1, $2, $3, $4, 'ACCEPTED', 'PLATFORM_DELIVERY', 5000, 750, 1000, 0, 6750, 'SAR', NOW(), NOW())`,
+      [orderId, masterOrderId, storeA, buyerA],
+    );
     await pool.query(
       `INSERT INTO shipments (id, order_id, store_id, status, carrier_status_mapped, created_at, updated_at) VALUES ($1, $2, $3, 'PREPARING', 'IN_TRANSIT', NOW(), NOW())`,
       [shipmentId, orderId, storeA],
@@ -418,18 +648,16 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
     );
 
     // The event is persisted (data layer doesn't block)
-    const events = await pool.query(
-      `SELECT metadata FROM shipment_events WHERE shipment_id = $1`,
-      [shipmentId],
-    );
+    const events = await pool.query(`SELECT metadata FROM shipment_events WHERE shipment_id = $1`, [
+      shipmentId,
+    ]);
     expect(events.rows.length).toBe(1);
     expect(events.rows[0].metadata.carrierStatus).toBe('PICKED_UP');
 
     // But the shipment status is still IN_TRANSIT (application layer prevents backward move)
-    const shipment = await pool.query(
-      `SELECT carrier_status_mapped FROM shipments WHERE id = $1`,
-      [shipmentId],
-    );
+    const shipment = await pool.query(`SELECT carrier_status_mapped FROM shipments WHERE id = $1`, [
+      shipmentId,
+    ]);
     expect(shipment.rows[0].carrier_status_mapped).toBe('IN_TRANSIT');
   });
 
@@ -448,11 +676,23 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
     const orderId2 = randomUUID();
     const aramexShipmentId = randomUUID();
 
-    await pool.query(`INSERT INTO master_orders (id, buyer_id, status, delivery_address, created_at, updated_at) VALUES ($1, $2, 'ACCEPTED', '{}', NOW(), NOW())`, [masterOrderId1, buyerA]);
-    await pool.query(`INSERT INTO orders (id, master_order_id, store_id, buyer_id, status, fulfillment_method, subtotal_minor, tax_minor, delivery_fee_minor, discount_minor, total_minor, currency, created_at, updated_at) VALUES ($1, $2, $3, $4, 'ACCEPTED', 'PLATFORM_DELIVERY', 5000, 750, 1000, 0, 6750, 'SAR', NOW(), NOW())`, [orderId1, masterOrderId1, storeA, buyerA]);
+    await pool.query(
+      `INSERT INTO master_orders (id, buyer_id, status, delivery_address, created_at, updated_at) VALUES ($1, $2, 'ACCEPTED', '{}', NOW(), NOW())`,
+      [masterOrderId1, buyerA],
+    );
+    await pool.query(
+      `INSERT INTO orders (id, master_order_id, store_id, buyer_id, status, fulfillment_method, subtotal_minor, tax_minor, delivery_fee_minor, discount_minor, total_minor, currency, created_at, updated_at) VALUES ($1, $2, $3, $4, 'ACCEPTED', 'PLATFORM_DELIVERY', 5000, 750, 1000, 0, 6750, 'SAR', NOW(), NOW())`,
+      [orderId1, masterOrderId1, storeA, buyerA],
+    );
 
-    await pool.query(`INSERT INTO master_orders (id, buyer_id, status, delivery_address, created_at, updated_at) VALUES ($1, $2, 'ACCEPTED', '{}', NOW(), NOW())`, [masterOrderId2, buyerA]);
-    await pool.query(`INSERT INTO orders (id, master_order_id, store_id, buyer_id, status, fulfillment_method, subtotal_minor, tax_minor, delivery_fee_minor, discount_minor, total_minor, currency, created_at, updated_at) VALUES ($1, $2, $3, $4, 'ACCEPTED', 'PLATFORM_DELIVERY', 5000, 750, 1000, 0, 6750, 'SAR', NOW(), NOW())`, [orderId2, masterOrderId2, storeA, buyerA]);
+    await pool.query(
+      `INSERT INTO master_orders (id, buyer_id, status, delivery_address, created_at, updated_at) VALUES ($1, $2, 'ACCEPTED', '{}', NOW(), NOW())`,
+      [masterOrderId2, buyerA],
+    );
+    await pool.query(
+      `INSERT INTO orders (id, master_order_id, store_id, buyer_id, status, fulfillment_method, subtotal_minor, tax_minor, delivery_fee_minor, discount_minor, total_minor, currency, created_at, updated_at) VALUES ($1, $2, $3, $4, 'ACCEPTED', 'PLATFORM_DELIVERY', 5000, 750, 1000, 0, 6750, 'SAR', NOW(), NOW())`,
+      [orderId2, masterOrderId2, storeA, buyerA],
+    );
 
     // Manual provider shipment (order 1)
     await pool.query(
@@ -469,8 +709,14 @@ describe('M7.2.3-C — Carrier Operations PostgreSQL', () => {
     );
 
     // Verify they have independent states
-    const manual = await pool.query(`SELECT carrier_create_status, shipping_provider_key FROM shipments WHERE id = $1`, [manualShipmentId]);
-    const aramex = await pool.query(`SELECT carrier_create_status, shipping_provider_key FROM shipments WHERE id = $1`, [aramexShipmentId]);
+    const manual = await pool.query(
+      `SELECT carrier_create_status, shipping_provider_key FROM shipments WHERE id = $1`,
+      [manualShipmentId],
+    );
+    const aramex = await pool.query(
+      `SELECT carrier_create_status, shipping_provider_key FROM shipments WHERE id = $1`,
+      [aramexShipmentId],
+    );
 
     expect(manual.rows[0].carrier_create_status).toBe('SUCCESS');
     expect(manual.rows[0].shipping_provider_key).toBe('manual-driver');

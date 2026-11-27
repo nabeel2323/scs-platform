@@ -129,6 +129,12 @@ function createMocks(shipment: ShipmentRow, circuitBreakerOpen = false) {
       shipments: {
         findFirst: vi.fn(async () => shipment),
       },
+      stores: {
+        findFirst: vi.fn(async () => ({ orgId: 'org-001' })),
+      },
+      orders: {
+        findFirst: vi.fn(async () => ({ storeId: shipment.storeId })),
+      },
       carrierWebhookEvents: {
         findFirst: vi.fn(async () => null),
       },
@@ -149,7 +155,15 @@ function createMocks(shipment: ShipmentRow, circuitBreakerOpen = false) {
     execute: vi.fn(async () => ({ rows: [] })),
   };
 
-  const db = { db: innerDb };
+  const db = {
+    db: innerDb,
+    withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()),
+  };
+  const storage = {} as any;
+  const merchant = {
+    getStoreTenantContextForSystem: vi.fn(async () => ({ orgId: 'org-001' })),
+  };
+  const webhookRouting = {} as any;
   const registry = new ShippingProviderRegistry();
   const credentials = {} as any;
   const configurations = {} as any;
@@ -173,10 +187,26 @@ function createMocks(shipment: ShipmentRow, circuitBreakerOpen = false) {
     recordFailure: vi.fn(),
   } as unknown as CarrierCircuitBreaker;
 
-  return { db, registry, credentials, configurations, observability, emailResolver, retryPolicy, circuitBreaker, updateSets };
+  return {
+    db,
+    registry,
+    credentials,
+    configurations,
+    observability,
+    emailResolver,
+    retryPolicy,
+    circuitBreaker,
+    storage,
+    merchant,
+    webhookRouting,
+    updateSets,
+  };
 }
 
-function createWorker(mocks: ReturnType<typeof createMocks>, provider?: ShippingProvider): ShippingCarrierWorker {
+function createWorker(
+  mocks: ReturnType<typeof createMocks>,
+  provider?: ShippingProvider,
+): ShippingCarrierWorker {
   if (provider) {
     mocks.registry.register(provider);
   }
@@ -189,6 +219,9 @@ function createWorker(mocks: ReturnType<typeof createMocks>, provider?: Shipping
     mocks.emailResolver,
     mocks.retryPolicy,
     mocks.circuitBreaker,
+    mocks.storage,
+    mocks.merchant,
+    mocks.webhookRouting,
   );
 }
 
@@ -206,11 +239,41 @@ function makeEvent(overrides: Record<string, any> = {}): any {
 
 describe('B3321-U-01..05: Retryable HTTP errors → re-throw', () => {
   const retryableCases: Array<{ name: string; err: Error }> = [
-    { name: '429 RateLimitCarrierError', err: new RateLimitCarrierError('Rate limit exceeded', { providerKey: 'test-carrier', operation: 'cancelPickup' }) },
-    { name: '500 RetryableCarrierError', err: new RetryableCarrierError('Server error (HTTP 500)', { providerKey: 'test-carrier', operation: 'cancelPickup' }) },
-    { name: '502 RetryableCarrierError', err: new RetryableCarrierError('Server error (HTTP 502)', { providerKey: 'test-carrier', operation: 'cancelPickup' }) },
-    { name: '503 RetryableCarrierError', err: new RetryableCarrierError('Server error (HTTP 503)', { providerKey: 'test-carrier', operation: 'cancelPickup' }) },
-    { name: '504 RetryableCarrierError', err: new RetryableCarrierError('Server error (HTTP 504)', { providerKey: 'test-carrier', operation: 'cancelPickup' }) },
+    {
+      name: '429 RateLimitCarrierError',
+      err: new RateLimitCarrierError('Rate limit exceeded', {
+        providerKey: 'test-carrier',
+        operation: 'cancelPickup',
+      }),
+    },
+    {
+      name: '500 RetryableCarrierError',
+      err: new RetryableCarrierError('Server error (HTTP 500)', {
+        providerKey: 'test-carrier',
+        operation: 'cancelPickup',
+      }),
+    },
+    {
+      name: '502 RetryableCarrierError',
+      err: new RetryableCarrierError('Server error (HTTP 502)', {
+        providerKey: 'test-carrier',
+        operation: 'cancelPickup',
+      }),
+    },
+    {
+      name: '503 RetryableCarrierError',
+      err: new RetryableCarrierError('Server error (HTTP 503)', {
+        providerKey: 'test-carrier',
+        operation: 'cancelPickup',
+      }),
+    },
+    {
+      name: '504 RetryableCarrierError',
+      err: new RetryableCarrierError('Server error (HTTP 504)', {
+        providerKey: 'test-carrier',
+        operation: 'cancelPickup',
+      }),
+    },
   ];
 
   for (const { name, err } of retryableCases) {
@@ -234,7 +297,10 @@ describe('B3321-U-06: Retryable failure increments carrierCancelRetries', () => 
     const mocks = createMocks(shipment);
     const provider = new TestCarrierProvider();
     provider.cancelPickupMock.mockRejectedValue(
-      new RetryableCarrierError('Server error', { providerKey: 'test-carrier', operation: 'cancelPickup' }),
+      new RetryableCarrierError('Server error', {
+        providerKey: 'test-carrier',
+        operation: 'cancelPickup',
+      }),
     );
     const worker = createWorker(mocks, provider);
 
@@ -248,7 +314,10 @@ describe('B3321-U-06: Retryable failure increments carrierCancelRetries', () => 
     const mocks = createMocks(shipment);
     const provider = new TestCarrierProvider();
     provider.cancelPickupMock.mockRejectedValue(
-      new RetryableCarrierError('Server error', { providerKey: 'test-carrier', operation: 'cancelPickup' }),
+      new RetryableCarrierError('Server error', {
+        providerKey: 'test-carrier',
+        operation: 'cancelPickup',
+      }),
     );
     const worker = createWorker(mocks, provider);
 
@@ -283,7 +352,10 @@ describe('B3321-U-08: Terminal failure does NOT increment retry counter', () => 
     const mocks = createMocks(shipment);
     const provider = new TestCarrierProvider();
     provider.cancelPickupMock.mockRejectedValue(
-      new AuthenticationCarrierError('Invalid API key', { providerKey: 'test-carrier', operation: 'cancelPickup' }),
+      new AuthenticationCarrierError('Invalid API key', {
+        providerKey: 'test-carrier',
+        operation: 'cancelPickup',
+      }),
     );
     const worker = createWorker(mocks, provider);
 
@@ -298,10 +370,34 @@ describe('B3321-U-08: Terminal failure does NOT increment retry counter', () => 
 
 describe('B3321-U-09..14: Terminal errors → FAILED, no throw', () => {
   const terminalCases: Array<{ name: string; err: Error }> = [
-    { name: '401 AuthenticationCarrierError', err: new AuthenticationCarrierError('Auth failed', { providerKey: 'test-carrier', operation: 'cancelPickup' }) },
-    { name: '403 AuthenticationCarrierError', err: new AuthenticationCarrierError('Forbidden', { providerKey: 'test-carrier', operation: 'cancelPickup' }) },
-    { name: '404 NonRetryableCarrierError', err: new NonRetryableCarrierError('Not found', { providerKey: 'test-carrier', operation: 'cancelPickup' }) },
-    { name: 'ValidationCarrierError', err: new ValidationCarrierError('Bad input', { providerKey: 'test-carrier', operation: 'cancelPickup' }) },
+    {
+      name: '401 AuthenticationCarrierError',
+      err: new AuthenticationCarrierError('Auth failed', {
+        providerKey: 'test-carrier',
+        operation: 'cancelPickup',
+      }),
+    },
+    {
+      name: '403 AuthenticationCarrierError',
+      err: new AuthenticationCarrierError('Forbidden', {
+        providerKey: 'test-carrier',
+        operation: 'cancelPickup',
+      }),
+    },
+    {
+      name: '404 NonRetryableCarrierError',
+      err: new NonRetryableCarrierError('Not found', {
+        providerKey: 'test-carrier',
+        operation: 'cancelPickup',
+      }),
+    },
+    {
+      name: 'ValidationCarrierError',
+      err: new ValidationCarrierError('Bad input', {
+        providerKey: 'test-carrier',
+        operation: 'cancelPickup',
+      }),
+    },
   ];
 
   for (const { name, err } of terminalCases) {
@@ -324,7 +420,11 @@ describe('B3321-U-09..14: Terminal errors → FAILED, no throw', () => {
     const shipment = makeShipment();
     const mocks = createMocks(shipment);
     const provider = new TestCarrierProvider();
-    provider.cancelPickupMock.mockResolvedValue({ supported: true, cancelled: false, reason: 'Pickup already departed' });
+    provider.cancelPickupMock.mockResolvedValue({
+      supported: true,
+      cancelled: false,
+      reason: 'Pickup already departed',
+    });
     const worker = createWorker(mocks, provider);
 
     await (worker as any).handleCancel(makeEvent());
@@ -339,7 +439,10 @@ describe('B3321-U-09..14: Terminal errors → FAILED, no throw', () => {
     const mocks = createMocks(shipment);
     const provider = new TestCarrierProvider();
     provider.cancelPickupMock.mockRejectedValue(
-      new NonRetryableCarrierError('Aramex CancelPickup response missing HasErrors', { providerKey: 'test-carrier', operation: 'cancelPickup' }),
+      new NonRetryableCarrierError('Aramex CancelPickup response missing HasErrors', {
+        providerKey: 'test-carrier',
+        operation: 'cancelPickup',
+      }),
     );
     const worker = createWorker(mocks, provider);
 
@@ -407,7 +510,11 @@ describe('B3321-U-17..19: Circuit breaker OPEN → retryable, no carrier call', 
     const provider = new TestCarrierProvider();
     const worker = createWorker(mocks, provider);
 
-    try { await (worker as any).handleCancel(makeEvent()); } catch { /* expected */ }
+    try {
+      await (worker as any).handleCancel(makeEvent());
+    } catch {
+      /* expected */
+    }
 
     expect(provider.cancelPickupMock).not.toHaveBeenCalled();
   });
@@ -418,7 +525,11 @@ describe('B3321-U-17..19: Circuit breaker OPEN → retryable, no carrier call', 
     const provider = new TestCarrierProvider();
     const worker = createWorker(mocks, provider);
 
-    try { await (worker as any).handleCancel(makeEvent()); } catch { /* expected */ }
+    try {
+      await (worker as any).handleCancel(makeEvent());
+    } catch {
+      /* expected */
+    }
 
     // carrierCancelRetries stays 0 because the breaker threw before the
     // try/catch block where retries are incremented
@@ -460,7 +571,10 @@ describe('B3321-U-22..24: Retryable error persists correct state', () => {
     const mocks = createMocks(shipment);
     const provider = new TestCarrierProvider();
     provider.cancelPickupMock.mockRejectedValue(
-      new RetryableCarrierError('Server error', { providerKey: 'test-carrier', operation: 'cancelPickup' }),
+      new RetryableCarrierError('Server error', {
+        providerKey: 'test-carrier',
+        operation: 'cancelPickup',
+      }),
     );
     const worker = createWorker(mocks, provider);
 
@@ -474,7 +588,10 @@ describe('B3321-U-22..24: Retryable error persists correct state', () => {
     const mocks = createMocks(shipment);
     const provider = new TestCarrierProvider();
     provider.cancelPickupMock.mockRejectedValue(
-      new RetryableCarrierError('Server error', { providerKey: 'test-carrier', operation: 'cancelPickup' }),
+      new RetryableCarrierError('Server error', {
+        providerKey: 'test-carrier',
+        operation: 'cancelPickup',
+      }),
     );
     const worker = createWorker(mocks, provider);
 
@@ -491,7 +608,10 @@ describe('B3321-U-22..24: Retryable error persists correct state', () => {
     const mocks = createMocks(shipment);
     const provider = new TestCarrierProvider();
     provider.cancelPickupMock.mockRejectedValue(
-      new RateLimitCarrierError('Rate limited', { providerKey: 'test-carrier', operation: 'cancelPickup' }),
+      new RateLimitCarrierError('Rate limited', {
+        providerKey: 'test-carrier',
+        operation: 'cancelPickup',
+      }),
     );
     const worker = createWorker(mocks, provider);
 
@@ -509,7 +629,10 @@ describe('B3321-U-25: No credential leakage in persisted error', () => {
     const mocks = createMocks(shipment);
     const provider = new TestCarrierProvider();
     provider.cancelPickupMock.mockRejectedValue(
-      new RetryableCarrierError('Server error', { providerKey: 'test-carrier', operation: 'cancelPickup' }),
+      new RetryableCarrierError('Server error', {
+        providerKey: 'test-carrier',
+        operation: 'cancelPickup',
+      }),
     );
     const worker = createWorker(mocks, provider);
 

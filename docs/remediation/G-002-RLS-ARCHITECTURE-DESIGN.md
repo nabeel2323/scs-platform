@@ -1,0 +1,295 @@
+# G-002 — Database Access and RLS Architecture Design
+
+**Status:** PROPOSAL — read-only architecture review; not approved for deployment or shared-database mutation  
+**Finding:** G-002 — RLS disabled and excessive client-role privileges  
+**Repository:** `nabeel2323/scs-platform`  
+**Reviewed source:** PR #138 branch `remediation/phase-0-1-tenant-security` and PR #142 branch `security/runtime-db-identity-diagnostics`  
+**Last updated:** 22 November 2026
+
+## 1. Executive decision
+
+Do not enable RLS on the shared database yet.
+
+The current API uses a process-wide `DatabaseService` with a shared `pg.Pool` and Drizzle handle. Tenant authorization is primarily enforced in application services through the verified JWT caller context and helpers in `apps/api/src/common/tenant-scope.ts`. The inspected Nest middleware wiring does not establish a request-scoped database transaction or transaction-local tenant context.
+
+RLS policies that depend on a user or organization context would therefore not yet have a reliable context source for every SQL statement. Setting a session-level variable on a pooled connection would be unsafe because a later request could inherit stale tenant state. A partial conversion would also leave direct service queries and background workers outside the intended policy boundary.
+
+The safe sequence is:
+
+1. Verify the actual API and migration identities through the controlled release path.
+2. Complete a table-by-table access and ownership inventory.
+3. Implement a transaction-bound database context that every relevant query path uses.
+4. Prove the context and policies using a non-owner, non-superuser, non-BYPASSRLS PostgreSQL role.
+5. Roll out RLS in reviewed table groups only after independent review and explicit staging authorization.
+
+This document records a proposed target architecture and current evidence. It does not authorize a deployment, grant change, RLS migration, or production/staging database mutation.
+
+## 2. Evidence reviewed
+
+### 2.1 API database access
+
+- `DatabaseModule` is global and provides one `DatabaseService`.
+- `DatabaseService` constructs a process-wide `pg.Pool` and Drizzle database handle.
+- `app.module.ts` registers request-ID and audit middleware, but the inspected middleware does not open a database transaction or bind a transaction handle to the authenticated request.
+- `tenant-scope.ts` implements application-level checks using `CallerContext` fields `sub`, `role` and `activeOrg`. It resolves ownership through organization, store, warehouse, product, variant, inventory and order relationships.
+- The current model is direct API-to-PostgreSQL access. The API's JWT identity is managed by the SCS identity module; the reviewed code does not establish Supabase Auth `auth.uid()` as the API identity source.
+- The source reviewed does not show a universal request-scoped transaction/context mechanism. This is a blocker to RLS activation, not proof that every query is currently tenant-unsafe; existing service guards and query predicates remain the first authorization layer.
+
+### 2.2 Runtime identity diagnostics
+
+PR #142 adds a non-secret identity query through the API's own pool. It reports login/effective role names, database name, elevated role flags and TLS state. Diagnostic failure is non-fatal and uses a fixed warning without printing connection details.
+
+The PR #142 unit tests cover success, missing metadata and diagnostic failure. The PostgreSQL integration test added on 22 November exercises the query against disposable PostgreSQL 16 using distinct login and effective roles, a non-owner/non-superuser/non-BYPASSRLS login, and a test-only password. Exact-head CI #44953735602 passed on source SHA dddff20c170737dc4694008bb807b2b90e177f77. This verifies the test against disposable PostgreSQL only; it is not live staging identity evidence.
+
+The migration runner on PR #138 queries identity through the exact client that applies migrations. Its unit test covers metadata, no-row and query-failure behavior.
+
+### 2.3 Read-only audit utility
+
+The utility `apps/api/scripts/audit-db-access.ts` opens a transaction with `BEGIN READ ONLY` and reports role attributes, table/sequence/schema privileges, default ACLs, RLS coverage, function exposure, extension ownership and visible connection metadata. It does not read application rows or print the connection string.
+
+PR #138 CI creates a separate `scs_audit` login with `NOSUPERUSER`, `NOBYPASSRLS`, `NOCREATEDB`, `NOCREATEROLE` and `NOINHERIT`, grants only database CONNECT, then runs the audit against disposable PostgreSQL 16. The job passed. The observed audit identity was `scs_audit`, with superuser/BYPASSRLS/role-creation/database-creation flags false. This demonstrates catalog inspection by a least-privilege audit login in CI; it is not evidence about the live Supabase or Render credentials.
+
+The same CI migration job logged the migration runner identity as `scs` with superuser and BYPASSRLS privileges. That is the disposable CI migration fixture identity and must not be substituted for the staging migration identity.
+
+### 2.4 Migration 0070
+
+`infra/drizzle/migrations/0070_public_access_and_function_search_path_hardening.sql` revokes table and sequence privileges from `anon` and `authenticated`, adjusts default privileges for the role executing the migration, and pins `public.normalize_arabic(text)` to `pg_catalog`.
+
+Migration 0070 deliberately does not enable RLS and does not change `service_role`. It is a separate privilege-hardening change. It must not be applied to a shared database until the actual migration owner and the expected default-ACL scope are verified.
+
+## 3. Target database role model
+
+The following is a proposed logical separation. Final role names, ownership and grants require the actual staging inventory and independent review.
+
+- **Schema/migration owner:** owns application objects and applies reviewed DDL. It must not be the API runtime credential. Its login/role attributes and default-ACL scope must be explicit.
+- **API runtime login:** a non-owner role with `NOSUPERUSER`, `NOBYPASSRLS`, `NOCREATEDB` and `NOCREATEROLE`. It receives only the table, sequence and function privileges required by API behavior.
+- **Worker identity:** preferably separated from the request-serving API identity if operational topology permits. If workers remain embedded in the API process, their database context and allowed operations must be explicit and independently tested.
+- **Audit identity:** read-only catalog visibility sufficient to inspect security metadata, without application-row access or schema mutation. The CI `scs_audit` role is a test fixture, not a proposed production credential.
+- **Supabase-managed roles:** `anon`, `authenticated`, `service_role`, `authenticator` and managed owner roles remain platform-managed. Do not change managed ownership or broad default ACLs without platform-owner approval.
+
+The API should continue to authenticate users through the SCS identity/JWT model. Do not assume `auth.uid()` or PostgREST role switching is available to direct Drizzle connections.
+
+## 4. Transaction-bound tenant context
+
+### 4.1 Required behavior
+
+For every authenticated HTTP operation that touches tenant-owned data:
+
+1. Validate the SCS JWT and resolve `sub`, role and active organization server-side.
+2. Begin a database transaction on one checked-out pool client.
+3. Set transaction-local context using parameterized `set_config(name, value, true)` calls (or equivalent `SET LOCAL`). Candidate keys are `app.actor_id`, `app.actor_role`, `app.active_org_id` and `app.actor_kind`.
+4. Execute every service query for that request through the same transaction-bound Drizzle handle.
+5. Commit or roll back before releasing the client to the pool.
+
+The third `set_config` argument must be `true`, so values are transaction-local and are automatically cleared by commit/rollback. Do not use session-level `SET` or `set_config(..., false)` for tenant identity.
+
+A request-scoped object or AsyncLocalStorage may carry the transaction handle, but it is not sufficient by itself: services must actually use the transaction-bound handle rather than falling back to the global `DatabaseService.db`.
+
+### 4.2 Non-HTTP execution paths
+
+- Public/anonymous catalog reads need an explicit anonymous context with no actor or organization identity and narrowly defined public-read policies.
+- Queue/outbox handlers, schedulers, webhooks and embedded workers need explicit service context and operation scopes. They must not inherit a previous HTTP request's tenant context.
+- Audit middleware writes that happen after the response finishes must use a separate, explicitly scoped transaction. They must not depend on a request transaction that has already committed.
+- Bootstrap and migration paths use their own reviewed identities and must not be routed through tenant-user policies by accident.
+
+### 4.3 Failure behavior
+
+- Missing actor/organization context must fail closed for tenant-owned rows.
+- Context must be established after BEGIN and before the first application query.
+- Any error must roll back and release the same client.
+- Pool-reuse tests must prove that a transaction for Tenant A cannot leak context to the next transaction for Tenant B or an anonymous caller.
+- No policy may trust client-supplied organization headers or an unverified JWT claim.
+
+Custom GUCs are a useful defense against accidental query omissions, but values set by the API login can be changed by code running under that same login. RLS therefore complements, rather than replaces, SQL-injection prevention, parameterization, least privilege and application authorization.
+
+## 5. Initial ownership classification
+
+This is an initial module-level inventory based on the Drizzle schema and inspected tenant-scope helpers. The companion G-002-TABLE-OWNERSHIP-MATRIX.md enumerates the 99 named tables exported through apps/api/src/drizzle/schema.ts on the reviewed branch. This is not the complete live 116-table inventory and is not yet an operation-by-operation access matrix. Each table still needs exact column/FK, route, worker and ownership-path evidence before a policy is approved.
+
+- **Identity and organization:** `users`, `sessions`, `device_credentials`, `credential_audit_log`, `account_link_log`, `organizations`, `organization_members` and `organization_update_requests`. Candidate ownership is user ID or organization ID; authentication/session records are private to the subject user and platform security workflows.
+- **Merchant and store:** `stores` are organization-owned; `warehouses`, `store_members`, shipping methods and delivery zones are store-owned; business documents and verification requests carry organization/store ownership and may contain restricted evidence.
+- **Catalog and offers:** products and merchant offers are store-owned; variants and media inherit product ownership; import jobs are store-owned and chunks/errors inherit the import job. Categories, brands, product types, attribute definitions/options/groups and taxonomy mappings need an explicit shared-versus-store-owned decision; do not infer public writability from public read visibility.
+- **Inventory and pricing:** inventory items inherit warehouse/store ownership; stock movements inherit inventory-item ownership. Price lists are store-owned and tiers inherit the price list. Promotions are store-owned; redemptions inherit promotion/order ownership and also reference the user.
+- **Cart and orders:** carts are user-owned; cart items inherit cart ownership and are also bound to a store/offer. Master orders are buyer-owned; sub-orders are jointly visible to the buyer and the fulfilling store organization. Order items, financial breakdowns and status history inherit the parent order's access rules.
+- **Payments and financial records:** payment records/refunds inherit order and buyer ownership; payment events inherit payment-record ownership. Settlement records are store/merchant financial records. Settlement adjustments, approvals, reconciliation runs and discrepancies require explicit organization, finance-role and dual-approval predicates.
+- **Shipping and delivery:** shipments inherit order/store access; shipment events, labels and delivery proofs inherit shipment access. Driver profiles and carrier credentials/configuration have organization/store scope. Carrier webhook payloads and raw event data are operationally sensitive and should be worker/admin-only.
+- **Reviews and support:** reviews have reviewer and subject visibility rules; disputes inherit order participants and resolution roles; conversations are participant-owned; messages inherit conversation membership.
+- **Notifications and analytics:** notifications, preferences and device tokens are user-owned. Analytics events may be user- and organization-associated and require aggregation/privacy rules before buyer/merchant access.
+- **Audit and operations:** audit logs inherit actor/organization and resource restrictions; outbox events and worker leases are operational service data; operations controls are platform-admin-only; organization-scoped alerts and pilot allowlists need separate admin/worker predicates.
+- **Platform/system data:** RBAC roles/permissions, bootstrap authorizations, global feature flags, shared taxonomy and business calendars require explicit platform-admin/service policies. They must not be swept into a generic tenant policy.
+
+## 6. Required table-by-table access matrix
+
+For every physical table (including tables not exported through the Drizzle schema barrel), record:
+
+- owning module and whether the table is application, platform, extension or migration/system data;
+- direct owner columns and indirect foreign-key ownership path;
+- every API route and service operation that reads, inserts, updates or deletes it;
+- worker, webhook, scheduler, bootstrap and migration access paths;
+- public/anonymous read requirements, if any;
+- buyer, merchant-owner, merchant-staff, finance and platform-admin row predicates;
+- whether a row is immutable/audited or contains secrets, payment, identity or operational payloads;
+- foreign-key cascade behavior, views, functions, triggers, sequences and partition behavior;
+- required SQL privileges separately from row policies;
+- positive and negative PostgreSQL tests for every role and operation.
+
+The final matrix must reconcile the 99-table Drizzle export with the last detailed 114-public-relation inventory and resolve the separate 116-table count appearing in older summary wording. The scope of the 116 count is unknown and must not be treated as a verified public-schema total. A refreshed protected catalog audit must enumerate schemas, relation kinds, partitions and migration/system objects before the inventory is marked complete. The companion matrix deliberately marks every candidate classification as unverified until direct columns, FK paths and operation evidence are added.
+
+## 7. Required isolated PostgreSQL acceptance tests
+
+Before any staging RLS change, tests must use an API role that is not an owner and has no superuser or BYPASSRLS capability.
+
+Required cases:
+
+1. Tenant A can access its own organization/store rows and cannot read or mutate Tenant B rows.
+2. A buyer can access only their own cart, orders, payment/return records and allowed public catalog rows.
+3. Merchant owner/staff access is restricted by both organization and active store membership where the application model requires it.
+4. Public reads expose only explicitly approved ACTIVE catalog/store projections.
+5. Missing context, malformed context and unknown roles return no tenant-owned rows and cannot write them.
+6. A transaction for Tenant A followed by Tenant B on a reused pool connection proves no context leakage.
+7. Rollback and thrown exceptions clear transaction-local settings.
+8. Worker, outbox, webhook, audit, bootstrap and migration paths have explicit operation-specific access.
+9. Views, functions, sequences, partitions, default ACLs and foreign-key cascades do not bypass the intended policy.
+10. Existing application integration suites pass with the non-owner API role and RLS enabled in the isolated test database.
+
+## 8. Rollout gates
+
+1. Complete and independently review the refreshed catalog operation/ownership matrix after resolving the 114-versus-116 relation-count discrepancy.
+2. Obtain actual API and migration identity evidence through the protected release path. CI identities are not substitutes.
+3. Implement and test the transaction-bound context mechanism without enabling RLS.
+4. Prove application compatibility under the proposed non-owner API role and minimal grants.
+5. Enable policies in isolated PostgreSQL and pass positive/negative role tests, pool-reuse tests and all API integration suites.
+6. Review migration ordering, rollback/recovery, extension/function ownership and service-worker paths.
+7. Obtain explicit staging authorization and a controlled maintenance/release window.
+8. Apply only the reviewed migration set, verify access audit and application health, then decide whether to proceed to further table groups.
+
+## 9. Current blockers and explicit non-actions
+
+- PR #138 and PR #142 remain draft and unmerged.
+- PR #138 CI proves the migration and audit workflow against disposable PostgreSQL only.
+- PR #142 CI proves the API identity query and its unit/integration tests against disposable PostgreSQL only.
+- The staging Render service remains on `develop` with auto-deploy disabled. No diagnostic startup output from the remediation branch exists in staging.
+- The protected `workflow_dispatch` database audit is not available until the workflow revision is present on the default branch and the staging environment approval is granted.
+- The connected Supabase Management API `postgres` identity is not the API or migration runtime identity.
+- No staging deployment, environment change, shared database write, migration 0070 application, grant/default-ACL mutation, RLS enablement or worker activation is performed or authorized by this design.
+
+## 10. Next implementation sequence
+
+1. Finish PR #142's real-PostgreSQL identity query test and verify its exact-head CI.
+2. Keep the API/migration identity diagnostics as separate evidence streams.
+3. Expand the schema inventory into the required operation/ownership matrix, starting with identity, merchant/store, catalog/offers, inventory/pricing and orders/financial tables.
+4. Design the transaction-bound Drizzle context and worker context contracts, then implement them behind tests before adding policies.
+5. Obtain independent review of the role model, context mechanism and first policy group before any staging release or shared-database change.
+
+## 9. CI verification checkpoint — 22 November 2026
+
+- PR #138 exact-head CI [#44954371615](https://github.com/nabeel2323/scs-platform/actions/runs/44954371615) passed all executable jobs on 741a09f68721898a5bed6601bc3bc636867c78c2; k6 and protected staging release were skipped.
+- PR #142 exact-head CI [#44953735602](https://github.com/nabeel2323/scs-platform/actions/runs/44953735602) passed all executable jobs on dddff20c170737dc4694008bb807b2b90e177f77, including the new real-PostgreSQL identity integration test; k6 and protected staging release were skipped.
+- Both PRs remain open, draft and unmerged. CI verification is limited to disposable environments. Actual staging API/migration identities remain unverified.
+- G-001 remains PARTIAL pending independent security review. G-002 remains IN PROGRESS pending live identity evidence, refreshed protected read-only inventory, completed operation matrix, transaction-bound context, isolated RLS tests and approval.
+
+## Initial database access-path inventory — 22 November 2026
+
+A bounded static review of all 53 module service/worker/provider files plus DatabaseService, audit middleware/service, guards, AppModule and main.ts is recorded in docs/remediation/G-002-DATABASE-ACCESS-PATH-INVENTORY-2026-11-22.md. The reviewed module queries consistently use the singleton DatabaseService.db Drizzle handle, including raw db.execute(sql...) operations; several services already open nested transactions. AuditLogMiddleware writes asynchronously after response completion, and workers/monitors/bootstrap paths run outside HTTP request context. DatabaseService uses a separate PoolClient for development/test migrations and RBAC seeding; the runtime identity diagnostic logs role flags, but live staging identity remains unverified. This inventory is preliminary: it does not prove all CLI/script paths or exact per-table operation ownership. Do not implement a global request transaction or enable RLS until the blockers in the inventory are closed.
+
+
+## 11. Scoped transaction-context implementation update — 24 November 2026
+
+The active PR #138 source now contains an opt-in actor-context primitive in `DatabaseService`. It uses typed principals (`anonymous`, `user`, `worker`, `system`, `bootstrap`, `audit`), parameterized transaction-local `set_config(..., true)` values for actor ID, role, active organization, actor kind and worker ID, and an AsyncLocalStorage-backed Drizzle handle. Nested calls reuse the active transaction only for an identical actor. The scope is marked inactive after commit/rollback so detached work inheriting the ALS store cannot query through a closed transaction.
+
+The interceptor is deliberately not global. It is applied only to source-reviewed, JWT-protected bounded surfaces, including Notifications, Pricing, Store Membership, Reviews/Disputes, Promotions, Analytics, Inventory, Cart, Returns, Catalog Offers/Requests/Taxonomy, Organizations/Roles, selected Catalog read handlers and selected Admin read handlers. Actor values come from server-verified `request.user`; client-supplied tenant headers are not trusted.
+
+Other controllers and execution paths remain outside this adoption, including Auth/Profile, file/import/upload, main Orders/Payments, carrier/shipping operations, bootstrap, deferred audit middleware writes, workers/schedulers, realtime sockets, CLI and migrations. Each requires explicit principal and transaction contracts, with review for nested transactions, detached work, streaming and external I/O. Carrier context must be established only after credential authentication.
+
+This is source implementation only. Tests and CI remain deferred until implementation and cross-component integration are complete. No RLS policy, migration, shared database grant/default-ACL change, staging operation or deployment is authorized by this update.
+
+
+## 24 November 2026 — implemented opt-in transaction context and bounded HTTP rollout
+
+The initial actor-context primitive is implemented in DatabaseService and the shared `TenantDatabaseContextInterceptor` is opt-in. The primitive uses typed actor kinds (`anonymous`, `user`, `worker`, `system`, `bootstrap`, `audit`), parameterized transaction-local PostgreSQL settings (`app.actor_id`, `app.actor_role`, `app.active_org_id`, `app.actor_kind`, `app.worker_id`), and AsyncLocalStorage-backed Drizzle transaction routing. It reuses an identical actor context, rejects actor switching, and fences the ALS scope after transaction completion to prevent detached async work from querying via the expired handle.
+
+The interceptor runs after Nest guards, accepts identity only from verified `request.user`, awaits the request handler observable inside the transaction, and is never global. Bounded adoption currently covers Notifications, Pricing, Store Membership, Promotions, Reviews/Disputes, Inventory, Analytics, Catalog Offers/Requests/Taxonomy, selected Catalog/Admin reads, Cart, Returns, Organizations/Roles and selected Profile/device handlers. Credential setup/password change, AuthController, file/import/upload mutations, main Orders/Payments, carrier/shipping, bootstrap, post-response audit middleware, workers, realtime, CLI and migrations remain excluded pending separate context contracts.
+
+The promotion merchant routes also gained service-boundary caller checks for active organization and store membership; foreign detail access is normalized to not-found and update writes include the authorized store predicate.
+
+This implementation is not an RLS approval. No policy, migration, grant/default ACL, shared DB, staging or deployment change occurred. The user requires implementation/integration to complete before tests; no test or CI execution is authorized during this phase. The dedicated verification campaign must later cover nested savepoints, transaction rollback, actor switching, detached tasks, pool reuse, cross-tenant isolation, route coverage and worker/system identities.
+
+
+## 24 November 2026 — explicit worker, bootstrap and deferred-audit principals
+
+The actor-context foundation now has explicit entry points for:
+
+- Authenticated bounded HTTP handlers through the controller/method-scoped interceptor.
+- AutoCompleteWorker and OutboxDispatcher through per-operation `worker` contexts. Outbox dispatch is outside the transaction; claim/ack/retry DB phases are inside.
+- CarrierTrackingPoller through short worker contexts for claim and DB persistence/bridge phases. The carrier provider call remains outside the transaction.
+- AuditLogMiddleware through a separate `audit` context and short transaction created in the response-finish callback.
+- BootstrapService through `anonymous` status-read and `bootstrap` provisioning contexts, plus the operator CLI through transaction-local bootstrap settings.
+
+ReturnExpirationWorker remains outside because lease/fencing semantics must not be enclosed by a full-batch transaction; ShippingCarrierWorker remains outside because of external carrier/storage I/O. The context must not be applied across provider calls. A carrier webhook actor must be created only after the credential guard has verified the credential and authoritative organization.
+
+This remains partial implementation. No RLS policy, migration, grants/default ACL, shared database write, staging write, deployment or worker activation was performed. Testing and CI remain deferred by user instruction.
+
+
+## 24 November 2026 — post-authentication carrier webhook and system contexts
+
+CarrierWebhookController performs credential lookup, secret decryption and HMAC verification before creating a tenant actor context. Once the signature is valid, each database phase is wrapped with a worker principal whose worker ID includes the credential ID and whose active organization comes from the verified credential row. The payload is never used to choose the organization. The context is scoped around deduplication, routing, event state and retry outbox operations; responses are sent after the DB phase commits.
+
+The system now also has explicit actor-context entry points for AutoCompleteWorker, OutboxDispatcher, CarrierTrackingPoller, AuditLogMiddleware and BootstrapService/CLI. External carrier calls remain outside transactions. ReturnExpirationWorker and ShippingCarrierWorker are not yet adopted; their lease/fencing and provider/storage lifetimes require separate designs. Realtime sockets remain a separate channel.
+
+
+## 12. Expanded bounded route and execution-context adoption — 24 November 2026
+
+The actor-context primitive is now applied beyond the initial request controllers. Bounded authenticated surfaces include Notifications, Pricing, Store Membership, Promotions, Reviews/Disputes, Inventory, Analytics, Catalog Offers/Requests/Taxonomy, selected Catalog/Admin reads, Cart, Returns, Organizations/Roles, bounded Profile/device/session routes, selected Orders reads/preview/reorder/DB-only lifecycle operations, and bounded Merchant store/customer/warehouse/verification operations.
+
+Execution-context adoption includes:
+- Worker contexts for OutboxDispatcher, AutoCompleteWorker, ReturnExpirationWorker, CarrierTrackingPoller and ShippingCarrierWorker. ShippingCarrierWorker's direct DB operations and tenant/credential routing lookups use short worker scopes; carrier API and object-storage calls remain outside transactions.
+- Credential-scoped carrier webhook context only after credential/HMAC authentication.
+- Anonymous/bootstrap contexts for BootstrapService status, post-OTP authorization persistence, initial Super Admin provisioning and operator token CLI.
+- A separate audit actor transaction for deferred AuditLogMiddleware response-finish writes.
+- Verified socket-user actor context for RealtimeGateway room authorization.
+
+Orders reject/cancel/refund and actual checkout remain excluded where payment/provider lifecycles are involved. Merchant document presign/list/upload operations remain excluded where storage I/O may be involved. Auth/OTP and credential/password setup/change remain pending a DB-only boundary design.
+
+The user instruction remains: finish implementation and integration before running tests. No tests/CI, RLS, shared DB mutation, migration, grant/default-ACL change, staging action, deployment or worker activation was performed. G-002 remains IN PROGRESS, not VERIFIED.
+
+## 4.4 Pre-authentication identity resolution principal — 24 November 2026
+
+DatabaseService has a narrow `authentication` actor kind for account/session resolution before a verified user principal exists. It carries no actor ID, role, active organization or worker identity. It requires one fixed operation label: `phone_otp_login`, `email_otp_login`, `password_login`, `refresh_token` or `logout`. The label is set transaction-locally as `app.auth_operation` and participates in context validation and nested-scope equality.
+
+- Phone/email OTP: Redis challenge consumption stays outside. Account lookup/create and claims resolution use the fixed authentication operation. Once role/org claims are resolved, session insertion and device-credential issuance run in a verified user actor transaction.
+- Password login: rate limiting and bcrypt comparison stay outside. Post-password claims resolution uses the authentication operation; device-credential validation and trusted session insertion/anchor update use the user actor.
+- Refresh: initial session lookup and claims resolution use the authentication operation. A user actor transaction conditionally revokes the still-active old session, inserts its replacement and validates/anchors device trust. A zero-row conditional revoke rejects a concurrent rotation. JWT signing remains outside.
+- Refresh reuse and logout: resolve session owner first, then perform owner-bound session/device-credential revocations under the user actor. Logout's revocations share one DB-only transaction; unknown tokens remain non-disclosing.
+- OTP Redis, rate limits, bcrypt, provider delivery, external audit side effects and JWT signing remain outside database actor transactions.
+
+This context is a future RLS policy input, not a privilege grant. Future table-specific policies must allow only the minimum operation-specific reads and narrowly required OTP account creation; they must not allow general identity CRUD. No RLS policy, grant, migration or shared database change is introduced.
+
+## Payments bounded read-route actor context — 24 November 2026
+
+Source commit: `7f56e5185cf1a7c7b6954845ca9151aac83c5ac6`.
+
+Added `TenantDatabaseContextInterceptor` to eight JWT-protected, database-only GET handlers in PaymentsController: buyer payment detail (including order ownership, payment events and refunds), admin requested-refund queue, payment list, verification queue, stale payments, settlement list, merchant payment list and merchant settlement list. The existing service-layer object/tenant authorization and permission guards remain in place. No payment/refund/provider mutation route, file upload route or storage operation was wrapped. Added a controller metadata regression test for the interceptor allowlist; it has not been run.
+
+This is method-scoped transaction context only. It does not enable RLS or change grants.
+
+## Payments DB-only mutation route actor context — 24 November 2026
+
+Source commit: `22f14b0e14bf8ca8ddd2eb578b59d3f3ae5f9b50`.
+
+Added the verified user actor interceptor to four Payments POST handlers whose inspected service call graphs perform database transactions, append payment events and write outbox rows without calling payment/refund providers or object storage: COD cash confirmation, bank-transfer proof verification decision, settlement calculation and settlement-paid recording. Existing permission guards, service-level object/store authorization, row locks, optimistic state predicates and transactional outbox writes remain authoritative. The actor context wraps the complete awaited method; nested Drizzle transactions remain inside that scope.
+
+Explicitly excluded: bank-transfer proof upload (object storage), refund request/approval/retry (refund lifecycle), payment-provider operations, checkout and order cancellation/rejection paths. The controller metadata test now covers 12 Payments routes (eight GET and four DB-only POST); it remains unexecuted.
+
+
+## 25 November 2026 — current-source actor-context reconciliation
+
+This source review supersedes the earlier 24-November statements that ReturnExpirationWorker, ShippingCarrierWorker and realtime socket authorization were unwrapped. Current PR #138 code now shows:
+
+- `ReturnExpirationWorker` uses a dedicated worker principal for lease acquire/renew/fence, pause checks, claim SQL, each per-return processing operation, alerting and cycle recording. It scopes per item rather than wrapping the whole batch, preserving lease/fencing behavior.
+- `ShippingCarrierWorker` has a `withWorkerContext` wrapper around its database-only lease recovery, claim, shipment/credential lookup, persistence and acknowledgement operations. Provider HTTP and storage operations remain outside database transactions; tenant organization context is supplied where derived from authoritative shipment/store/credential rows.
+- `RealtimeGateway` uses a verified socket-user actor around store/order room authorization queries after connection authentication; room membership still requires permission plus the relevant ownership/membership/assignment checks.
+- `P13MonitorService`, `OpsAlertService`, `OpsControlService` and `PilotControlService` use explicit worker/system/user/audit scopes for their database operations. `IdentityService` uses operation-specific authentication contexts for OTP, email OTP, password login, refresh and logout. `ProfileController`, `OrdersController` and `PaymentsController` select the scoped tenant interceptor for authenticated routes.
+- `OrdersService` and `PaymentsService` also establish explicit user/worker scopes at their internal operation boundaries; service methods that rely on an enclosing verified HTTP/worker scope must be reviewed for every non-controller callsite.
+- Catalog import's DB-only phases use caller context; object storage, workbook parsing/generation and other external I/O remain outside actor transactions.
+
+This is static source evidence only. No tests or CI were run for PR #138 during this review. Do not infer that all 53 candidate paths are fully proven: the remaining work is a complete cached-handle/detached-task/nested-scope audit, method-level table/operation/ownership predicate review, FK cross-column consistency, and protected live API/migration identity plus relation-kind inventory. The historical 114 public relation snapshot, current 100 pgTable declarations and unexplained 116 count remain distinct. No RLS, grants, migration, shared/staging database or deployment action occurred.

@@ -32,8 +32,9 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { DatabaseService } from '../../../common/database/database.service';
+import { IdentityService } from '../../identity/index';
 import { CarrierCredentialsService } from '../carrier-credentials.service';
 import { CarrierConfigurationsService } from '../carrier-configurations.service';
 import { CarrierEmailResolver } from '../carrier-email-resolver';
@@ -119,8 +120,8 @@ export class AramexProvider extends ShippingProvider {
 
   readonly capabilities: ProviderCapabilities = {
     canCreateShipment: true,
-    canCancel: false,          // Aramex has NO CancelShipment API
-    canCancelPickup: true,     // Aramex supports CancelPickup
+    canCancel: false, // Aramex has NO CancelShipment API
+    canCancelPickup: true, // Aramex supports CancelPickup
     canGenerateLabel: true,
     canTrack: true,
     canValidateAddress: true,
@@ -131,6 +132,7 @@ export class AramexProvider extends ShippingProvider {
 
   constructor(
     private readonly db: DatabaseService,
+    private readonly identity: IdentityService,
     private readonly credentials: CarrierCredentialsService,
     private readonly configurations: CarrierConfigurationsService,
     private readonly emailResolver: CarrierEmailResolver,
@@ -162,7 +164,10 @@ export class AramexProvider extends ShippingProvider {
       const existingShipment = await this.db.db.query.shipments.findFirst({
         where: eq(shipments.id, request.shipmentId),
       });
-      if (existingShipment?.carrierCreateStatus === 'SUCCESS' && existingShipment.carrierShipmentId) {
+      if (
+        existingShipment?.carrierCreateStatus === 'SUCCESS' &&
+        existingShipment.carrierShipmentId
+      ) {
         return {
           providerKey: this.key,
           carrierShipmentId: existingShipment.carrierShipmentId,
@@ -179,10 +184,10 @@ export class AramexProvider extends ShippingProvider {
       // 3. Resolve shipping endpoint
       const shippingBaseUrl = resolveCarrierEndpoint('shipping', payload, primaryUrl);
       if (!shippingBaseUrl) {
-        throw new NonRetryableCarrierError(
-          'No shipping endpoint configured for Aramex',
-          { providerKey: this.key, operation: 'createShipment' },
-        );
+        throw new NonRetryableCarrierError('No shipping endpoint configured for Aramex', {
+          providerKey: this.key,
+          operation: 'createShipment',
+        });
       }
 
       // 4. Resolve consignee email
@@ -191,7 +196,10 @@ export class AramexProvider extends ShippingProvider {
       // 5. Build Aramex request
       const idempotencyKey = request.idempotencyKey || generateIdempotencyKey(request.shipmentId);
       const aramexRequest = this.buildCreateShipmentsRequest(
-        clientInfo, request, resolvedEmail.email, idempotencyKey,
+        clientInfo,
+        request,
+        resolvedEmail.email,
+        idempotencyKey,
       );
 
       // 6. HTTP call
@@ -244,7 +252,6 @@ export class AramexProvider extends ShippingProvider {
           correlationId,
         },
       };
-
     } catch (err) {
       this.observability.logComplete({
         context: ctx,
@@ -279,10 +286,10 @@ export class AramexProvider extends ShippingProvider {
       where: eq(shipments.id, shipmentId),
     });
     if (!shipment) {
-      throw new NonRetryableCarrierError(
-        `Shipment ${shipmentId} not found`,
-        { providerKey: this.key, operation: 'generateLabel' },
-      );
+      throw new NonRetryableCarrierError(`Shipment ${shipmentId} not found`, {
+        providerKey: this.key,
+        operation: 'generateLabel',
+      });
     }
     if (!shipment.carrierShipmentId) {
       throw new NonRetryableCarrierError(
@@ -296,10 +303,10 @@ export class AramexProvider extends ShippingProvider {
 
     const shippingBaseUrl = resolveCarrierEndpoint('shipping', payload, primaryUrl);
     if (!shippingBaseUrl) {
-      throw new NonRetryableCarrierError(
-        'No shipping endpoint configured for Aramex',
-        { providerKey: this.key, operation: 'generateLabel' },
-      );
+      throw new NonRetryableCarrierError('No shipping endpoint configured for Aramex', {
+        providerKey: this.key,
+        operation: 'generateLabel',
+      });
     }
 
     const printLabelRequest: AramexPrintLabelRequest = {
@@ -324,10 +331,10 @@ export class AramexProvider extends ShippingProvider {
 
     const labelUrl = response.body.ShipmentLabel?.LabelURL;
     if (!labelUrl) {
-      throw new NonRetryableCarrierError(
-        'Aramex PrintLabel response missing LabelURL',
-        { providerKey: this.key, operation: 'generateLabel' },
-      );
+      throw new NonRetryableCarrierError('Aramex PrintLabel response missing LabelURL', {
+        providerKey: this.key,
+        operation: 'generateLabel',
+      });
     }
 
     return {
@@ -340,21 +347,26 @@ export class AramexProvider extends ShippingProvider {
 
   // ── Tracking (B2.13) ────────────────────────────────────────────────────
 
-  override async getTrackingInfo(trackingId: string): Promise<TrackingInfo | null> {
+  override async getTrackingInfo(
+    trackingId: string,
+    storeId?: string,
+  ): Promise<TrackingInfo | null> {
+    if (!storeId) {
+      throw new NonRetryableCarrierError('Store context is required for Aramex tracking', {
+        providerKey: this.key,
+        operation: 'getTrackingInfo',
+      });
+    }
     const correlationId = this.observability.generateCorrelationId();
-
-    // Tracking requires credentials — use a default org's credential
-    // In practice, the worker calls this with context. For direct calls,
-    // we need at least one active credential.
-    const { payload, primaryUrl } = await this.resolveAnyCredential();
+    const { payload, primaryUrl } = await this.resolveCredentials(storeId);
     const clientInfo = buildClientInfo(payload);
 
     const trackingBaseUrl = resolveCarrierEndpoint('tracking', payload, primaryUrl);
     if (!trackingBaseUrl) {
-      throw new NonRetryableCarrierError(
-        'No tracking endpoint configured for Aramex',
-        { providerKey: this.key, operation: 'getTrackingInfo' },
-      );
+      throw new NonRetryableCarrierError('No tracking endpoint configured for Aramex', {
+        providerKey: this.key,
+        operation: 'getTrackingInfo',
+      });
     }
 
     const trackRequest: AramexTrackShipmentsRequest = {
@@ -403,20 +415,23 @@ export class AramexProvider extends ShippingProvider {
   /**
    * Track multiple shipments in a single batch (for polling).
    */
-  async trackShipmentsBatch(waybillNumbers: string[]): Promise<Map<string, TrackingEvent[]>> {
+  async trackShipmentsBatch(
+    storeId: string,
+    waybillNumbers: string[],
+  ): Promise<Map<string, TrackingEvent[]>> {
     const result = new Map<string, TrackingEvent[]>();
     if (waybillNumbers.length === 0) return result;
 
     const correlationId = this.observability.generateCorrelationId();
-    const { payload, primaryUrl } = await this.resolveAnyCredential();
+    const { payload, primaryUrl } = await this.resolveCredentials(storeId);
     const clientInfo = buildClientInfo(payload);
 
     const trackingBaseUrl = resolveCarrierEndpoint('tracking', payload, primaryUrl);
     if (!trackingBaseUrl) {
-      throw new NonRetryableCarrierError(
-        'No tracking endpoint configured for Aramex',
-        { providerKey: this.key, operation: 'trackShipmentsBatch' },
-      );
+      throw new NonRetryableCarrierError('No tracking endpoint configured for Aramex', {
+        providerKey: this.key,
+        operation: 'trackShipmentsBatch',
+      });
     }
 
     const httpClient = this.createHttpClient();
@@ -438,7 +453,10 @@ export class AramexProvider extends ShippingProvider {
     if (kvResult) {
       const waybill = kvResult.Key;
       const trackingResults = kvResult.Value?.TrackingResult || [];
-      result.set(waybill, trackingResults.map((r) => this.mapTrackingResult(r)));
+      result.set(
+        waybill,
+        trackingResults.map((r) => this.mapTrackingResult(r)),
+      );
     }
 
     return result;
@@ -446,9 +464,11 @@ export class AramexProvider extends ShippingProvider {
 
   // ── Address Validation (B2.19) ──────────────────────────────────────────
 
-  override async validateAddress(address: ShippingAddress): Promise<boolean> {
+  override async validateAddress(address: ShippingAddress, storeId?: string): Promise<boolean> {
     const correlationId = this.observability.generateCorrelationId();
-    const { payload, primaryUrl } = await this.resolveAnyCredential();
+    const { payload, primaryUrl } = storeId
+      ? await this.resolveCredentials(storeId)
+      : await this.resolvePlatformCredential();
     const clientInfo = buildClientInfo(payload);
 
     const locationBaseUrl = resolveCarrierEndpoint('location', payload, primaryUrl);
@@ -504,20 +524,22 @@ export class AramexProvider extends ShippingProvider {
     paymentType: string;
     currency: string;
     numberOfPieces?: number;
+    storeId: string;
     credentialId?: string;
   }): Promise<AramexRateResult> {
     const correlationId = this.observability.generateCorrelationId();
-    const { payload, primaryUrl } = params.credentialId
-      ? await this.resolveCredentialsById(params.credentialId)
-      : await this.resolveAnyCredential();
+    const { payload, primaryUrl } = await this.resolveCredentials(
+      params.storeId,
+      params.credentialId,
+    );
     const clientInfo = buildClientInfo(payload);
 
     const ratingBaseUrl = resolveCarrierEndpoint('rating', payload, primaryUrl);
     if (!ratingBaseUrl) {
-      throw new NonRetryableCarrierError(
-        'No rating endpoint configured for Aramex',
-        { providerKey: this.key, operation: 'calculateRate' },
-      );
+      throw new NonRetryableCarrierError('No rating endpoint configured for Aramex', {
+        providerKey: this.key,
+        operation: 'calculateRate',
+      });
     }
 
     const rateRequest: AramexCalculateRateRequest = {
@@ -605,10 +627,10 @@ export class AramexProvider extends ShippingProvider {
 
     const shippingBaseUrl = resolveCarrierEndpoint('shipping', payload, primaryUrl);
     if (!shippingBaseUrl) {
-      throw new NonRetryableCarrierError(
-        'No shipping endpoint configured for Aramex',
-        { providerKey: this.key, operation: 'createPickup' },
-      );
+      throw new NonRetryableCarrierError('No shipping endpoint configured for Aramex', {
+        providerKey: this.key,
+        operation: 'createPickup',
+      });
     }
 
     const pickupRequest: AramexCreatePickupRequest = {
@@ -676,10 +698,10 @@ export class AramexProvider extends ShippingProvider {
 
     const shippingBaseUrl = resolveCarrierEndpoint('shipping', payload, primaryUrl);
     if (!shippingBaseUrl) {
-      throw new NonRetryableCarrierError(
-        'No shipping endpoint configured for Aramex',
-        { providerKey: this.key, operation: 'cancelPickup' },
-      );
+      throw new NonRetryableCarrierError('No shipping endpoint configured for Aramex', {
+        providerKey: this.key,
+        operation: 'cancelPickup',
+      });
     }
 
     const cancelRequest: AramexCancelPickupRequest = {
@@ -704,15 +726,11 @@ export class AramexProvider extends ShippingProvider {
     // CarrierHttpClient.parseBody() returns the raw string on JSON parse failure,
     // so body may be a string/primitive/null rather than a structured object.
     // Without this check, a malformed response would be silently treated as success.
-    if (
-      typeof body !== 'object' ||
-      body === null ||
-      typeof body.HasErrors !== 'boolean'
-    ) {
-      throw new NonRetryableCarrierError(
-        'Aramex CancelPickup response missing HasErrors',
-        { providerKey: this.key, operation: 'cancelPickup' },
-      );
+    if (typeof body !== 'object' || body === null || typeof body.HasErrors !== 'boolean') {
+      throw new NonRetryableCarrierError('Aramex CancelPickup response missing HasErrors', {
+        providerKey: this.key,
+        operation: 'cancelPickup',
+      });
     }
 
     if (body.HasErrors) {
@@ -737,19 +755,28 @@ export class AramexProvider extends ShippingProvider {
 
   async fetchCountries(storeId: string): Promise<AramexFetchCountriesResponse> {
     return this.locationRequest<AramexFetchCountriesResponse>(
-      'FetchCountries', 'fetchCountries', {}, storeId,
+      'FetchCountries',
+      'fetchCountries',
+      {},
+      storeId,
     );
   }
 
   async fetchCities(countryCode: string, storeId: string): Promise<AramexFetchCitiesResponse> {
     return this.locationRequest<AramexFetchCitiesResponse>(
-      'FetchCities', 'fetchCities', { CountryCode: countryCode }, storeId,
+      'FetchCities',
+      'fetchCities',
+      { CountryCode: countryCode },
+      storeId,
     );
   }
 
   async fetchOffices(storeId: string): Promise<AramexFetchOfficesResponse> {
     return this.locationRequest<AramexFetchOfficesResponse>(
-      'FetchOffices', 'fetchOffices', {}, storeId,
+      'FetchOffices',
+      'fetchOffices',
+      {},
+      storeId,
     );
   }
 
@@ -770,7 +797,9 @@ export class AramexProvider extends ShippingProvider {
     // Determine product type/group
     const productType = request.serviceType || 'OND';
     const productGroup = this.inferProductGroupFromAddresses(
-      request.senderAddress?.country, addr.country, productType,
+      request.senderAddress?.country,
+      addr.country,
+      productType,
     );
 
     // Determine payment type
@@ -837,10 +866,10 @@ export class AramexProvider extends ShippingProvider {
     // COD (optional) — minor units → major units
     if (isCod && request.codAmountMinor !== undefined) {
       if (request.codAmountMinor < 0) {
-        throw new ValidationCarrierError(
-          'COD amount cannot be negative',
-          { providerKey: this.key, operation: 'createShipment' },
-        );
+        throw new ValidationCarrierError('COD amount cannot be negative', {
+          providerKey: this.key,
+          operation: 'createShipment',
+        });
       }
       shipment.CashOnDeliveryAmount = {
         CurrencyCode: currency,
@@ -884,141 +913,181 @@ export class AramexProvider extends ShippingProvider {
   /**
    * Convert Aramex notifications into the appropriate CarrierError.
    */
-  private throwFromNotifications(
-    notifications: AramexNotification[],
-    operation: string,
-  ): never {
+  private throwFromNotifications(notifications: AramexNotification[], operation: string): never {
     const messages = notifications.map((n) => n.Message).join('; ');
     const codes = notifications.map((n) => n.Code).join(',');
 
     // Check for throttling indicators
     const isThrottled = notifications.some((n) =>
-      ARAMEX_THROTTLE_INDICATORS.some((indicator) =>
-        n.Message.toLowerCase().includes(indicator) ||
-        n.Code.toLowerCase().includes(indicator),
+      ARAMEX_THROTTLE_INDICATORS.some(
+        (indicator) =>
+          n.Message.toLowerCase().includes(indicator) || n.Code.toLowerCase().includes(indicator),
       ),
     );
     if (isThrottled) {
-      throw new RateLimitCarrierError(
-        `Aramex throttling detected: ${messages}`,
-        { providerKey: this.key, operation, carrierCode: codes },
-      );
+      throw new RateLimitCarrierError(`Aramex throttling detected: ${messages}`, {
+        providerKey: this.key,
+        operation,
+        carrierCode: codes,
+      });
     }
 
     // Check for authentication errors
     const isAuth = notifications.some((n) =>
-      /invalid.*credential|unauthorized|authentication|invalid.*password|invalid.*username|invalid.*account/i.test(n.Message),
+      /invalid.*credential|unauthorized|authentication|invalid.*password|invalid.*username|invalid.*account/i.test(
+        n.Message,
+      ),
     );
     if (isAuth) {
-      throw new AuthenticationCarrierError(
-        `Aramex authentication error: ${messages}`,
-        { providerKey: this.key, operation, carrierCode: codes },
-      );
+      throw new AuthenticationCarrierError(`Aramex authentication error: ${messages}`, {
+        providerKey: this.key,
+        operation,
+        carrierCode: codes,
+      });
     }
 
     // Check for validation errors
     const isValidation = notifications.some((n) =>
-      /invalid|required.*missing|must be|cannot be|format|too (long|short|heavy)|overweight/i.test(n.Message),
+      /invalid|required.*missing|must be|cannot be|format|too (long|short|heavy)|overweight/i.test(
+        n.Message,
+      ),
     );
     if (isValidation) {
-      throw new ValidationCarrierError(
-        `Aramex validation error: ${messages}`,
-        { providerKey: this.key, operation, carrierCode: codes },
-      );
+      throw new ValidationCarrierError(`Aramex validation error: ${messages}`, {
+        providerKey: this.key,
+        operation,
+        carrierCode: codes,
+      });
     }
 
     // Default: non-retryable error
-    throw new NonRetryableCarrierError(
-      `Aramex error: ${messages}`,
-      { providerKey: this.key, operation, carrierCode: codes },
-    );
+    throw new NonRetryableCarrierError(`Aramex error: ${messages}`, {
+      providerKey: this.key,
+      operation,
+      carrierCode: codes,
+    });
   }
 
   // ── Private: Credential Resolution ──────────────────────────────────────
 
   /**
-   * Resolve decrypted credentials for a store.
-   * Uses the carrier configuration → credential chain.
+   * Resolve the active carrier credential for the shipment's owning store.
+   * No cross-organization fallback is permitted.
    */
-  /**
-   * Resolve credentials via the configuration chain for a given store.
-   *
-   * Resolution order:
-   *   1. Store-specific carrier configuration → linked credential
-   *   2. Org-wide default carrier configuration → linked credential
-   *   3. Any active Aramex credential (fallback)
-   */
-  private async resolveCredentials(storeId: string): Promise<{
-    payload: AramexCredentialPayload;
-    primaryUrl: string | null;
-  }> {
-    // Try to resolve through configuration chain
-    // The configurations service needs orgId + storeId, but we only have storeId here.
-    // Look up the store's orgId first, then resolve configuration.
-    try {
-      const store = await this.db.db.query.stores.findFirst({
-        where: eq(stores.id, storeId),
-        columns: { orgId: true },
-      });
-      if (store) {
-        const config = await this.configurations.resolveForStore(store.orgId, storeId);
-        if (config?.credentialId) {
-          return this.resolveCredentialsById(config.credentialId);
-        }
-        // Try org-wide default
-        const orgConfig = await this.configurations.resolveForStore(store.orgId, '');
-        if (orgConfig?.credentialId) {
-          return this.resolveCredentialsById(orgConfig.credentialId);
-        }
-      }
-    } catch {
-      // Fall through to any-credential lookup
+  private async resolveCredentials(
+    storeId: string,
+    explicitCredentialId?: string,
+  ): Promise<{ payload: AramexCredentialPayload; primaryUrl: string | null }> {
+    const store = await this.withCredentialDatabaseContext(
+      'aramex-store-owner-resolution', null,
+      () => this.db.db.query.stores.findFirst({
+        where: eq(stores.id, storeId), columns: { orgId: true },
+      }),
+    );
+    if (!store?.orgId) {
+      throw new NonRetryableCarrierError(
+        'Store has no owning organization; refusing cross-tenant credential fallback',
+        { providerKey: this.key, operation: 'resolveCredentials' },
+      );
     }
 
-    return this.resolveAnyCredential();
+    if (explicitCredentialId) {
+      return this.resolveCredentialsById(explicitCredentialId, store.orgId);
+    }
+
+    const config = await this.configurations.resolveForStore(store.orgId, storeId);
+    if (!config?.credentialId) {
+      throw new NonRetryableCarrierError(
+        'No active Aramex configuration exists for this store organization',
+        { providerKey: this.key, operation: 'resolveCredentials' },
+      );
+    }
+
+    return this.resolveCredentialsById(config.credentialId, store.orgId);
   }
 
   /**
    * Decrypt and return credentials by credential ID.
    */
-  private async resolveCredentialsById(credentialId: string): Promise<{
-    payload: AramexCredentialPayload;
-    primaryUrl: string | null;
-  }> {
-    const credJson = await this.credentials.decryptCredentials(credentialId);
-    const payload = JSON.parse(credJson) as AramexCredentialPayload;
-
-    const row = await this.db.db.query.carrierCredentials.findFirst({
-      where: eq(carrierCredentials.id, credentialId),
-      columns: { endpointUrl: true },
-    });
-
-    return { payload, primaryUrl: row?.endpointUrl || null };
-  }
-
-  /**
-   * Find any active Aramex credential for fallback operations
-   * (tracking, address validation, location services).
-   */
-  private async resolveAnyCredential(): Promise<{
-    payload: AramexCredentialPayload;
-    primaryUrl: string | null;
-  }> {
-    const row = await this.db.db.query.carrierCredentials.findFirst({
-      where: eq(carrierCredentials.providerKey, ARAMEX_PROVIDER_KEY),
-    });
-
-    if (!row || !row.isActive) {
+  private async resolveCredentialsById(
+    credentialId: string,
+    expectedOrgId: string,
+  ): Promise<{ payload: AramexCredentialPayload; primaryUrl: string | null }> {
+    const row = await this.withCredentialDatabaseContext(
+      'aramex-credential-resolution', expectedOrgId,
+      () => this.db.db.query.carrierCredentials.findFirst({
+        where: and(
+          eq(carrierCredentials.id, credentialId),
+          eq(carrierCredentials.orgId, expectedOrgId),
+          eq(carrierCredentials.providerKey, ARAMEX_PROVIDER_KEY),
+          eq(carrierCredentials.isActive, true),
+        ),
+        columns: { endpointUrl: true },
+      }),
+    );
+    if (!row) {
       throw new NonRetryableCarrierError(
-        'No Aramex credential available — configure credentials via admin API',
+        'Aramex credential is inactive or belongs to another organization',
         { providerKey: this.key, operation: 'resolveCredential' },
       );
     }
 
-    const credJson = await this.credentials.decryptCredentials(row.id);
+    const credJson = await this.credentials.decryptCredentials(credentialId, expectedOrgId);
     const payload = JSON.parse(credJson) as AramexCredentialPayload;
-
     return { payload, primaryUrl: row.endpointUrl || null };
+  }
+
+  /**
+   * Global address/reference lookups may use only an explicitly configured
+   * PLATFORM organization's credential, never an arbitrary merchant account.
+   */
+  private async resolvePlatformCredential(): Promise<{
+    payload: AramexCredentialPayload;
+    primaryUrl: string | null;
+  }> {
+    const platformOrgId = await this.identity.getPlatformOrganizationId();
+    if (!platformOrgId) {
+      throw new NonRetryableCarrierError(
+        'No platform organization is configured for Aramex reference lookups',
+        { providerKey: this.key, operation: 'resolvePlatformCredential' },
+      );
+    }
+
+    const credential = await this.withCredentialDatabaseContext(
+      'aramex-platform-credential-resolution', platformOrgId,
+      () => this.db.db.query.carrierCredentials.findFirst({
+        where: and(
+          eq(carrierCredentials.orgId, platformOrgId),
+          eq(carrierCredentials.providerKey, ARAMEX_PROVIDER_KEY),
+          eq(carrierCredentials.isActive, true),
+        ),
+        columns: { id: true },
+      }),
+    );
+    if (!credential) {
+      throw new NonRetryableCarrierError('No active platform Aramex credential is configured', {
+        providerKey: this.key,
+        operation: 'resolvePlatformCredential',
+      });
+    }
+
+    return this.resolveCredentialsById(credential.id, platformOrgId);
+  }
+
+  private withCredentialDatabaseContext<T>(
+    workerId: string,
+    activeOrgId: string | null,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const active = this.db.currentActorContext;
+    if (active) {
+      if (activeOrgId && (active.actorKind === 'user' || active.actorKind === 'worker') &&
+          active.activeOrgId !== null && active.activeOrgId !== activeOrgId) {
+        throw new Error('Aramex credential lookup crossed the active organization context');
+      }
+      return operation();
+    }
+    return this.db.withActorContext({ actorKind: 'worker', workerId, activeOrgId }, operation);
   }
 
   // ── Private: HTTP Client ────────────────────────────────────────────────
@@ -1084,18 +1153,18 @@ export class AramexProvider extends ShippingProvider {
     operation: string,
     opName: string,
     extraParams: Record<string, unknown>,
-    _storeId: string,
+    storeId: string,
   ): Promise<T> {
     const correlationId = this.observability.generateCorrelationId();
-    const { payload, primaryUrl } = await this.resolveAnyCredential();
+    const { payload, primaryUrl } = await this.resolveCredentials(storeId);
     const clientInfo = buildClientInfo(payload);
 
     const locationBaseUrl = resolveCarrierEndpoint('location', payload, primaryUrl);
     if (!locationBaseUrl) {
-      throw new NonRetryableCarrierError(
-        'No location endpoint configured for Aramex',
-        { providerKey: this.key, operation: opName },
-      );
+      throw new NonRetryableCarrierError('No location endpoint configured for Aramex', {
+        providerKey: this.key,
+        operation: opName,
+      });
     }
 
     const httpClient = this.createHttpClient();

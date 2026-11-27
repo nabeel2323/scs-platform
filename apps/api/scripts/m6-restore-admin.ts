@@ -1,5 +1,8 @@
 import { Pool } from 'pg';
-const p = new Pool({ connectionString: 'postgresql://scs:scs_dev_2026@localhost:5432/scs_platform' });
+import { assertLocalUatExecution } from './local-uat-safety';
+const DB_URL = 'postgresql://scs:scs_dev_2026@localhost:5432/scs_platform';
+assertLocalUatExecution('m6-restore-admin', { databaseUrl: DB_URL });
+const p = new Pool({ connectionString: DB_URL });
 async function main() {
   // Find admin user and platform org
   const admin = await p.query("SELECT id FROM users WHERE email = 'admin@scsp.dev'");
@@ -7,7 +10,14 @@ async function main() {
   const superAdminRole = await p.query("SELECT id FROM roles WHERE key = 'SUPER_ADMIN' LIMIT 1");
 
   if (!admin.rows[0] || !platformOrg.rows[0] || !superAdminRole.rows[0]) {
-    console.log('Missing: admin=', !!admin.rows[0], 'org=', !!platformOrg.rows[0], 'role=', !!superAdminRole.rows[0]);
+    console.log(
+      'Missing: admin=',
+      !!admin.rows[0],
+      'org=',
+      !!platformOrg.rows[0],
+      'role=',
+      !!superAdminRole.rows[0],
+    );
     console.log('Need to re-run seed script');
     await p.end();
     return;
@@ -28,11 +38,16 @@ async function main() {
       'INSERT INTO organization_members (id, org_id, user_id, role_id, status) VALUES ($1, $2, $3, $4, $5)',
       [crypto.randomUUID(), orgId, adminId, roleId, 'ACTIVE'],
     );
-    console.log(`Restored admin membership: user=${adminId.substring(0,8)} org=${orgId.substring(0,8)} role=SUPER_ADMIN`);
+    console.log(
+      `Restored admin membership: user=${adminId.substring(0, 8)} org=${orgId.substring(0, 8)} role=SUPER_ADMIN`,
+    );
   } else {
     console.log('Admin membership already exists');
   }
 
   await p.end();
 }
-main().catch(e => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

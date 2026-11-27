@@ -13,7 +13,7 @@ import { CatalogTaxonomyService } from '../../modules/catalog/catalog.taxonomy.s
 import { products, productMedia, productVariants, categories, brands } from '../../modules/catalog/catalog.schema';
 import { merchantOffers } from '../../modules/catalog/catalog.offer.schema';
 import { users, organizations } from '../../modules/identity/identity.schema';
-import { stores, verificationRequests } from '../../modules/merchant/merchant.schema';
+import { stores, storeMembers, verificationRequests } from '../../modules/merchant/merchant.schema';
 import { disputes } from '../../modules/reviews/support.schema';
 import { ConflictException } from '@nestjs/common';
 
@@ -39,12 +39,14 @@ describe('P3-19 Remediation — Moderation concurrency race', () => {
   const orgId = randomUUID();
   const storeId = randomUUID();
   const actorId = randomUUID();
+  const merchantId = randomUUID();
+  let database: DatabaseService;
 
   beforeAll(async () => {
     container = await new PostgreSqlContainer('postgres:16-alpine').start();
     pool = new Pool({ connectionString: container.getConnectionUri() });
     db = drizzle(pool, {
-      schema: { products, productMedia, productVariants, stores, categories, brands, verificationRequests, users, organizations, disputes, merchantOffers },
+      schema: { products, productMedia, productVariants, stores, storeMembers, categories, brands, verificationRequests, users, organizations, disputes, merchantOffers },
     }) as unknown as DatabaseService['db'];
 
     // Run all migrations in the race test database
@@ -54,15 +56,52 @@ describe('P3-19 Remediation — Moderation concurrency race', () => {
       await pool.query(await readFile(path.join(migrations, file), 'utf8'));
     }
 
-    const database = { db } as DatabaseService;
+    database = new DatabaseService();
+    database.db = db;
     const taxonomyService = new CatalogTaxonomyService(database);
     catalog = new CatalogService(database, {} as any, { publish: vi.fn() } as any, storage as any, { record: vi.fn() } as any, { evaluate: () => ({ effects: new Map(), errors: [] }) } as any, taxonomyService, {} as any, {} as any, {} as any);
     admin = new AdminService(database, storage as any, { send: vi.fn().mockResolvedValue(undefined) } as any, {} as any, catalog, taxonomyService, {} as any);
 
     await db.insert(organizations).values({ id: orgId, name: 'Race Org', type: 'WHOLESALER', country: 'SA' });
-    await db.insert(users).values({ id: actorId, fullName: 'Race Admin', phone: '+19990000088' });
+    await db.insert(users).values([
+      { id: actorId, fullName: 'Race Admin', phone: '+19990000088' },
+      { id: merchantId, fullName: 'Race Merchant', phone: '+19990000089' },
+    ]);
     await db.insert(stores).values({ id: storeId, orgId, slug: 'race-store', displayName: 'Race Store' });
+    await pool.query(
+      `INSERT INTO roles (id, key, name) VALUES ($1, 'MERCHANT_OWNER', 'Merchant Owner')
+       ON CONFLICT (key) DO NOTHING`,
+      [randomUUID()],
+    );
+    const merchantRole = await pool.query(`SELECT id FROM roles WHERE key = 'MERCHANT_OWNER' LIMIT 1`);
+    await pool.query(
+      `INSERT INTO organization_members (id, org_id, user_id, role_id, status)
+       VALUES ($1, $2, $3, $4, 'ACTIVE')`,
+      [randomUUID(), orgId, merchantId, merchantRole.rows[0].id],
+    );
+    await db.insert(storeMembers).values({
+      storeId,
+      userId: merchantId,
+      role: 'OWNER',
+      status: 'ACTIVE',
+    });
   }, 120_000);
+
+  function adminActor() {
+    return { sub: actorId, role: 'ADMIN', activeOrg: null };
+  }
+  function merchantActor() {
+    return { sub: merchantId, role: 'MERCHANT_OWNER', activeOrg: orgId };
+  }
+  function traceFailure<T>(label: string, promise: Promise<T>): Promise<T> {
+    return promise.catch((error) => {
+      console.error(`[P3 moderation race] ${label}`, error instanceof Error ? error.stack : error);
+      throw error;
+    });
+  }
+  function updateAdminProduct(id: string, input: any, updatedAt?: string) {
+    return traceFailure('admin update', admin.adminUpdateProduct(id, input, updatedAt, adminActor()));
+  }
 
   afterAll(async () => { await pool?.end(); await container?.stop(); }, 30_000);
 
@@ -83,7 +122,7 @@ describe('P3-19 Remediation — Moderation concurrency race', () => {
 
       const results = await Promise.allSettled([
         admin.moderateProduct(productId, 'APPROVED', undefined, updatedAt),
-        admin.adminUpdateProduct(productId, { title: `Race Edited ${i}` } as any, updatedAt),
+        updateAdminProduct(productId, { title: `Race Edited ${i}` } as any, updatedAt),
       ]);
 
       const fulfilled = results.filter(r => r.status === 'fulfilled');
@@ -129,8 +168,8 @@ describe('P3-19 Remediation — Moderation concurrency race', () => {
       const productId = created.id;
 
       const results = await Promise.allSettled([
-        admin.adminUpdateProduct(productId, { title: `Admin Edit A ${i}` } as any, updatedAt),
-        admin.adminUpdateProduct(productId, { title: `Admin Edit B ${i}` } as any, updatedAt),
+        updateAdminProduct(productId, { title: `Admin Edit A ${i}` } as any, updatedAt),
+        updateAdminProduct(productId, { title: `Admin Edit B ${i}` } as any, updatedAt),
       ]);
 
       const fulfilled = results.filter(r => r.status === 'fulfilled');
@@ -166,8 +205,8 @@ describe('P3-19 Remediation — Moderation concurrency race', () => {
       const productId = created.id;
 
       const results = await Promise.allSettled([
-        admin.adminUpdateProduct(productId, { title: `Admin Wins ${i}` } as any, updatedAt),
-        catalog.updateProduct(productId, { title: `Merchant Wins ${i}` } as any, updatedAt),
+        updateAdminProduct(productId, { title: `Admin Wins ${i}` } as any, updatedAt),
+        traceFailure('merchant update', catalog.updateProduct(productId, { title: `Merchant Wins ${i}` } as any, updatedAt, merchantActor())),
       ]);
 
       const fulfilled = results.filter(r => r.status === 'fulfilled');
@@ -182,7 +221,7 @@ describe('P3-19 Remediation — Moderation concurrency race', () => {
       }
 
       // Verify final state consistency
-      const finalProduct = await catalog.getProductDetail(productId);
+      const finalProduct = await catalog.getProductDetail(productId, adminActor());
       if (fulfilled.length === 1) {
         const titleIsConsistent = finalProduct.title === `Admin Wins ${i}` || finalProduct.title === `Merchant Wins ${i}`;
         expect(titleIsConsistent).toBe(true);

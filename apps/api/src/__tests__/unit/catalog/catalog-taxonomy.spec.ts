@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import type { SQL } from 'drizzle-orm';
 import { BadRequestException, ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { CatalogTaxonomyService, type AttributeValueInput } from '../../../modules/catalog/catalog.taxonomy.service';
 
@@ -30,6 +32,7 @@ interface HarnessQueries {
   productVariants?: QueryConfig;
   productAttributeValues?: QueryConfig;
   variantAttributeValues?: QueryConfig;
+  categories?: QueryConfig;
 }
 
 interface Harness {
@@ -37,15 +40,20 @@ interface Harness {
   inserted: unknown[];
   updated: unknown[];
   deleted: unknown[];
+  categoryFindFirstCalls: unknown[];
 }
 
 function makeHarness(queries: HarnessQueries = {}): Harness {
   const inserted: unknown[] = [];
   const updated: unknown[] = [];
   const deleted: unknown[] = [];
+  const categoryFindFirstCalls: unknown[] = [];
 
-  const q = (cfg?: QueryConfig) => ({
-    findFirst: async () => cfg?.findFirst ?? null,
+  const q = (cfg?: QueryConfig, calls?: unknown[]) => ({
+    findFirst: async (config?: unknown) => {
+      calls?.push(config);
+      return cfg?.findFirst ?? null;
+    },
     findMany: async () => cfg?.findMany ?? [],
   });
 
@@ -61,6 +69,7 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
         productVariants: q(queries.productVariants),
         productAttributeValues: q(queries.productAttributeValues),
         variantAttributeValues: q(queries.variantAttributeValues),
+        categories: q(queries.categories, categoryFindFirstCalls),
       },
       insert: () => ({
         values: (rows: unknown) => {
@@ -111,7 +120,7 @@ function makeHarness(queries: HarnessQueries = {}): Harness {
 
   // @ts-expect-error — partial mock is sufficient for the service's call surface
   const svc = new CatalogTaxonomyService(db);
-  return { svc, inserted, updated, deleted };
+  return { svc, inserted, updated, deleted, categoryFindFirstCalls };
 }
 
 describe('CatalogTaxonomyService — attributes', () => {
@@ -196,6 +205,134 @@ describe('CatalogTaxonomyService — product types', () => {
     await expect(svc.publishProductType('pt-1')).rejects.toBeInstanceOf(
       UnprocessableEntityException,
     );
+  });
+
+  it('reports an inactive platform category with a stable validation code', async () => {
+    const { svc } = makeHarness({
+      productTypes: {
+        findFirst: {
+          id: 'pt-inactive',
+          code: 'inactive-type',
+          name: 'Inactive Type',
+          status: 'DRAFT',
+          categoryId: 'inactive-category',
+          variantDimensions: [],
+        },
+      },
+      categories: {
+        findFirst: {
+          id: 'inactive-category',
+          storeId: null,
+          name: 'Inactive category',
+          isActive: false,
+        },
+      },
+      productTypeAttributes: { findMany: [] },
+    });
+
+    const result = await svc.validateProductTypeForPublish('pt-inactive');
+
+    expect(result.canPublish).toBe(false);
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({
+        code: 'CATEGORY_INACTIVE',
+        severity: 'ERROR',
+      }),
+    );
+  });
+
+  it('blocks publishing a legacy product type linked to a tenant category', async () => {
+    const { svc } = makeHarness({
+      productTypes: {
+        findFirst: {
+          id: 'pt-legacy',
+          code: 'legacy',
+          name: 'Legacy Type',
+          status: 'DRAFT',
+          categoryId: 'store-category',
+          variantDimensions: [],
+        },
+      },
+      categories: {
+        findFirst: {
+          id: 'store-category',
+          storeId: 'store-a',
+          name: 'Private category',
+          isActive: true,
+        },
+      },
+      productTypeAttributes: { findMany: [] },
+    });
+
+    const result = await svc.validateProductTypeForPublish('pt-legacy');
+
+    expect(result.canPublish).toBe(false);
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({
+        code: 'CATEGORY_NOT_PLATFORM',
+        severity: 'ERROR',
+      }),
+    );
+  });
+
+  it('does not duplicate a legacy product type with an invalid tenant category', async () => {
+    const { svc, inserted } = makeHarness({
+      productTypes: {
+        findFirst: {
+          id: 'pt-legacy',
+          code: 'legacy',
+          name: 'Legacy Type',
+          categoryId: 'store-category',
+          status: 'DRAFT',
+          variantDimensions: [],
+        },
+      },
+      categories: { findFirst: null },
+    });
+
+    await expect(svc.duplicateProductType('pt-legacy')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(inserted).toHaveLength(0);
+  });
+
+  it('rejects a tenant-owned category when creating a global product type', async () => {
+    const { svc, inserted, categoryFindFirstCalls } = makeHarness({
+      productTypes: { findFirst: null },
+      categories: { findFirst: null },
+    });
+
+    await expect(
+      svc.createProductType({ code: 'laptop', name: 'Laptop', categoryId: 'store-category' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(inserted).toHaveLength(0);
+    const compiled = new PgDialect().sqlToQuery(
+      (categoryFindFirstCalls[0] as { where: SQL }).where,
+    );
+    expect(compiled.sql.toLowerCase()).toContain('store_id');
+    expect(compiled.sql.toLowerCase()).toContain('is null');
+    expect(compiled.sql.toLowerCase()).toContain('is_active');
+    expect(compiled.params).toContain('store-category');
+  });
+
+  it('rejects assigning a tenant-owned category to an existing global product type', async () => {
+    const { svc, updated, categoryFindFirstCalls } = makeHarness({
+      productTypes: { findFirst: { id: 'pt-1', code: 'laptop', categoryId: null } },
+      categories: { findFirst: null },
+    });
+
+    await expect(
+      svc.updateProductTypeCategory('pt-1', 'store-category'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(updated).toHaveLength(0);
+    const compiled = new PgDialect().sqlToQuery(
+      (categoryFindFirstCalls[0] as { where: SQL }).where,
+    );
+    expect(compiled.sql.toLowerCase()).toContain('store_id');
+    expect(compiled.sql.toLowerCase()).toContain('is null');
+    expect(compiled.params).toContain('store-category');
   });
 
   it('rejects a duplicate version-1 code on create', async () => {

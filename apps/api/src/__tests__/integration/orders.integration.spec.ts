@@ -13,6 +13,7 @@ const ORDER_ID = 'order-001';
 const STORE_ID = 'store-001';
 const BUYER_ID = 'buyer-001';
 const MERCHANT_ID = 'merchant-001';
+const testCaller = { sub: MERCHANT_ID, role: 'ADMIN', activeOrg: null };
 
 /**
  * Creates a stateful mock that tracks order status changes.
@@ -143,7 +144,7 @@ describe('Order Lifecycle Integration', () => {
         mocks.mockPromotions,
       );
 
-      const result = await service.acceptOrder(ORDER_ID, MERCHANT_ID);
+      const result = await service.acceptOrder(ORDER_ID, MERCHANT_ID, testCaller);
 
       expect(result.status).toBe('ACCEPTED');
       expect(mocks.mockOutbox.publish).toHaveBeenCalledWith(
@@ -161,7 +162,7 @@ describe('Order Lifecycle Integration', () => {
         mocks.mockPromotions,
       );
 
-      await expect(service.acceptOrder(ORDER_ID, MERCHANT_ID)).rejects.toThrow(ConflictException);
+      await expect(service.acceptOrder(ORDER_ID, MERCHANT_ID, testCaller)).rejects.toThrow(ConflictException);
     });
 
     it('should reject DELIVERED → ACCEPTED', async () => {
@@ -172,7 +173,7 @@ describe('Order Lifecycle Integration', () => {
         mocks.mockPromotions,
       );
 
-      await expect(service.acceptOrder(ORDER_ID, MERCHANT_ID)).rejects.toThrow(ConflictException);
+      await expect(service.acceptOrder(ORDER_ID, MERCHANT_ID, testCaller)).rejects.toThrow(ConflictException);
     });
   });
 
@@ -468,7 +469,7 @@ describe('Order Lifecycle Integration', () => {
       const result = await service.partiallyAcceptOrder(ORDER_ID, MERCHANT_ID, [
         { itemId: 'item-1', qtyConfirmed: 8 },
         { itemId: 'item-2', qtyConfirmed: 5 },
-      ]);
+      ], testCaller);
 
       expect(result.status).toBe('PARTIALLY_ACCEPTED');
     });
@@ -486,7 +487,7 @@ describe('Order Lifecycle Integration', () => {
 
       await service.partiallyAcceptOrder(ORDER_ID, MERCHANT_ID, [
         { itemId: 'item-1', qtyConfirmed: 5 },
-      ]);
+      ], testCaller);
 
       // New subtotal should be 5 * 200 = 1000 (not 10 * 200 = 2000)
       expect(mocks.updateSet).toHaveBeenCalledWith(

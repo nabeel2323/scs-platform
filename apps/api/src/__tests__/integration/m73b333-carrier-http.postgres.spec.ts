@@ -115,6 +115,9 @@ function createWorkerWithProvider(
     { tryResolve: vi.fn(async () => null) } as any,
     { classify: vi.fn(() => ({ isFinal: false, safeMessage: '', nextAttemptAt: null })) } as any,
     { canRequest: vi.fn(() => true), recordSuccess: vi.fn(), recordFailure: vi.fn() } as any,
+    {} as any,
+    { getStoreTenantContextForSystem: vi.fn(async () => ({ orgId: 'test-org' })) } as any,
+    {} as any,
   );
 }
 

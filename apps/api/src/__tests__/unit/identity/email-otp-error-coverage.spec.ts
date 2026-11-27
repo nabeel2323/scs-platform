@@ -25,6 +25,7 @@ import crypto from 'node:crypto';
 process.env['OTP_HMAC_SECRET'] = 'test-hmac-secret-for-unit-tests-only-32chars-min!!';
 
 const FIXED_OTP = '123456';
+const ACTOR = { role: 'BUYER', activeOrg: null };
 
 function pinOtp(value: string = FIXED_OTP): void {
   (vi.spyOn(crypto, 'randomInt') as any).mockReturnValue(Number(value));
@@ -40,6 +41,7 @@ function mockDb(options: {
 } = {}) {
   const userStore = options.userStore || new Map();
   return {
+    withActorContext: vi.fn(async (_actor: unknown, operation: () => Promise<unknown>) => operation()),
     db: {
       query: {
         users: {
@@ -438,7 +440,7 @@ describe('S1.38.7 — Email OTP error handling coverage', () => {
       // Set up challenge
       await service.requestEmailOtp('new@example.com', '127.0.0.1');
 
-      await expect(service.linkEmailToAccount('user-1', 'new@example.com', FIXED_OTP))
+      await expect(service.linkEmailToAccount('user-1', 'new@example.com', FIXED_OTP, ACTOR))
         .rejects
         .toThrow(ConflictException);
     });
@@ -453,7 +455,7 @@ describe('S1.38.7 — Email OTP error handling coverage', () => {
 
       await service.requestEmailOtp('taken@example.com', '127.0.0.1');
 
-      await expect(service.linkEmailToAccount('user-1', 'taken@example.com', FIXED_OTP))
+      await expect(service.linkEmailToAccount('user-1', 'taken@example.com', FIXED_OTP, ACTOR))
         .rejects
         .toThrow(ConflictException);
     });
@@ -468,7 +470,7 @@ describe('S1.38.7 — Email OTP error handling coverage', () => {
 
       await service.requestEmailOtp('test@example.com', '127.0.0.1');
 
-      await expect(service.linkEmailToAccount('user-1', 'test@example.com', FIXED_OTP))
+      await expect(service.linkEmailToAccount('user-1', 'test@example.com', FIXED_OTP, ACTOR))
         .rejects
         .toThrow(BadRequestException);
     });
@@ -480,7 +482,7 @@ describe('S1.38.7 — Email OTP error handling coverage', () => {
 
       await service.requestEmailOtp('test@example.com', '127.0.0.1');
 
-      await expect(service.linkEmailToAccount('nonexistent-user', 'test@example.com', FIXED_OTP))
+      await expect(service.linkEmailToAccount('nonexistent-user', 'test@example.com', FIXED_OTP, ACTOR))
         .rejects
         .toThrow(NotFoundException);
     });
@@ -494,7 +496,7 @@ describe('S1.38.7 — Email OTP error handling coverage', () => {
 
       await service.requestEmailOtp('same@example.com', '127.0.0.1');
 
-      const result = await service.linkEmailToAccount('user-1', 'same@example.com', FIXED_OTP);
+      const result = await service.linkEmailToAccount('user-1', 'same@example.com', FIXED_OTP, ACTOR);
       expect(result.success).toBe(true);
     });
   });
@@ -506,7 +508,7 @@ describe('S1.38.7 — Email OTP error handling coverage', () => {
       });
       service = createService({ db });
 
-      await expect(service.unlinkEmailFromAccount('user-1'))
+      await expect(service.unlinkEmailFromAccount('user-1', ACTOR))
         .rejects
         .toThrow(BadRequestException);
     });
@@ -517,7 +519,7 @@ describe('S1.38.7 — Email OTP error handling coverage', () => {
       });
       service = createService({ db });
 
-      await expect(service.unlinkPhoneFromAccount('user-1'))
+      await expect(service.unlinkPhoneFromAccount('user-1', ACTOR))
         .rejects
         .toThrow(BadRequestException);
     });
@@ -529,7 +531,7 @@ describe('S1.38.7 — Email OTP error handling coverage', () => {
       });
       service = createService({ db });
 
-      await expect(service.unlinkEmailFromAccount('user-1'))
+      await expect(service.unlinkEmailFromAccount('user-1', ACTOR))
         .rejects
         .toThrow(ConflictException);
     });
@@ -541,7 +543,7 @@ describe('S1.38.7 — Email OTP error handling coverage', () => {
       service = createService({ db });
 
       // Unlink email when user has both email and phone
-      const result = await service.unlinkEmailFromAccount('user-1');
+      const result = await service.unlinkEmailFromAccount('user-1', ACTOR);
       expect(result.success).toBe(true);
       // The unlink operation should complete successfully
     });

@@ -27,6 +27,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import { Pool } from 'pg';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { drizzle } from 'drizzle-orm/node-postgres';
+import { DatabaseService } from '../../common/database/database.service';
 import { JwtService } from '@nestjs/jwt';
 import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
@@ -46,6 +47,7 @@ describe('Password Login Regression (S1.35 Phase 1)', () => {
   let container: StartedPostgreSqlContainer;
   let pool: Pool;
   let db: any;
+  let database: DatabaseService;
   let service: IdentityService;
   let mockRedis: ReturnType<typeof createMockRedisStore>;
 
@@ -85,6 +87,8 @@ describe('Password Login Regression (S1.35 Phase 1)', () => {
     container = await new PostgreSqlContainer('postgres:16-alpine').start();
     pool = new Pool({ connectionString: container.getConnectionUri() });
     db = drizzle(pool, { schema }) as any;
+    database = new DatabaseService();
+    database.db = db;
 
     const files = fs.readdirSync(MIGRATIONS_DIR)
       .filter(f => f.endsWith('.sql') && !EXCLUDED.has(f))
@@ -149,7 +153,7 @@ describe('Password Login Regression (S1.35 Phase 1)', () => {
     const jwt = new JwtService({ secret: 'test-jwt-secret-min-32-chars!!', signOptions: { expiresIn: '15m' } });
 
     service = new IdentityService(
-      { db } as any,
+      database,
       mockRedis as any,
       jwt,
       mockRateLimit as any,
