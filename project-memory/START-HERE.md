@@ -308,3 +308,6 @@ The newest dated entries in the checkpoint and progress tracker override older h
 - A targeted scan of migrations 0064–0077 found no CREATE FUNCTION/PROCEDURE/TRIGGER/RULE or PARTITION BY declarations. Explicit FK references in this range include device-trust user/session links, carrier credential linkage, and payment-proof upload-intent linkage. This supplements (but does not replace) the earlier 75-migration inventory.
 - This implementation is not yet CI-verified. Run one consolidated exact-head campaign after grouped review; do not merge until all mandatory checks pass.
 - No staging/production DB writes or migrations, RLS/grant/default-ACL changes, provider calls, worker activation, Render changes, deployments, restarts or releases occurred. PR #138 remains protected and unmerged.
+
+
+PR #174 has been opened as a draft for the bootstrap CLI database-boundary fix. The code and PostgreSQL regression tests are grouped; run one consolidated exact-head CI campaign for this PR and do not merge unless all mandatory checks pass.
