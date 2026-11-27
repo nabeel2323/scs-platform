@@ -3328,3 +3328,10 @@ Next: finish the focused failing-fixture inventory, validate the batch together,
 - **Operations signing exception fixture:** commit `ea2e17f011f0503e96a24d2b2094ee244218673c` compiles Drizzle SQL with PgDialect instead of reading nonexistent `query.sql` fields, allowing the mock to recognize the durable ops-alert INSERT and return its ID.
 - **Catalog visibility fixtures:** commits `d65e8ad42a4c5d6518eb8167f0850cb65981a12b` and `b88a68dbd5b4ae6435bd8e52a4f2b08cc2bd88e6` align controller assertions with the actor-aware `getProductDetail(id, caller, includeInactiveVariants)` contract and assert the active membership predicate rather than an obsolete exact query-call count.
 - None of these changes have been executed locally or in CI. All remain UNVERIFIED pending the single consolidated exact-head campaign.
+
+
+## Carrier tenant validation ordering correction — 27 November 2026
+
+- The P13 shipping tenant-context unit test showed that an event organization mismatch was only rejected after an order lookup. The test's focused worker harness intentionally supplies no database because the organization mismatch should be decisive once the authoritative store organization is resolved.
+- Commit `035bd65269c07c6c3a3e447c190932607870b439` now rejects mismatched event/expected organization immediately after resolving the shipment store tenant, before querying order lineage. The order-store lineage check remains mandatory before any provider side effect. This preserves the security boundary and avoids an unnecessary DB read on a known tenant mismatch.
+- Not executed locally or in CI; UNVERIFIED until consolidated exact-head CI.
