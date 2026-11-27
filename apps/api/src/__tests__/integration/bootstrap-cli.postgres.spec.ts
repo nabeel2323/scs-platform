@@ -148,6 +148,50 @@ describe('Bootstrap CLI issuance (PostgreSQL)', () => {
     expect(res.rows[0].token_digest).not.toBe(result.token);
   });
 
+  it('refuses production-like issuance when the operator connection cannot establish verified TLS', async () => {
+    await seedRbacAndOrg(pool);
+    const opts = makeOptions(databaseUrl, {
+      environment: 'staging',
+      purpose: 'super_admin_bootstrap',
+    });
+
+    await expect(issueToken(opts)).rejects.toThrow();
+    expect(await countTokens(pool)).toBe(0);
+  });
+
+  it('sets a transaction-local bootstrap operator principal for the issuance audit', async () => {
+    await seedRbacAndOrg(pool);
+    await pool.query(`
+      CREATE FUNCTION capture_bootstrap_actor_context() RETURNS trigger AS $
+      BEGIN
+        NEW.metadata = COALESCE(NEW.metadata, '{}'::jsonb) ||
+          jsonb_build_object(
+            '_test_actor_kind', current_setting('app.actor_kind', true),
+            '_test_actor_id', current_setting('app.actor_id', true)
+          );
+        RETURN NEW;
+      END;
+      $ LANGUAGE plpgsql
+    `);
+    await pool.query(`
+      CREATE TRIGGER capture_bootstrap_actor_context
+      BEFORE INSERT ON audit_logs
+      FOR EACH ROW
+      WHEN (NEW.action = 'auth.bootstrap.token_issued')
+      EXECUTE FUNCTION capture_bootstrap_actor_context()
+    `);
+
+    try {
+      await issueToken(makeOptions(databaseUrl));
+      const metadata = await getAuditMetadata(pool);
+      expect(metadata[0]._test_actor_kind).toBe('bootstrap');
+      expect(metadata[0]._test_actor_id).toBe('bootstrap-cli:test-operator');
+    } finally {
+      await pool.query('DROP TRIGGER IF EXISTS capture_bootstrap_actor_context ON audit_logs');
+      await pool.query('DROP FUNCTION IF EXISTS capture_bootstrap_actor_context()');
+    }
+  });
+
   it('valid recovery issuance succeeds', async () => {
     await seedRbacAndOrg(pool);
     const opts = makeOptions(databaseUrl, { purpose: 'super_admin_recovery' });
