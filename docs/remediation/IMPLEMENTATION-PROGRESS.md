@@ -3255,3 +3255,17 @@ Next: finish the focused failing-fixture inventory, validate the batch together,
 - These are test-fixture-only changes. The tenant/order lineage checks and production worker behavior remain unchanged. New exact-head CI verification is pending.
 - The same CI run also exposed separate outstanding fixture/expectation issues in checkout, identity actor-context integration tests, transaction lifecycle, and catalog/order/returns unit tests. They are not waived or masked; investigate and fix in coherent batches after reviewing the next exact-head run.
 - Staging release remained skipped. No deployment, database mutation outside ephemeral CI databases, or merge was performed. PR #138 and its preservation branch remain untouched.
+
+
+## CI repair batch — retry ownership, checkout fixtures, actor context and tenant membership (27 November 2026)
+
+- Exact-head run **#1650** (run ID `45912877950`, branch code head `31f2bbbb202a701b602130e7194d2ffb7b5209fe`; PR merge ref `ae5176f46d5a47a2305852a2108fb5395ebdce42`) completed **FAILURE**. Lint & Typecheck, Mobile, Migration Full Apply, Web/Admin Tests and E6 Boundary Lint passed. Integration Tests and Unit/Coverage failed; Build, Contract/Codegen, Container Smoke, k6 and Staging Release were skipped. No local test run is available in this workspace.
+- Integration summary: 1,607 / 1,855 tests passed. Concrete failures included checkout mocks returning two stores for single-store carts and lacking the transaction `.returning()` chain; retry tests locking outbox rows under a different worker ID than the worker's actual lease owner; one B333 worker factory missing the 11-argument constructor's storage/merchant/webhook collaborators; registration integration constructing IdentityService with a bare `{db}` instead of actor-aware DatabaseService; transaction lifecycle calling order mutations without a DatabaseService actor context; and phase-4 catalog tests missing organization-membership rows.
+- Follow-up fixture corrections pushed:
+  - Retry-state and Retry-After PostgreSQL suites now set `locked_by` to the actual worker ID; the B333 reconciliation race suite now supplies its tenant collaborators and seeded organization context.
+  - Checkout integration mocks now default to the single store used by most cases, explicitly model both stores for the multi-store case, and expose the update-returning chain.
+  - Registration-flow PostgreSQL tests now construct DatabaseService around the real test Drizzle handle so IdentityService can establish transaction-local actor context.
+  - Phase-4 optimistic-locking and identifier/type PostgreSQL suites now seed active organization membership in addition to store membership. Transaction lifecycle mutation calls now execute inside the matching user actor context, mirroring the authenticated request boundary.
+  - Unit fixtures were aligned for completion race/update chains, OpsAlertService insert RETURNING behavior, catalog membership query chains, controller actor context, and label-timeout async setup.
+- Latest code head for this batch: `a39acd446767d071eea2b175d1341897c9c6b3e4`. Exact-head CI run **#1659** (run ID `45914688537`) is in progress. Its result is pending; none of these fixture changes are claimed as passing until that run completes.
+- PR #138 and its preservation branch were not modified. PR #170 remains OPEN / DRAFT / UNMERGED. No reviewers requested. No staging/production DB changes, migration execution, deployments, Render operations, service restarts, or releases were performed; staging release remains disabled.
