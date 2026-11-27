@@ -57,7 +57,11 @@ function makeService(options?: { failShipmentEvent?: boolean; loseCompletionRace
   const db = {
     db: {
       transaction,
-      update: vi.fn(),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({
+          where: vi.fn(() => ({ returning: vi.fn().mockResolvedValue([{ id: order.id }]) })),
+        })),
+      })),
       insert: vi.fn(),
     },
   };
@@ -115,7 +119,7 @@ describe('OrdersService.recalculateMasterOrderStatus concurrency', () => {
 
 describe('OrdersService.confirmDelivery idempotency', () => {
   it('returns the completed order when auto-completion wins after the initial status read', async () => {
-    const updateReturning = vi.fn().mockResolvedValue([{ id: 'order-1' }]);
+    const updateReturning = vi.fn().mockResolvedValue([]);
     const updateWhere = vi.fn(() => ({ returning: updateReturning }));
     const updateSet = vi.fn(() => ({ where: updateWhere }));
     const update = vi.fn(() => ({ set: updateSet }));
