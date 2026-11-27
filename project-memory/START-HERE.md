@@ -18,9 +18,9 @@ The newest dated entries in the checkpoint and progress tracker override older h
 
 - PR #170 is **OPEN / DRAFT / UNMERGED**, targeting `develop`.
 - Integration branch: `integration/pr138-bulk-remediation-2026-11-26`.
-- Latest head after grouped shipping-fixture and tracker updates: `c1c993c8a96bc08ee0a93f5894f4a9b8a9f167b4`.
-- Base/develop head: `118174a644a197d72a033c22f0ee5af430617f44`; compare reports 117 commits ahead / 0 behind. PR currently lists 629 changed files.
-- GitHub currently reports mergeable=true. This is metadata only, not test evidence or merge authorization.
+- Read the exact current head, base SHA, changed-file count and mergeability from live PR #170 metadata; do not hard-code a branch SHA in this handoff.
+- The integration branch is based on `develop` at `118174a644a197d72a033c22f0ee5af430617f44` and is 0 commits behind that base. Use the live PR comparison for its current ahead count.
+- GitHub's mergeable flag can change as metadata recalculates. It is not test evidence or merge authorization.
 - PR #138 remains **OPEN / DRAFT / UNMERGED** with 1,943 changed files. Its source and preservation refs remain identical at `81f30f5c30654b233ef373c15fd3f2cb867aba01`. It is recovery/source material only; never merge it wholesale.
 
 ## Verification and immediate work
