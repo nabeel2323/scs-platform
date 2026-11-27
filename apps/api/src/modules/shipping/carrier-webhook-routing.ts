@@ -1,5 +1,5 @@
 import { Inject, Injectable, forwardRef } from '@nestjs/common';
-import { MerchantService } from '../merchant/index';
+import { MerchantService } from '../merchant/merchant.service';
 import { OrdersService } from '../orders/orders.service';
 
 export type CarrierWebhookShipmentResolution =

@@ -20,7 +20,7 @@ import {
   isTenantPrivileged,
   type CallerContext,
 } from '../../common/tenant-scope';
-import { MerchantService } from '../merchant/index';
+import { MerchantService } from '../merchant/merchant.service';
 import { OrderRealtimeAccessService } from '../orders/order-realtime-access.service';
 
 /**

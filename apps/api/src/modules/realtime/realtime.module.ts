@@ -2,8 +2,8 @@ import { Module, Global } from '@nestjs/common';
 import { RealtimeGateway } from './realtime.gateway';
 import { NOTIFICATION_REALTIME_EMITTER } from '../notifications/notifications-realtime.port';
 import { DatabaseModule } from '../../common/database/database.module';
-import { OrdersModule } from '../orders/index';
-import { MerchantModule } from '../merchant/index';
+import { OrdersModule } from '../orders/orders.module';
+import { MerchantModule } from '../merchant/merchant.module';
 
 @Global()
 @Module({

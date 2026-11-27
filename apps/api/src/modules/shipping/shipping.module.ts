@@ -23,8 +23,8 @@ import { CarrierCircuitBreaker } from './carrier-circuit-breaker';
 import { CarrierReconciliationService } from './carrier-reconciliation.service';
 import { CarrierTrackingPoller } from './carrier-tracking-poller';
 import { AuditModule } from '../audit/audit.module';
-import { IdentityModule } from '../identity/index';
-import { MerchantModule } from '../merchant/index';
+import { IdentityModule } from '../identity/identity.module';
+import { MerchantModule } from '../merchant/merchant.module';
 import { CarrierWebhookRoutingService } from './carrier-webhook-routing';
 import { OrdersModule } from '../orders/orders.module';
 
