@@ -213,6 +213,10 @@ describe('Checkout Integration', () => {
       mocks.db.query.cartItems.findMany.mockResolvedValue([mockCartItems[0]]);
       mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
       mocks.db.query.products.findFirst.mockResolvedValue({ ...mockProduct, moq: 50 });
+      const highMoqOffer = { ...mockOffers[0]!, moq: 50 };
+      mocks.db.query.merchantOffers.findMany.mockResolvedValue([highMoqOffer]);
+      // The authoritative locked-offer read must agree with the initial offer snapshot.
+      mocks.forUpdateRows.splice(1, 1, [highMoqOffer]);
       mocks.db.query.stores.findMany.mockResolvedValue([
         { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
       ]);
