@@ -247,9 +247,10 @@ describe('Checkout Integration', () => {
       mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
       // First FOR UPDATE result
+      // First FOR UPDATE result is the product row; second is the current offer row.
       mocks.db.query.stores.findMany.mockResolvedValue([
         { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
-      ]); is the product row; second is the current offer row.
+      ]);
       mocks.forUpdateRows.splice(1, 1, [updatedOffer]);
 
       await expect(
@@ -313,6 +314,9 @@ describe('Checkout Integration', () => {
       mocks.db.query.cartItems.findMany.mockResolvedValue([mockCartItems[0]]);
       mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
+      mocks.db.query.stores.findMany.mockResolvedValue([
+        { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+      ]);
       mocks.db.query.orders.findMany.mockResolvedValue([]);
       mocks.db.query.stores.findMany.mockResolvedValue([
         { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
@@ -340,6 +344,9 @@ describe('Checkout Integration', () => {
       mocks.db.query.cartItems.findMany.mockResolvedValue(mockCartItems);
       mocks.db.query.productVariants.findFirst.mockResolvedValue(mockVariant);
       mocks.db.query.products.findFirst.mockResolvedValue(mockProduct);
+      mocks.db.query.stores.findMany.mockResolvedValue([
+        { id: STORE_1, currency: 'SAR', orgId: 'org-1', status: 'ACTIVE', verificationStatus: 'VERIFIED' },
+      ]);
       mocks.db.query.orders.findMany.mockResolvedValue([]);
 
       await checkoutAsBuyer(service, { buyerId: BUYER_ID, deliveryAddress: { city: 'Riyadh' } });
