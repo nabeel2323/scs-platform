@@ -41,6 +41,7 @@ import { Reflector } from '@nestjs/core';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { DatabaseService } from '../../common/database/database.service';
+import { TenantDatabaseContextInterceptor } from '../../common/database/tenant-database-context.interceptor';
 import { RedisService } from '../../common/redis/redis.service';
 import { OutboxDispatcher } from '../../common/outbox/outbox-dispatcher.service';
 import { PaymentsService } from '../../modules/payments/payments.service';
@@ -240,6 +241,7 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
     // substitution: no collaborator is faked, these are the production classes.
     const paramTypes: ReadonlyArray<readonly [unknown, readonly unknown[]]> = [
       [AuditService, [DatabaseService]],
+      [TenantDatabaseContextInterceptor, [DatabaseService]],
       [BusinessCalendarService, [DatabaseService]],
       [SettlementAdjustmentService, [DatabaseService, OutboxDispatcher]],
       [ReconciliationService, [DatabaseService]],
@@ -278,6 +280,7 @@ describe('P13 Phase 4 §8 — HTTP authorization and tenant isolation (PostgreSQ
         { provide: PaymentsService, useValue: {} },
         { provide: IdentityService, useValue: identityService },
         { provide: MerchantService, useValue: merchantService },
+        TenantDatabaseContextInterceptor,
         AuditService,
         BusinessCalendarService,
         SettlementAdjustmentService,

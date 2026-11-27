@@ -3431,3 +3431,17 @@ Next: finish the focused failing-fixture inventory, validate the batch together,
 - Run #1697 (`45985542987`) on head `5d3fdcf9e0d91ca59f5996c283e9d7f90f04ce64` stopped at API typecheck before Unit/Coverage or Integration ran. Mobile Flutter passed; downstream gates were skipped. Typecheck reported only two errors from the newest test-harness batch: an index-signature property access in the SKU-search mock and a test-scoped alert ID referenced from a shared P418 mock.
 - Corrected the search mock to use bracket access and made the P418 mock derive the returned row ID from the insert/update query parameters. No production code changed. Next push-triggered CI is required; run #1697 does not validate the integration/unit changes.
 - PR #170 remains OPEN / DRAFT / UNMERGED; PR #138 remains preserved and unmerged. No reviewers or staging/production actions.
+
+
+## CI #1698 focused failure follow-up — 27 November 2026
+
+- Run #1698 (`45985851063`) on head `8410dfb91e2a9f663d4735e6e74cc7de2a048583` passed Lint & Typecheck, Flutter, Migration Full Apply, Web/Admin, and Boundary Lint E6; API Unit/Coverage and API Integration failed. Downstream build/contract/staging/k6 jobs were skipped.
+- Exact remaining failures and grouped corrections:
+  - P4 HTTP 500s traced to `TenantDatabaseContextInterceptor` being attached to `ReturnsController` but omitted from the Vitest module's explicit constructor metadata/providers. Register the real interceptor with the real DatabaseService; do not bypass tenant context.
+  - P3 moderation race TypeError traced to the test Drizzle schema omitting `storeMembers`, although the test seeded that table and production tenant-scope queries it. Include the table in the test schema.
+  - P311 concurrent post is idempotent: both callers receive the same posted adjustment. Assert two successful retries and one primary settlement row, rather than expecting one caller to fail.
+  - M73-B create/cancel mutex tests seeded `next_reconciliation_at` at the application wall-clock instant, which can still be ahead of PostgreSQL `NOW()`. Seed a safely-past timestamp to make both independent claim queries deterministic.
+  - P13 FIN-DSH-28 now asserts the independent order update affected exactly one row, making any remaining RLS/identifier issue explicit rather than silently ignored.
+  - Inventory scope assertion reflects two org membership checks and two store membership checks in the nested guard path.
+- No production authorization, financial, reconciliation or tenant invariants are weakened. All changes remain UNVERIFIED until the next consolidated exact-head CI.
+- PR #170 remains OPEN / DRAFT / UNMERGED; PR #138 remains protected and unmerged. No reviewers, staging/production writes, migrations, RLS/grant changes, provider calls, worker activation, deployments, restarts or releases.

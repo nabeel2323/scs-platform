@@ -635,11 +635,13 @@ describe('M7.3-B.3.4 — Delivered-After-Cancel + Mutex Separation (PostgreSQL)'
   }
 
   it('B34-PG-10: create reconciliation in flight does NOT block cancel reconciliation', async () => {
-    const cancelShipmentId = await seedShipment({ cancelStatus: 'UNKNOWN' });
+    const dueAt = new Date(Date.now() - 60_000);
+    const cancelShipmentId = await seedShipment({ cancelStatus: 'UNKNOWN', nextReconciliationAt: dueAt });
     const createShipmentId = await seedShipment({
       cancelStatus: null,
       createStatus: 'RECOVERY_REQUIRED',
       carrierStatusMapped: null,
+      nextReconciliationAt: dueAt,
     });
     await parkOtherShipments([cancelShipmentId, createShipmentId]);
     const provider = new StubCarrierProvider('CANCELLED');
@@ -668,11 +670,13 @@ describe('M7.3-B.3.4 — Delivered-After-Cancel + Mutex Separation (PostgreSQL)'
   });
 
   it('B34-PG-11: cancel reconciliation in flight does NOT block create reconciliation', async () => {
-    const cancelShipmentId = await seedShipment({ cancelStatus: 'UNKNOWN' });
+    const dueAt = new Date(Date.now() - 60_000);
+    const cancelShipmentId = await seedShipment({ cancelStatus: 'UNKNOWN', nextReconciliationAt: dueAt });
     const createShipmentId = await seedShipment({
       cancelStatus: null,
       createStatus: 'RECOVERY_REQUIRED',
       carrierStatusMapped: null,
+      nextReconciliationAt: dueAt,
     });
     await parkOtherShipments([cancelShipmentId, createShipmentId]);
     const provider = new StubCarrierProvider('CANCELLED');

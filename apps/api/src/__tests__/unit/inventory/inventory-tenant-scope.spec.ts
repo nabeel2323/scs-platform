@@ -103,7 +103,7 @@ describe('Inventory tenant scope — active store membership', () => {
     await expect(
       assertWarehouseMember(h as unknown as DatabaseService, merchant, 'warehouse-a'),
     ).resolves.toBe('store-a');
-    expect(h.spies.organizationMembershipsFindFirst).toHaveBeenCalledOnce();
+    expect(h.spies.organizationMembershipsFindFirst).toHaveBeenCalledTimes(2);
     expect(h.spies.membershipsFindFirst).toHaveBeenCalledTimes(2);
   });
 

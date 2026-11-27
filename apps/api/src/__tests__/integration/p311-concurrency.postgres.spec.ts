@@ -284,11 +284,18 @@ describe('P13 Phase 3.1.1 — Concurrency Verification', () => {
       settlementService.postAdjustment(adjId, adminB, orgA),
     ]);
 
-    // Exactly one should succeed, the other should fail (status is no longer APPROVED)
+    // Both same-key retries return the already-posted adjustment; the DB row is singular.
     const fulfilled = results.filter(r => r.status === 'fulfilled');
     const rejected = results.filter(r => r.status === 'rejected');
-    expect(fulfilled.length).toBe(1);
-    expect(rejected.length).toBe(1);
+    expect(fulfilled.length).toBe(2);
+    expect(rejected.length).toBe(0);
+
+    const primaryRows = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM settlement_records
+       WHERE sub_order_id = $1 AND payment_record_id = $2`,
+      [orderA, paymentA],
+    );
+    expect(Number(primaryRows.rows[0].count)).toBe(1);
 
     // Verify adjustment is POSTED
     const adj = await settlementService.getAdjustment(adjId, orgA);

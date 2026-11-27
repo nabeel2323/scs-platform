@@ -1556,10 +1556,13 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
       .spyOn(paymentsService, 'getOrderForPayment')
       .mockImplementationOnce(async (id: string) => {
         const order = await originalGetOrder(id);
-        await pool.query(
-          `UPDATE orders SET status = 'ACCEPTED' WHERE id = $1 AND status = 'PAYMENT_PENDING'`,
+        const raceUpdate = await pool.query(
+          `UPDATE orders SET status = 'ACCEPTED' WHERE id = $1 AND status = 'PAYMENT_PENDING' RETURNING id, status`,
           [order.id],
         );
+        if (raceUpdate.rowCount !== 1) {
+          throw new Error(`FIN-DSH-28 race fixture did not update order ${order.id}; rowCount=${raceUpdate.rowCount}`);
+        }
         return order;
       });
 

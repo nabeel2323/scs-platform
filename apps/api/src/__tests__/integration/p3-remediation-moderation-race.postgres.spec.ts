@@ -46,7 +46,7 @@ describe('P3-19 Remediation — Moderation concurrency race', () => {
     container = await new PostgreSqlContainer('postgres:16-alpine').start();
     pool = new Pool({ connectionString: container.getConnectionUri() });
     db = drizzle(pool, {
-      schema: { products, productMedia, productVariants, stores, categories, brands, verificationRequests, users, organizations, disputes, merchantOffers },
+      schema: { products, productMedia, productVariants, stores, storeMembers, categories, brands, verificationRequests, users, organizations, disputes, merchantOffers },
     }) as unknown as DatabaseService['db'];
 
     // Run all migrations in the race test database
