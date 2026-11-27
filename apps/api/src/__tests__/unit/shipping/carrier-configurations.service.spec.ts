@@ -72,7 +72,7 @@ describe('CarrierConfigurationsService provider binding', () => {
 
     await expect(service.resolveForStore(ORG_ID, STORE_ID, 'aramex')).resolves.toBeNull();
 
-    expect(mocks.withActorContext).toHaveBeenCalledOnce();
+    expect(mocks.db.withActorContext).toHaveBeenCalledOnce();
     expect(mocks.storeFind).toHaveBeenCalledOnce();
     expect(mocks.configurationFind).toHaveBeenCalledOnce();
     expect(mocks.credentialFind).toHaveBeenCalledOnce();
