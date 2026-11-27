@@ -2,7 +2,7 @@
 
 **Last updated:** 27 November 2026  
 **Repository:** `nabeel2323/scs-platform`  
-**Active integration PR:** [#170 — Bulk PR #138 remediation extraction](https://github.com/nabeel2323/scs-platform/pull/170)  
+**Merged integration:** [PR #170 — Bulk PR #138 remediation extraction](https://github.com/nabeel2323/scs-platform/pull/170)  
 **Protected remediation source:** [#138 — Phase 0–1 tenant/security remediation](https://github.com/nabeel2323/scs-platform/pull/138)
 
 ## Read these documents first
@@ -14,21 +14,21 @@
 
 The newest dated entries in the checkpoint and progress tracker override older historical entries.
 
-## Current integration state — 27 November 2026
+## Integration state — 27 November 2026 (PR #170 merged)
 
-- PR #170 is **OPEN / DRAFT / UNMERGED**, targeting `develop`.
-- Integration branch: `integration/pr138-bulk-remediation-2026-11-26`.
-- Read the exact current head, base SHA, changed-file count and mergeability from live PR #170 metadata; do not hard-code a branch SHA in this handoff.
-- The integration branch is based on `develop` at `118174a644a197d72a033c22f0ee5af430617f44` and is 0 commits behind that base. Use the live PR comparison for its current ahead count.
-- GitHub's mergeable flag can change as metadata recalculates. It is not test evidence or merge authorization.
-- PR #138 remains **OPEN / DRAFT / UNMERGED** with 1,943 changed files. Its source and preservation refs remain identical at `81f30f5c30654b233ef373c15fd3f2cb867aba01`. It is recovery/source material only; never merge it wholesale.
+- PR #170 was merged into `develop` using a merge commit: `d078fe0124ac04fb0da3fc26f3ff02306c45a33f`.
+- The merged integration head was `a249d7368aefa715d32e8480452e8aff61535af6`; tested implementation head `5ba67eb00810d4419b0dfb901596a1eb948b8595` passed exact-head CI #1707 (run `46048745793`): all 10 mandatory jobs passed, including API unit/coverage, integration, migration full apply in disposable CI PostgreSQL, E6, Web/Admin, build and container smoke/health checks. The only later head change before merge was documentation-only.
+- k6 Smoke and Trigger Staging Release were skipped. No staging/production database write, migration, deployment, worker activation, provider call or release occurred as part of this merge.
+- PR #138 remains **OPEN / DRAFT / UNMERGED** with 1,943 changed files. Source branch `remediation/phase-0-1-tenant-security` and preservation branch `preservation/pr138-remediation-2026-11-25` remain identical at `81f30f5c30654b233ef373c15fd3f2cb867aba01`. Never merge PR #138 wholesale.
+- Use the merged `develop` as the only integration baseline. Continue bounded, source-reviewed extraction of remaining work from PR #138, comparing each candidate against current `develop`; preserve PR #138 and its preservation ref unchanged.
 
-## Verification and immediate work
+## Immediate remaining work
 
-- Exact-head CI #1659 (run ID `45914688537`) ran on older code head `a39acd446767d071eea2b175d1341897c9c6b3e4`. Lint/typecheck, Flutter, Web/Admin, migration full apply and E6 passed; API integration and Unit/Coverage failed. It does not validate later commits.
-- Follow-up API fixture and identity/security corrections have been committed but remain unverified. The latest shipping fixture pass adds a narrow `assertDriverEligibleForStore` test collaborator to the M7.3-B.4 delivery-exception and M7.3-B.5 RTS PostgreSQL suites; production fail-closed behavior is unchanged.
-- No workflow run is associated with the current integration head. Vercel checks are failing on the free-plan daily deployment quota and are not application CI. Do not trigger extra Vercel builds.
-- Continue source-reviewed, grouped repairs for remaining API unit/integration failures. Re-check current source before editing any historical failure. Run one consolidated exact-head mandatory CI campaign only after concrete mismatches are resolved; do not run CI per file or per small fix.
+- G-002 remains IN PROGRESS / NOT VERIFIED. Continue the source callsite/nesting and ownership-predicate audit across carrier credential lifecycle/retry/recovery, audit middleware, migration/bootstrap/CLI paths and raw SQL database objects (functions, triggers, partitions); complete exact operation predicates, FK-to-ownership evidence and protected read-only API/migration identity/catalog verification.
+- G-001 remains PARTIAL pending independent security review; G-007 full buyer journey/order-detail UAT remains pending.
+- Other tracked decisions remain explicit: G-012 (automatic gateway/payout) is a product-scope decision, G-013 has no workload evidence justifying index DDL, G-014 requires repository-admin branch protection, G-021 is absent procurement scope, and G-022 remains a database extension/schema decision. Do not silently implement deferred product or DB changes.
+- After implementation/integration is complete, run one consolidated exact-head verification campaign. Do not dispatch per-file CI or unnecessary Vercel builds; no reviewers are required.
+- Staging/production migrations, RLS/grant/default-ACL changes, worker activation, provider calls, Render changes, deployments, restarts and releases remain separately controlled actions; this merge did not authorize them.
 
 ## Operating decisions and safety boundaries
 
