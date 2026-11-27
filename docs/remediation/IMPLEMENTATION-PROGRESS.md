@@ -3294,3 +3294,10 @@ Next: finish the focused failing-fixture inventory, validate the batch together,
 - No production code or authorization/tenant guard was changed. No local test runner is available through the connected GitHub tools; these fixture changes remain **UNVERIFIED** until consolidated exact-head CI.
 - Current PR #170 head after this batch: `c80e652e708e4d523169eaf9a741bdb44edc0dc9`; it remains OPEN / DRAFT / UNMERGED against `develop`. GitHub currently reports `mergeable=false`; investigate/reconcile this before any merge consideration. PR #138 and its preservation branch remain identical at `81f30f5c30654b233ef373c15fd3f2cb867aba01` and must never be merged wholesale.
 - Do not dispatch per-fix CI. Continue source-reviewed grouped API fixture repairs, then one consolidated exact-head mandatory CI run. Keep the staging-release safety hold disabled. No staging/production database changes, migrations, RLS/grant/default-ACL changes, provider calls, worker activation, Render mutations, deployments, restarts, releases or reviewer requests.
+
+
+## Return-to-stock cancellation fixture lineage — 27 November 2026
+
+- Reviewed the historical Unit/Coverage failure in `m73c-inventory-return.spec.ts`: the cancelled-order case overrode the order fixture without its `storeId`, so the current shipment-lineage preflight correctly returned “Shipment not found” before the test reached the intended CANCELLED-order guard.
+- Added the matching `storeId: 'store-1'` to the cancelled-order fixture in commit `5cb4d044ea1a8a121b33a3c78238ff13a7b75d7d`. This keeps the test focused on the cancellation rule and does not weaken the production lineage check.
+- Not executed locally or in CI; remains UNVERIFIED pending consolidated exact-head verification. No production code changed.
