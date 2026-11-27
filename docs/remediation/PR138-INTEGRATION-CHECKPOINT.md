@@ -218,3 +218,13 @@
   - Inventory scope assertion reflects two org membership checks and two store membership checks in the nested guard path.
 - No production authorization, financial, reconciliation or tenant invariants are weakened. All changes remain UNVERIFIED until the next consolidated exact-head CI.
 - PR #170 remains OPEN / DRAFT / UNMERGED; PR #138 remains protected and unmerged. No reviewers, staging/production writes, migrations, RLS/grant changes, provider calls, worker activation, deployments, restarts or releases.
+
+
+## CI #1699 investigation refinement — 27 November 2026
+
+- Run #1699 (`45987890950`) passed Lint & Typecheck, Flutter, Migration Full Apply, Web/Admin and E6. Unit/Coverage failed five assertions; Integration failed two assertions. No build/contract/k6/staging-release downstream job ran.
+- M73-B.3.4 mutex tests failed at the 5-second test timeout, not an assertion. Replaced the brittle SQL-execution barrier (which held a claim transaction open) with a deterministic barrier at the worker actor-context boundary: first cycle holds after setting its process-local running flag but before claiming; the opposite cycle must complete. Both tests get a 30-second allowance and the barrier releases in `finally` to prevent leaked transactions.
+- P311 TC-03: service explicitly supports idempotent replay after POSTED, so both callers must fulfill. The previous failure was the assertion counting both primary settlement and adjustment ledger row as if only one row should exist. Now assert exactly one adjustment ledger row keyed to the adjustment and exactly one non-adjustment primary row.
+- Inventory active warehouse access calls the store-membership spy once; restore the correct one-call assertion. Organization membership is separately asserted.
+- P13 FIN-DSH-28 remains the sole unresolved integration assertion. The independent update reported rowCount=1 but the final row remained PAYMENT_PENDING. The next fixture revision verifies the returned order ID equals the intended sub-order and that a fresh pool query sees ACCEPTED immediately after the independent update, before expiry continues. If that check passes but the final row changes back, investigate service transaction/trigger behavior; do not weaken the conditional update.
+- Current PR #170 stays OPEN / DRAFT / UNMERGED; PR #138 stays protected/unmerged. No reviewers, no staging/production operations, migrations, RLS/grant changes, provider calls, worker activation, deployments, restarts or releases. Current corrections are unverified until a consolidated exact-head run.

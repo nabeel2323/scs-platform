@@ -247,7 +247,7 @@ describe('P13 Phase 3.1.1 — Concurrency Verification', () => {
   // ═══════════════════════════════════════════════════════════════
   // TC-03: Concurrent post of same adjustment
   // ═══════════════════════════════════════════════════════════════
-  it('TC-03: concurrent post of same adjustment → only one wins', async () => {
+  it('TC-03: concurrent post of same adjustment → idempotent replay with one ledger row', async () => {
     // Create a fresh adjustment for this test.
     // Phase 4: fx_status is 'RESOLVED', not 'BLOCKED'. Posting is allow-listed on
     // the FX position (settlement-adjustment.service.ts), because §7 requires that
@@ -290,9 +290,17 @@ describe('P13 Phase 3.1.1 — Concurrency Verification', () => {
     expect(fulfilled.length).toBe(2);
     expect(rejected.length).toBe(0);
 
+    const adjustmentRows = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM settlement_records
+       WHERE sub_order_id = $1 AND payment_record_id = $2 AND status = 'ADJUSTMENT'
+         AND metadata->>'adjustmentId' = $3`,
+      [orderA, paymentA, adjId],
+    );
+    expect(Number(adjustmentRows.rows[0].count)).toBe(1);
+
     const primaryRows = await pool.query(
       `SELECT COUNT(*)::int AS count FROM settlement_records
-       WHERE sub_order_id = $1 AND payment_record_id = $2`,
+       WHERE sub_order_id = $1 AND payment_record_id = $2 AND status <> 'ADJUSTMENT'`,
       [orderA, paymentA],
     );
     expect(Number(primaryRows.rows[0].count)).toBe(1);

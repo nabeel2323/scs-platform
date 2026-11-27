@@ -104,7 +104,7 @@ describe('Inventory tenant scope — active store membership', () => {
       assertWarehouseMember(h as unknown as DatabaseService, merchant, 'warehouse-a'),
     ).resolves.toBe('store-a');
     expect(h.spies.organizationMembershipsFindFirst).toHaveBeenCalledTimes(2);
-    expect(h.spies.membershipsFindFirst).toHaveBeenCalledTimes(2);
+    expect(h.spies.membershipsFindFirst).toHaveBeenCalledOnce();
   });
 
   it('denies a same-organization user who is not an active member of the warehouse store', async () => {

@@ -1560,8 +1560,12 @@ describe('P13 — Dispute/Refund & Settlement Financial Integration (PostgreSQL)
           `UPDATE orders SET status = 'ACCEPTED' WHERE id = $1 AND status = 'PAYMENT_PENDING' RETURNING id, status`,
           [order.id],
         );
-        if (raceUpdate.rowCount !== 1) {
-          throw new Error(`FIN-DSH-28 race fixture did not update order ${order.id}; rowCount=${raceUpdate.rowCount}`);
+        if (order.id !== orderId || raceUpdate.rowCount !== 1) {
+          throw new Error(`FIN-DSH-28 race fixture targeted ${order.id} (expected ${orderId}); rowCount=${raceUpdate.rowCount}`);
+        }
+        const committedRace = await pool.query(`SELECT status FROM orders WHERE id = $1`, [order.id]);
+        if (committedRace.rows[0]?.status !== 'ACCEPTED') {
+          throw new Error(`FIN-DSH-28 concurrent transition was not visible after commit: ${committedRace.rows[0]?.status}`);
         }
         return order;
       });
