@@ -995,7 +995,7 @@ export class AramexProvider extends ShippingProvider {
       return this.resolveCredentialsById(explicitCredentialId, store.orgId);
     }
 
-    const config = await this.configurations.resolveForStore(store.orgId, storeId);
+    const config = await this.configurations.resolveForStore(store.orgId, storeId, ARAMEX_PROVIDER_KEY);
     if (!config?.credentialId) {
       throw new NonRetryableCarrierError(
         'No active Aramex configuration exists for this store organization',

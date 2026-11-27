@@ -72,7 +72,7 @@ export class CarrierConfigurationsService {
    *   2. Org-wide default (if active)
    *   3. null (no configuration)
    */
-  async resolveForStore(orgId: string, storeId: string): Promise<any | null> {
+  async resolveForStore(orgId: string, storeId: string, providerKey: string): Promise<any | null> {
     return this.withInternalContext(orgId, 'carrier-configurations:resolve', async () => {
       const store = await this.db.db.query.stores.findFirst({
         where: and(eq(stores.id, storeId), eq(stores.orgId, orgId)),
@@ -83,19 +83,21 @@ export class CarrierConfigurationsService {
         where: and(
           eq(carrierConfigurations.orgId, orgId),
           eq(carrierConfigurations.storeId, storeId),
+          eq(carrierConfigurations.providerKey, providerKey),
           eq(carrierConfigurations.isActive, true),
         ),
       });
-      if (storeConfig) return (await this.hasActiveOrgCredential(storeConfig.credentialId, orgId)) ? storeConfig : null;
+      if (storeConfig) return (await this.hasActiveOrgCredential(storeConfig.credentialId, orgId, providerKey)) ? storeConfig : null;
       const orgDefault = await this.db.db.query.carrierConfigurations.findFirst({
         where: and(
           eq(carrierConfigurations.orgId, orgId),
           isNull(carrierConfigurations.storeId),
+          eq(carrierConfigurations.providerKey, providerKey),
           eq(carrierConfigurations.isActive, true),
         ),
       });
       if (!orgDefault) return null;
-      return (await this.hasActiveOrgCredential(orgDefault.credentialId, orgId)) ? orgDefault : null;
+      return (await this.hasActiveOrgCredential(orgDefault.credentialId, orgId, providerKey)) ? orgDefault : null;
     });
   }
 
@@ -129,10 +131,13 @@ export class CarrierConfigurationsService {
       this.assertWritePermission(caller);
       const credential = await this.db.db.query.carrierCredentials.findFirst({
         where: eq(carrierCredentials.id, input.credentialId),
-        columns: { id: true, orgId: true, isActive: true },
+        columns: { id: true, orgId: true, providerKey: true, isActive: true },
       });
       if (!credential) throw new NotFoundException('Carrier credential not found');
       if (credential.orgId !== input.orgId) throw new ForbiddenException('Credential does not belong to your organization');
+      if (credential.providerKey !== input.providerKey) {
+        throw new BadRequestException('Credential provider does not match carrier configuration provider');
+      }
       if (!credential.isActive) throw new BadRequestException('Carrier credential is not active');
       if (input.storeId) {
         const store = await this.db.db.query.stores.findFirst({
@@ -221,11 +226,12 @@ export class CarrierConfigurationsService {
     return this.db.withActorContext({ actorKind: 'worker', workerId, activeOrgId: orgId }, operation);
   }
 
-  private async hasActiveOrgCredential(credentialId: string, orgId: string): Promise<boolean> {
+  private async hasActiveOrgCredential(credentialId: string, orgId: string, providerKey: string): Promise<boolean> {
     const credential = await this.db.db.query.carrierCredentials.findFirst({
       where: and(
         eq(carrierCredentials.id, credentialId),
         eq(carrierCredentials.orgId, orgId),
+        eq(carrierCredentials.providerKey, providerKey),
         eq(carrierCredentials.isActive, true),
       ),
       columns: { id: true },
