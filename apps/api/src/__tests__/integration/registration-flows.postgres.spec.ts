@@ -23,6 +23,7 @@ import * as schema from '../../drizzle/schema';
 import { users } from '../../modules/identity/identity.schema';
 import { eq } from 'drizzle-orm';
 import { IdentityService } from '../../modules/identity/identity.service';
+import { DatabaseService } from '../../common/database/database.service';
 import { createMockRedisStore } from '../unit/helpers/mock-redis';
 import { seedPlatformRbac } from '../../../infra/drizzle/seed-pg';
 
@@ -123,8 +124,10 @@ describe('Registration Flows Integration (S1.35 Phase 1)', () => {
 
     const jwt = new JwtService({ secret: 'test-jwt-secret-min-32-chars!!', signOptions: { expiresIn: '15m' } });
 
+    const database = Object.create(DatabaseService.prototype) as DatabaseService;
+    database.db = db as any;
     service = new IdentityService(
-      { db } as any,
+      database,
       mockRedis as any,
       jwt,
       mockRateLimit as any,
