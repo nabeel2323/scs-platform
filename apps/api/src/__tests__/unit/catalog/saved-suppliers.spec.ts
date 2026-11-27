@@ -20,7 +20,7 @@ import type { SQL } from 'drizzle-orm';
 // ── Mock builder ──────────────────────────────────────────────────
 function createMocks() {
   // select().from().where() chain used by the batched store fetch.
-  const where = vi.fn(() => {
+  const where = vi.fn((_condition: SQL) => {
     // Product-read authorization uses where().limit(1), while the batched
     // saved-supplier projection awaits where() directly.
     const result: any = Promise.resolve([]);
@@ -36,7 +36,9 @@ function createMocks() {
     query: {
       savedSuppliers: { findMany: vi.fn(), findFirst: vi.fn() },
       favorites: { findMany: vi.fn(), findFirst: vi.fn() },
-      stores: { findFirst: vi.fn() },
+      stores: {
+        findFirst: vi.fn<(query: { where?: SQL }) => Promise<unknown>>(),
+      },
       storeMembers: { findFirst: vi.fn() },
       products: { findFirst: vi.fn() },
     },
@@ -134,8 +136,10 @@ describe('CatalogService — Saved Suppliers (§21.3)', () => {
 
       await service.saveSupplier('user-1', 'store-A', actor);
 
-      const where = mocks.db.query.stores.findFirst.mock.calls[0]![0].where as SQL;
-      const compiled = new PgDialect().sqlToQuery(where);
+      const storeQuery = mocks.db.query.stores.findFirst.mock.calls[0]?.[0];
+      expect(storeQuery).toBeDefined();
+      expect(storeQuery?.where).toBeDefined();
+      const compiled = new PgDialect().sqlToQuery(storeQuery!.where as SQL);
       expect(compiled.params).toContain('ACTIVE');
       expect(compiled.params).toContain('VERIFIED');
     });
@@ -187,7 +191,9 @@ describe('CatalogService — Saved Suppliers (§21.3)', () => {
     expect(result[0]!.store).not.toHaveProperty('orgId');
     expect(result[0]!.store).not.toHaveProperty('address');
     expect(result[0]!.store).not.toHaveProperty('metadata');
-    const compiled = new PgDialect().sqlToQuery(mocks.selectChain.where.mock.calls[0]![0] as SQL);
+    const storePredicate = mocks.selectChain.where.mock.calls[0]?.[0];
+    expect(storePredicate).toBeDefined();
+    const compiled = new PgDialect().sqlToQuery(storePredicate as SQL);
     expect(compiled.params).toContain('ACTIVE');
     expect(compiled.params).toContain('VERIFIED');
   });
