@@ -260,7 +260,7 @@ describe('M7.3-C — LOST guard', () => {
   });
 
   it('6c. rejects when the order is already CANCELLED', async () => {
-    const { svc } = serviceFor(baseFixture({ order: { id: 'ord-1', status: 'CANCELLED' } }));
+    const { svc } = serviceFor(baseFixture({ order: { id: 'ord-1', storeId: 'store-1', status: 'CANCELLED' } }));
     await expect(svc.recordReturn('ship-1', line(1, 'GOOD'), MERCHANT)).rejects.toThrow(/CANCELLED/);
   });
 });
