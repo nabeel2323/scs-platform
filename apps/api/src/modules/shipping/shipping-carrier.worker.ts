@@ -315,6 +315,17 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
       });
     }
 
+    const eventOrgId = event.organizationId || event.metadata?.organizationId;
+    if (
+      (eventOrgId && eventOrgId !== store.orgId) ||
+      (expectedOrgId && expectedOrgId !== store.orgId)
+    ) {
+      throw new NonRetryableCarrierError(
+        'Carrier outbox event organization does not match its shipment',
+        { providerKey, operation: 'validateTenant' },
+      );
+    }
+
     // The shipment's order and store are separate FKs. Verify they describe
     // the same merchant before any carrier/provider side effect or webhook retry.
     const order = await this.withWorkerContext(
@@ -329,17 +340,6 @@ export class ShippingCarrierWorker implements OnModuleInit, OnModuleDestroy {
         providerKey,
         operation: 'validateTenant',
       });
-    }
-
-    const eventOrgId = event.organizationId || event.metadata?.organizationId;
-    if (
-      (eventOrgId && eventOrgId !== store.orgId) ||
-      (expectedOrgId && expectedOrgId !== store.orgId)
-    ) {
-      throw new NonRetryableCarrierError(
-        'Carrier outbox event organization does not match its shipment',
-        { providerKey, operation: 'validateTenant' },
-      );
     }
 
     return store.orgId;
