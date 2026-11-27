@@ -343,8 +343,8 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
 
     // Mark as PROCESSING (simulating claim)
     await pool.query(
-      `UPDATE outbox_events SET status = 'PROCESSING', locked_at = NOW(), locked_by = 'test-worker' WHERE id = $1`,
-      [eventId],
+      `UPDATE outbox_events SET status = 'PROCESSING', locked_at = NOW(), locked_by = $2 WHERE id = $1`,
+      [eventId, worker.workerId],
     );
 
     // processEvent expects camelCase properties (DB rows are snake_case)
@@ -404,8 +404,8 @@ describe('M7.3-B.3.3.2.1 — Retry State Foundation (PostgreSQL)', () => {
 
     // Simulate event at max attempts
     await pool.query(
-      `UPDATE outbox_events SET status = 'PROCESSING', attempts = 7, locked_at = NOW(), locked_by = 'test-worker' WHERE id = $1`,
-      [eventId],
+      `UPDATE outbox_events SET status = 'PROCESSING', attempts = 7, locked_at = NOW(), locked_by = $2 WHERE id = $1`,
+      [eventId, worker.workerId],
     );
 
     // processEvent expects camelCase properties (DB rows are snake_case)
