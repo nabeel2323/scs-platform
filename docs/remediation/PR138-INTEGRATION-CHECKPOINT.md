@@ -86,3 +86,11 @@
 - Commit `3aa3358e5d213876988bcfe4f20930237873b2b5` moves confirmation into `completeOrder`'s transaction and adds a `buyerConfirmedAt IS NULL` compare-and-set predicate for buyer-confirmation source. A losing concurrent confirmer rereads the order and returns the completed projection if the winner committed.
 - Existing regression test checks the intended rollback boundary; not executed locally. Fix remains UNVERIFIED pending consolidated exact-head CI.
 - Test-only privileged RTS admin fixture was also aligned in commit `3151fc2f460a72fc0b1ef720360618c6093f4e2c`: retain shipment/store lineage, use another org to exercise privileged bypass. No production authorization logic changed.
+
+
+## API transactional and fixture repair batch — 27 November 2026
+
+- Fixed a real completion atomicity defect in `OrdersService.confirmDelivery`: buyerConfirmedAt previously committed before the completion transaction. Commit `3aa3358e5d213876988bcfe4f20930237873b2b5` moves the timestamp into the same transaction as DELIVERED → COMPLETED and adds a null timestamp compare-and-set. Concurrent confirmations retain idempotent success when another request completes first.
+- Grouped test-only fixture repairs: RTS privileged-admin lineage (`3151fc2f460a72fc0b1ef720360618c6093f4e2c`), ReturnsService worker transaction/query contract (`574f3a4626c7a2ebd6cfc19a509d1790ad988320`), DisputesService transactional authorization fixtures (`0b1ec543232310f6c333b17bd03ae5a895135446`), and Catalog saved-favorites limited membership query (`358ac213c1f632340336c542e9b6361040e60621`).
+- No local test runner is available through connected GitHub tools; none of these changes have been executed. Keep all changes UNVERIFIED until consolidated exact-head CI.
+- Continue by source-reviewing remaining CI #1659 failures, starting with carrier reconciliation mutex B34-PG-10/11 and any test fixture mismatches still present at current head. Treat historical logs as diagnostic only; never weaken tenant/actor guards. Do not trigger per-fix CI.
