@@ -59,3 +59,15 @@
 - The same CI log still reports further failures in delivery-exception/RTS integration tests, carrier reconciliation race tests, Product CRUD tenant fixtures, and catalog/order unit fixtures. Continue source-level grouping; do not waive tenant/actor guards or rerun per-fix CI.
 - PR #138 source and preservation refs were re-compared and remain identical at `81f30f5c30654b233ef373c15fd3f2cb867aba01` (0 ahead / 0 behind). PR #138 remains OPEN / DRAFT / UNMERGED; never merge it wholesale.
 - PR #170 remains OPEN / DRAFT / UNMERGED against `develop`. No staging/production writes, migrations, RLS/grant changes, provider calls, worker activation, Render mutations, deployments, restarts, releases or reviewer requests were made. Keep the staging-release safety hold disabled.
+
+
+## Live continuation checkpoint — 27 November 2026 (shipping fixture batch)
+
+- Reviewed the API integration failures recorded by CI #1659 (run ID `45914688537`), which ran on the older code head `a39acd4`. Its API integration and Unit/Coverage failures are diagnostic only for later commits; no workflow run is associated with the current branch head.
+- The M7.3-B.4 delivery-exception and M7.3-B.5 RTS PostgreSQL suites call `OrdersService.assignDriver` during setup. The production method intentionally fails closed when the optional ShippingService collaborator is absent. Both test suites now inject a narrow eligibility stub for their seeded driver; they do not test shipping eligibility itself:
+  - `fb6de7e4ce1305ce2da121f411eddc5939e9e81d` — RTS suite.
+  - `c80e652e708e4d523169eaf9a741bdb44edc0dc9` — delivery-exception suite.
+- Tracker update: `c1c993c8a96bc08ee0a93f5894f4a9b8a9f167b4`. Handoff refresh: `52f2326528dfe5ca60f6332be3de74b5e274f299`.
+- Current PR #170 head will advance with this checkpoint documentation commit. It remains OPEN / DRAFT / UNMERGED against `develop`; GitHub's mergeable flag is not test evidence or authorization. The integration branch remains 0 commits behind `develop`; latest compare previously reported 117 commits ahead. PR #138 source/preservation refs remain identical at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; never merge PR #138 wholesale.
+- No local tests were run. These fixes remain UNVERIFIED pending one consolidated exact-head mandatory CI campaign after remaining concrete API fixture mismatches are source-reviewed and grouped. Do not dispatch per-fix CI or additional Vercel builds.
+- Keep staging-release disabled. No staging/production DB writes, migrations, RLS/grant/default-ACL changes, provider calls, worker activation, Render mutations, deployments, restarts, releases or reviewer requests.
