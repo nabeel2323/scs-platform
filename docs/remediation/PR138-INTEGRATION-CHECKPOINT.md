@@ -108,3 +108,11 @@
 
 - Commit `035bd65269c07c6c3a3e447c190932607870b439` moves the event/expected organization comparison immediately after authoritative store tenant resolution and before the order-lineage query. A known organization mismatch is now rejected without requiring an unrelated order lookup; shipment order/store lineage remains enforced before provider side effects.
 - This resolves the fixture's focused-path TypeError without weakening tenant validation. No local test or CI execution; remains UNVERIFIED.
+
+
+## Saved-supplier unit mock typecheck repair — 27 November 2026
+
+- Exact-head CI run #1685 (run ID `45918515070`) ran on integration head `cebfd258fa77e20dd07f2a3b13d69d575236070e`. Mobile analysis/tests passed and lint passed; API typecheck failed before downstream suites could run. The only reported TypeScript diagnostics were in `apps/api/src/__tests__/unit/catalog/saved-suppliers.spec.ts`: the Drizzle `where` mock and `stores.findFirst` mock had zero-argument inferred call tuples, making predicate extraction unsafe under strict typing.
+- Corrected the test harness in commit `baef54ec07160733c3c18e119e63a0182ea02adb`: typed the query mocks with their SQL/query arguments, used optional call access and explicit predicate-presence assertions, then compiled the predicates with PgDialect. No production code or authorization predicate changed.
+- This typecheck repair has not yet been run. Do not dispatch CI for this isolated correction; continue the remaining source-level failure audit and use one consolidated exact-head campaign after the grouped repair pass.
+- Current branch head is expected to advance to the repair commit; fetch live PR metadata before further actions. PR #138 source and preservation branch remain identical at `81f30f5c30654b233ef373c15fd3f2cb867aba01`. Keep PR #170 draft/unmerged; staging-release/migration authorization remains separate and is not granted.
