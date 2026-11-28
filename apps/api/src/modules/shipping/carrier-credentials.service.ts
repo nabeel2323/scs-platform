@@ -234,9 +234,8 @@ export class CarrierCredentialsService {
   private withInternalContext<T>(orgId: string, workerId: string, operation: () => Promise<T>): Promise<T> {
     const active = this.db.currentActorContext;
     if (active) {
-      if ((active.actorKind === 'user' || active.actorKind === 'worker') &&
-          active.activeOrgId !== null && active.activeOrgId !== orgId) {
-        throw new Error('Carrier credential access crossed the active organization context');
+      if (active.actorKind !== 'worker' || active.activeOrgId !== orgId) {
+        throw new Error('Carrier credential access requires a worker context bound to the requested organization');
       }
       return operation();
     }
