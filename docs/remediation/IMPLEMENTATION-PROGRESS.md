@@ -3750,3 +3750,28 @@ Exact-head run #1724 (`46087426872`) on `b48e2a463c28eb7bcb1c880634c4f4f388ad5b5
 - Spot-checked domain predicates: merchant offers assert store/org and store membership; inventory verifies store/org, warehouse/variant same-store; shipping validates org membership and driver/store assignment; carrier credentials are org-scoped with explicit context; payment and cart paths validate order/store/buyer and resolve store from persisted product/offer. This is a positive spot-check, not complete route-level proof.
 - TenantDatabaseContextInterceptor remains opt-in/not globally registered. AppModule globally registers audit middleware only. Explicit withActorContext exists in a subset of catalog/orders/payments/merchant/carrier flows; several services rely on caller arguments and service-level predicates without transaction-bound actor context. Do not enable RLS until every route/service/worker/raw SQL path is inventoried and tested.
 - No database mutation, grants/default ACL change, role/credential change, RLS, Render env change, deploy/restart, worker activation, seed/reset/bootstrap or provider call was performed. PR #138 refs remain protected; PR #175 remains separate and draft despite its successful exact-head mandatory CI.
+
+
+## G-002 source callsite and actor-context review — 28 November 2026
+
+Read-only source review against the current `develop` ref; no application source was changed.
+
+### Confirmed source paths and behavior
+
+- `apps/api/src/app.module.ts` applies `AuditLogMiddleware` to all routes. `apps/api/src/modules/audit/audit-log.middleware.ts` defers writes until response finish and opens a dedicated transaction-local `actorKind: audit` context. `AuditService.record()` reuses an existing caller/worker transaction or opens its own audit context. No missing actor scope was found in this path.
+- `apps/api/src/common/database/tenant-database-context.interceptor.ts` remains opt-in. `AppModule` does not register it globally; only reviewed controllers that explicitly use it receive the automatic user context. Do not infer route-wide actor coverage from the existence of the interceptor.
+- `apps/api/src/modules/shipping/carrier-credentials.service.ts` and `carrier-configurations.service.ts`: caller CRUD opens a user actor transaction, checks active organization membership, and applies role gates. Internal decrypt/resolve helpers reuse an active context; they reject a mismatched organization only when a user/worker context has a non-null `activeOrgId`. If the active context has no active organization, the helper reuses it rather than rejecting or establishing an org-bound worker context. This is a callsite/contract edge case to trace and cover with focused tests before RLS; it is not yet classified as an exploitable vulnerability.
+- `apps/api/src/modules/shipping/carrier-webhook.controller.ts`: credential resolution uses a platform worker context; tokenized requests resolve one exact credential, while the legacy provider-only route rejects ambiguous multiple active credentials. Subsequent decrypt, event persistence, shipment routing, retry and outbox writes use a worker context bound to the resolved credential's organization. Tenant identifiers in webhook payloads are not trusted.
+- `shipping-carrier.worker.ts` derives organization scope from persisted shipment/store lineage and checks outbox organization attribution before processing. `carrier-tracking-poller.ts` and `carrier-reconciliation.service.ts` use platform worker contexts for global claim scans; tracking verifies order/store lineage, but its worker context is not populated with a per-shipment organization. Finish the operation-to-table ownership matrix and decide/test the required org binding before any RLS design.
+- `apps/api/infra/drizzle/migrate-pg.ts` preserves the session advisory lock and per-migration transaction/ledger behavior, but migration identity diagnostics are non-fatal and `PGSSLROOTCERT` is optional. It does not establish transaction-local migration actor context. Keep this as an explicit migration-principal/TLS remediation gate; do not alter credentials, grants, default ACLs or TLS deployment settings before the separate identity/ownership/rollback plan is approved.
+- `apps/api/src/scripts/bootstrap-issue-token.ts` uses the exact issuing connection for production-like identity/TLS checks and establishes a transaction-local bootstrap operator context. This is distinct from the standalone migration runner and must not be assumed to share its database credential.
+
+### Remaining G-002 work
+
+1. Complete the direct `pg.Client`/`pg.Pool` entrypoint inventory, including every script and helper, with environment/target guard, TLS, identity checks, actor context and write/read scope.
+2. Trace every caller of carrier credential/configuration internal helpers; add focused tests for null-active-org reuse, mismatched-org rejection, and worker nesting without switching actors inside an active transaction.
+3. Complete carrier tracking/reconciliation operation-to-table predicates and tests for shipment → order → store → organization lineage and worker actor attribution.
+4. Complete the audit/worker/raw-SQL actor-context nesting matrix and reconcile it with all migration-backed FKs and the 77-migration object crosswalk.
+5. Only after the grouped source/test work is complete, run one consolidated exact-head mandatory CI campaign. No per-file CI or unnecessary Vercel builds.
+
+No database, migration, grant/default-ACL, RLS, Render, deployment, worker, provider or staging action was performed. No CI was triggered for this read-only review.
