@@ -16,8 +16,11 @@ apply_transactionally() {
     cat "$source_file"
     printf '%s\n' 'COMMIT;'
   } > "$temp_sql"
-  output=$(psql -X -U "$USR" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$temp_sql" 2>&1)
-  result=$?
+  if output=$(psql -X -U "$USR" -d "$DB" -v ON_ERROR_STOP=1 -q -f "$temp_sql" 2>&1); then
+    result=0
+  else
+    result=$?
+  fi
   rm -f "$temp_sql"
   if [ "$result" -ne 0 ]; then
     printf '%s\n' "$output" >&2
