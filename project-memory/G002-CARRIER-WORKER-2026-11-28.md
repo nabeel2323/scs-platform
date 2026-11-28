@@ -127,3 +127,11 @@ No database, staging, Render, provider, credential, grants/default-ACL/RLS, work
 - Targeted path/content review added `b1-migration-test.js` and `p311-migration-verify.js` (fixed localhost disposable DBs, development/test + explicit UAT confirmation), M5/M6 UAT direct pools (local UAT guard), `verify-staging-bootstrap-target.ts` (shared fail-closed staging guard), and the two ad hoc read-only diagnostics `check-merchant-rbac.ts` / `check-staging-users.ts`.
 - Both diagnostics require CA TLS but do not establish environment/database/role identity or actor context. `check-staging-users.ts` additionally prints user phone/email/full name. Treat it as a sensitive manual-diagnostic hardening candidate before shared staging use; no code or DB operation was performed.
 - Inventory remains provisional: the API tree is 648 source files; exhaustive blob and indirect factory scan is still outstanding.
+
+
+## Outbox publisher caller-chain coverage — 28 November 2026
+
+- Reviewed controller/service call paths for catalog product publication and ProductGovernance, inventory, merchant verification/store creation, store membership, returns and its commission/settlement helpers, reviews and disputes. Their inspected HTTP entrypoints establish tenant actor context via method-level or class-level interceptor; selected service publication paths explicitly call user actor context. No new unscoped publisher was confirmed in this sample.
+- Payment refund-request and admin approval were the confirmed gaps; PR #181 fixes both. CI #1753 passed all mandatory jobs on the source/test head.
+- Generic OutboxDispatcher remains non-polling and intentionally has no generic consumer. Full caller graph still needs direct service invocation, detached callbacks, worker/schedule and all-source coverage. Do not introduce a generic consumer.
+- PR #181 remains open and merge gated; Vercel previews are free-plan rate-limited. PR #138 and its preservation branch remain identical at `81f30f5c30654b233ef373c15fd3f2cb867aba01`.
