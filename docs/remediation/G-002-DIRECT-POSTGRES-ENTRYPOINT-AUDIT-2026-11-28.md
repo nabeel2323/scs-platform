@@ -84,3 +84,17 @@ The wider tree review found three more direct PostgreSQL tools that must be incl
 The direct-connection source set also includes `create-admin-user.ts` (development/test-only, local-target restriction; no TLS option on its pool) and `audit-db-access.ts` (read-only transaction, audit actor, optional CA). Do not count helper files that accept a `PoolClient`—for example `migration-lock.ts` and `migration-identity.ts`—as new connection constructors.
 
 **Inventory status remains provisional:** the repository tree contains 648 API source files; this pass inspected known database/bootstrap/migration/seed scripts and targeted connection constructors, but has not yet exhaustively searched every source blob for dynamic imports or indirect connection factories. The report must not be represented as a complete proof until that scan and the outbox caller-chain review finish.
+
+
+## Outbox caller-chain spot checks — verified controller actor scopes
+
+A follow-up caller-chain inspection resolved several candidates from the initial publisher scan. These are **not confirmed actor-context gaps**:
+
+- `InventoryController` has class-level `@UseInterceptors(TenantDatabaseContextInterceptor)`. Its stock adjust, transfer, and low-stock endpoints therefore execute within the authenticated user actor transaction. `InventoryService.adjustStock` and `transferStock` use the context-bound `DatabaseService.db`; their nested Drizzle transactions remain under the active request actor context, and post-inner-transaction outbox writes still occur before the outer interceptor transaction commits.
+- `MerchantController.submitVerification` explicitly applies `TenantDatabaseContextInterceptor` to the endpoint (along with permission and active-org guards). The verification insert/update and outbox publish therefore inherit the authenticated user context.
+- `ReviewsController` has class-level `TenantDatabaseContextInterceptor`; review persistence, trust recomputation and `review.created` publish execute under the request actor scope.
+- `ReturnsController` has class-level `TenantDatabaseContextInterceptor`. Its settlement-adjustment admin endpoint and return lifecycle handlers inherit the authenticated actor scope. In the refund-finalization path, `processCommissionReversal` is called with the caller's transaction client, and the subsequent `return.refunded` outbox event uses the same transaction client. `SettlementAdjustmentService.createAdjustment` likewise passes its transaction client to `outbox.publish`.
+
+The interceptor implementation explicitly wraps the full awaited HTTP handler in `DatabaseService.withActorContext`, and the `DatabaseService.db` getter resolves to that transaction-bound Drizzle handle while the async actor scope is active. Nested calls with the same actor reuse the active transaction; actor switching fails closed.
+
+This spot check closes these specific candidate callsites only. It does **not** establish that every production publisher is safe: remaining publishers must be traced to their controller/interceptor or explicit worker/system context, with special attention to scheduled jobs, event listeners, callbacks detached from request lifetime, and direct service invocations that bypass HTTP controllers.
