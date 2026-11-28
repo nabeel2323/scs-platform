@@ -1,3 +1,15 @@
+## Latest continuation checkpoint — 28 November 2026, payment refund actor-context correction
+
+- Continued from the G-002 source audit on PR #181; the branch remains based on current `develop` at `5356cd182cb41fc8f2266a0b75eb60056c43675d`. PR #138 remains OPEN/DRAFT/UNMERGED and untouched; PR #175 remains separate.
+- A focused source review found two authenticated payment endpoints missing `TenantDatabaseContextInterceptor`: `POST /payments/:id/refund` and `POST /admin/refunds/:id/approve`. Their service methods write payment events and outbox rows but do not create an actor context themselves. Transaction-client propagation alone is not actor attribution.
+- Added the existing tenant actor interceptor to both routes. Existing nested internal paths remain compatible: merchant-rejection refund creation already runs inside `OrdersService.rejectOrder`'s caller actor scope, and return-driven refund creation runs under `ReturnsController`'s class-level interceptor; identical nested actors reuse the active transaction.
+- Added a focused controller metadata regression test for both endpoints. The same PR now carries the source/test correction plus the updated G-002 audit evidence; one exact-head mandatory CI campaign should validate the combined change.
+- Remaining audit is still bounded: complete the non-HTTP outbox caller graph and exhaustive direct PostgreSQL Client/Pool source inventory. `PaymentsService.expirePayment` has no verified caller in this pass; do not infer a scheduler or activate any worker.
+- PR #181's Vercel preview failures were external free-plan rate limits; the earlier documentation-only branch had no GitHub Actions runs. This new source/test head should be judged only by its own exact-head CI. Do not rerun previews or dispatch duplicate CI.
+- Safety remains unchanged: no database connection/script execution, DB writes, migrations, seed/reset/bootstrap, grants/default ACL/RLS changes, Render mutation, deployment, provider call, credential change, worker activation or release. PR #138 source and preservation refs remain protected.
+
+---
+
 ## Latest continuation checkpoint — 28 November 2026, migration crosswalk reconciliation
 
 - PR #181 remains open against `develop`: https://github.com/nabeel2323/scs-platform/pull/181. Audit document latest source commit before this memory update: `9e15d22cb9a06b1d0063524abcbe7a1500ca2079`.
