@@ -156,3 +156,14 @@ The manual `apps/api/check-staging-users.ts` diagnostic has now been hardened in
 - Added focused guard tests for environment/approval/target mismatch, privileged roles, ownership, TLS, successful restricted identity and audit actor attribution.
 
 The change is source-only. No database connection or diagnostic execution was performed. The new tests are authored but have not yet been executed; exact-head validation remains pending. The separate bootstrap safety contract was not weakened or reused for read-only auditing.
+
+
+## Exact-head source checkpoint — 28 November 2026, 21:22 UTC
+
+- PR #181 current head after the staging diagnostic hardening batch: `803ce6fe9f5a13c31e62429297b5b89a52e15a9c`; base `develop` remains `5356cd182cb41fc8f2266a0b75eb60056c43675d`. Exact compare: 38 commits ahead, 0 behind, nine changed paths. PR #181 remains open, non-draft, and GitHub reports mergeable=true; it is not merged.
+- New source files: `apps/api/scripts/staging-read-only-audit-safety.ts` and `.spec.ts`. Updated `apps/api/check-staging-users.ts` to use the purpose-specific exact-target guard, verified CA TLS, restricted role identity, explicit `BEGIN READ ONLY`, transaction-local audit actor context and aggregate-only output. Connection cleanup and rollback are guarded if pool connection acquisition fails.
+- The guard tests cover non-staging environment, exact database/approval, wrong target, role switching, privileged roles, ownership, TLS, successful restricted identity and audit actor setup. These tests have **not** been executed. No exact-head GitHub Actions run is associated with `803ce6f`; do not treat CI #1753 as validation of these later additions.
+- CI #1753 / run `46163157475` remains successful for all 10 mandatory jobs on earlier source/test head `f6be9ca18157c391842b55168616975c10f3b67e`; k6 and staging-release jobs were skipped. The latest source head reports only the two external Vercel free-plan preview rate-limit failures. Do not retry previews or start duplicate CI runs.
+- PR description now records the new scope and explicitly marks exact-head validation pending. Keep PR #181 unmerged until the new source/test batch has one consolidated exact-head CI and the separate staging-release authorization gate is resolved. No reviewers requested.
+- PR #138 remains open/draft/unmerged and untouched at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; its preservation branch remains protected. PR #175 remains separate.
+- No database connection or script execution, staging/shared DB write, migration, seed/reset/bootstrap, grants/default ACL/RLS change, Render mutation, deployment, provider call, credential change, worker activation or release occurred.
