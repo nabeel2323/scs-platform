@@ -1,3 +1,24 @@
+## Current continuation — 28 November 2026
+
+**Live repository state (verified 28 Nov 2026):**
+- Repository: `nabeel2323/scs-platform`; integration baseline: `develop`, current ref SHA `2f6bb106e7147b83cdcc98ad93b4ef688e163e84` (latest observed commit is documentation-only: staging role/TLS rollout gates).
+- PR #170 and #171 are MERGED. PR #173 (carrier configuration/provider credential binding) and PR #174 (bootstrap CLI database identity and actor context) are also MERGED.
+- PR #138 remains OPEN / DRAFT / UNMERGED at `81f30f5c30654b233ef373c15fd3f2cb867aba01`. Preserve the source and synchronized preservation ref; never merge it wholesale, reset, force-push, delete or destructively rebase it.
+- Latest develop CI run #1713 / `46085878528` targets prior develop head `4c5c755571385b346902c74c9f4f0578f48d9433`. Eight mandatory jobs passed (Lint/Typecheck, Flutter, API Unit/Coverage, API Integration, Web/Admin, Migration Full Apply, E6, Contract/Codegen); Build and Container Build & Smoke were still running at the last inspection. Do not call it fully green until those two finish.
+- PR #173 exact-head run `46077477944` and PR #174 exact-head run `46080913174` completed SUCCESS. The prior develop run `46080692700` also completed SUCCESS.
+- Vercel Web/Admin contexts currently show external free-plan build-rate-limit failures. Do not trigger redundant Vercel builds.
+- Only other open PRs found were #138 and unrelated draft #151. No GitHub reviewers are required or should be requested.
+
+**Next implementation priority — G-002 (continue from merged develop):**
+1. Complete the source inventory for raw SQL and database functions/triggers/partitions; verify each sensitive operation's exact ownership predicate.
+2. Finish the FK-to-tenant ownership crosswalk and actor-context nesting audit across worker, migration, bootstrap/CLI, carrier credential lifecycle/retry/recovery, audit middleware and realtime paths.
+3. Reconcile the new PR #173/#174 implementations against the G-002 evidence matrix; do not repeat already merged work.
+4. Keep protected read-only catalog/runtime identity verification separate and use only the authorized staging process. Do not dispatch protected audit workflows automatically.
+5. Once the grouped source/test batch is complete, run one consolidated exact-head mandatory CI campaign. No per-file CI, no unnecessary Vercel builds.
+
+**Hard safety boundaries remain unchanged:** no staging/production DB writes or migrations; no RLS/grant/default-ACL changes; no provider calls or worker activation; no Render mutations, deployments, restarts or releases; no staging-release workflow dispatch. Do not prepare/apply the dedicated least-privilege API/migration role or TLS rollout until role ownership, actual migration identity, rollback and TLS evidence are verified and separately authorized. Preserve the staging-release safety hold. Never weaken tenant/actor guards or relax state-machine rules to satisfy stale tests.
+
+
 # SCS Platform — Start Here
 
 **Last updated:** 27 November 2026  
