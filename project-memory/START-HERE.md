@@ -1,3 +1,14 @@
+## G-002 carrier actor-context callsite pass — 28 November 2026
+
+- Reviewed the current `DatabaseService.withActorContext` contract: an existing async actor scope is reused only for an identical normalized actor; attempting to switch actor inside the active transaction throws. This confirms any two-stage store-owner → tenant credential resolution must use separate completed scopes, not nested actor switching.
+- Production callsites confirmed in the shipping source tree:
+  - `AramexProvider.resolveCredentials` first reads the store's owning `orgId` under a null-org worker context; then resolves configuration and credential data using the resolved exact organization. `resolveCredentialsById` rechecks credential ID + org + provider + active status before decrypting.
+  - `CarrierWebhookController` performs webhook-token/provider credential discovery in a separate null-org worker scope, then decrypts the secret inside a worker scope bound to the selected credential's `orgId`.
+  - No production callsite for `findCredentialId` was found in the reviewed shipping module files; verify across the complete API source tree before deciding whether to deprecate it.
+- Both carrier service helpers currently reuse any existing actor context. For existing user/worker contexts they reject only a non-null mismatched org; null-org user/worker contexts are not rejected. Anonymous/authentication/system/bootstrap/audit actor kinds are also reused without an explicit allowlist. Aramex's helper has the same pattern. This is a contract-hardening target, not yet a proven exploitable vulnerability; SQL predicates currently include explicit organization IDs.
+- Existing unit coverage is incomplete for this contract: carrier configuration tests cover the no-active-context worker creation path, but not matching/mismatched/null-org user/worker or actor-kind allowlisting. Add the actor matrix in one grouped source/test change and include the deliberate webhook/platform-system flows.
+- Preserve the intentional unscoped credential discovery only where it is explicitly required for webhook-token routing or store-owner discovery; keep all secret decryption and tenant-specific configuration/credential reads org-bound.
+
 ## Latest continuation — PR #176 merged, G-002 next — 28 November 2026
 
 - PR #176 (staging bootstrap DB identity guard) passed exact-head CI run #1727 / GitHub run `46125790492` on `dc7572e53b09a38cd9979cd76d0b22717c0f35cb`. All ten mandatory jobs passed, including Container Build & Smoke Test; k6 Smoke and Trigger Staging Release were skipped as expected.
