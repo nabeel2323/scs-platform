@@ -511,3 +511,8 @@ A three-way Git tree comparison was run using merge base `f74eb588cc58fc99b105e7
 - New PR #176 head is `dc7572e53b09a38cd9979cd76d0b22717c0f35cb`; follow-up CI status must be checked on this exact SHA. Vercel pending/success checks are external preview deploys and are not substitutes for GitHub Actions mandatory CI.
 - No database/staging access, migration execution, role/grant/RLS change, Render/deployment operation, or reviewer request was made. PR #138 preservation remains unchanged; PR #175 remains separate.
 - Next: inspect exact-head CI #176 follow-up; if the workflow fix validates and all mandatory jobs pass, perform a final source/diff check and merge PR #176 into develop. If smoke still fails, inspect the PostgreSQL container logs before any further retry. Then continue G-002: inventory all raw pg clients/pools and bootstrap scripts; test carrier internal-helper org binding and worker lineage/actor attribution; complete operation-to-table ownership matrix. Batch related changes and run CI once.
+
+
+### Additional G-002 finding — carrier actor context
+
+The 28 November source review also identified null-org actor-context reuse in the internal credential/configuration helpers and Aramex provider helper. See the detailed callsite analysis and required test/refactor sequence in `docs/remediation/IMPLEMENTATION-PROGRESS.md` under “G-002 follow-up: carrier helper actor-context edge cases”. Treat this as a high-priority tenant-boundary correctness gap pending focused regression tests; do not claim exploitability without proof. The refactor must separate unscoped store-owner discovery from org-bound credential access because nested actor switching is intentionally forbidden by DatabaseService.
