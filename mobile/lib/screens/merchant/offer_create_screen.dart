@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/reference_data.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme.dart';
@@ -592,12 +593,12 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
         decoration: const InputDecoration(
           prefixIcon: Icon(Icons.currency_exchange),
         ),
-        items: const [
-          DropdownMenuItem(value: 'SAR', child: Text('SAR — Saudi Riyal')),
-          DropdownMenuItem(value: 'AED', child: Text('AED — UAE Dirham')),
-          DropdownMenuItem(value: 'USD', child: Text('USD — US Dollar')),
-          DropdownMenuItem(value: 'EUR', child: Text('EUR — Euro')),
-        ],
+        items: currencyOptions
+            .map((currency) => DropdownMenuItem(
+                  value: currency.code,
+                  child: Text(currency.label),
+                ))
+            .toList(),
         onChanged: _selectedPriceListId != null
             ? null
             : (v) {
@@ -688,8 +689,8 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
     final moq = int.tryParse(_moqCtrl.text) ?? 1;
     final orderIncrement = int.tryParse(_orderIncrementCtrl.text);
     final lead = int.tryParse(_leadTimeCtrl.text);
-    final priceMinor = price != null ? (price * 100).round() : null;
-    final compareMinor = compareAt != null ? (compareAt * 100).round() : null;
+    final priceMinor = price != null ? (price * currencyMinorUnitScale(_currency)).round() : null;
+    final compareMinor = compareAt != null ? (compareAt * currencyMinorUnitScale(_currency)).round() : null;
 
     return ListView(padding: const EdgeInsets.all(16), children: [
       const Text('Review your offer',
@@ -830,7 +831,7 @@ class _OfferCreateScreenState extends ConsumerState<OfferCreateScreen> {
     final moq = int.tryParse(_moqCtrl.text) ?? 1;
     final orderIncrement = int.tryParse(_orderIncrementCtrl.text);
     final lead = int.tryParse(_leadTimeCtrl.text);
-    final priceMinor = price != null ? (price * 100).round() : null;
+    final priceMinor = price != null ? (price * currencyMinorUnitScale(_currency)).round() : null;
 
     setState(() => _submitting = true);
     try {

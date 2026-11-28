@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { type StudioState } from '../../../../hooks/useProductStudio';
 import { StepCard, Field } from './StepIdentity';
 import { ProductVariant } from '../../../../lib/buyer-api';
+import { CURRENCY_OPTIONS, currencyMinorUnits } from '../../../../lib/reference-data';
 import { fetchWarehouses, type Warehouse } from '../../../../lib/api';
 
 interface StepOfferProps {
@@ -135,14 +136,11 @@ export default function StepOffer({
             value={state.currency}
             onChange={(event) => setState((prev) => ({ ...prev, currency: event.target.value }))}
           >
-            <option value="SAR">SAR (Saudi Riyal)</option>
-            <option value="USD">USD (US Dollar)</option>
-            <option value="EUR">EUR (Euro)</option>
-            <option value="AED">AED (UAE Dirham)</option>
-            <option value="KWD">KWD (Kuwaiti Dinar)</option>
-            <option value="BHD">BHD (Bahraini Dinar)</option>
-            <option value="QAR">QAR (Qatari Riyal)</option>
-            <option value="OMR">OMR (Omani Rial)</option>
+            {CURRENCY_OPTIONS.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
           </select>
         </Field>
         <Field label="Base Price (minor units) *">
@@ -157,8 +155,7 @@ export default function StepOffer({
             }
           />
           <span style={{ fontSize: 11, color: '#5b6b74' }}>
-            Enter price in the smallest currency unit (e.g., halalas for SAR, cents for USD). 1 SAR
-            = 100 halalas.
+            Enter price in the smallest unit for this currency ({currencyMinorUnits(state.currency)} decimal places).
           </span>
         </Field>
         <Field label="Minimum Order Qty">
@@ -241,7 +238,7 @@ export default function StepOffer({
             Price Preview
           </div>
           <div style={{ fontSize: 20, fontWeight: 700, color: '#166534' }}>
-            {(state.basePriceMinor / 100).toFixed(2)} {state.currency}
+            {(state.basePriceMinor / (10 ** currencyMinorUnits(state.currency))).toFixed(currencyMinorUnits(state.currency))} {state.currency}
           </div>
           <div style={{ fontSize: 11, color: '#5b6b74', marginTop: 4 }}>
             MOQ: {state.moq} unit(s) · Lead time: {state.leadTimeDays} day(s)

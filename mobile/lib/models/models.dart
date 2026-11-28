@@ -1,6 +1,8 @@
 /// Data models for the Smart Commerce Platform.
 library;
 
+import '../core/reference_data.dart';
+
 class SearchResult {
   final List<Product> products;
   final int total;
@@ -938,8 +940,12 @@ class OrgMember {
 /// currency their amounts are actually in (A2-4), and callers should forward it
 /// untouched instead of repeating an inline `?? 'SAR'`. The fallback stays here
 /// as the single visible place that assumption lives.
-String formatMinor(int minor, [String? currency]) =>
-    '${(minor / 100).toStringAsFixed(2)} ${currency ?? 'SAR'}';
+String formatMinor(int minor, [String? currency]) {
+  final code = currency ?? 'SAR';
+  final decimals = currencyMinorUnits(code);
+  final major = minor / currencyMinorUnitScale(code);
+  return '${major.toStringAsFixed(decimals)} $code';
+}
 
 /// Product media row returned by GET /v1/products/:id/media.
 ///
