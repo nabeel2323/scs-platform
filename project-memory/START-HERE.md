@@ -1,3 +1,15 @@
+## Latest continuation checkpoint — 28 November 2026, migration crosswalk reconciliation
+
+- PR #181 remains open against `develop`: https://github.com/nabeel2323/scs-platform/pull/181. Audit document latest source commit before this memory update: `9e15d22cb9a06b1d0063524abcbe7a1500ca2079`.
+- Verified the existing `docs/remediation/G-002-MIGRATION-OBJECT-CROSSWALK.md` against current migration files: both its recorded baseline `c37c4d94f728b2806e7efb59d0380adb24472597` and current develop `5356cd182cb41fc8f2266a0b75eb60056c43675d` contain exactly 77 numbered migrations (0001–0077), with no added/removed/changed migration blobs. Existing static crosswalk remains applicable; do not repeat the same 77-file review. This does not prove live catalog/ledger/owner/ACL state.
+- Outbox spot checks: inventory, merchant verification, reviews, returns and settlement adjustment handlers inherit verified tenant interceptor actor context; return commission reversal/refund event and settlement adjustment event preserve transaction-client propagation. These sampled callers are not confirmed gaps. Continue with remaining publishers invoked from non-HTTP jobs/listeners/callbacks/direct service paths.
+- Direct PostgreSQL entrypoint audit has been expanded to bootstrap-token, read-only staging verifier and migration-ledger verifier. Inventory remains provisional until the complete source/call-graph scan is finished.
+- PR #181 has no GitHub Actions checks surfaced; Vercel admin/web statuses fail due free-plan preview rate limiting only. No code changed; do not retry previews or launch redundant CI. Keep PR open until merge-check status is known.
+- Next: finish remaining outbox publisher caller chains and the complete direct Client/Pool call graph; reconcile existing FK/ownership crosswalk against current service predicates; then implement only proven gaps in one source/test batch.
+- No database connection/script execution, DB writes, migrations, seeds, reset/bootstrap, grants/default ACL/RLS, Render, deployment, provider, credential, worker activation or release actions. PR #138 remains protected and untouched.
+
+---
+
 ## Latest continuation checkpoint — 28 November 2026, outbox caller spot check
 
 - PR #181 remains open: https://github.com/nabeel2323/scs-platform/pull/181. Latest audit source commit: `efeae7adea936755b4a2b81dae6ae62d6ae55d92`; memory update follows this commit.
