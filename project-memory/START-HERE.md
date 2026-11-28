@@ -1,3 +1,14 @@
+## Latest continuation checkpoint — 28 November 2026, follow-up audit pass
+
+- The direct PostgreSQL audit PR #181 is open against `develop`: https://github.com/nabeel2323/scs-platform/pull/181. Current head after the expanded entrypoint inventory: `11c3e34803c725a936a4ea01f39780bf5802bdc0`.
+- Follow-up verified `src/scripts/bootstrap-issue-token.ts`: explicit environment, production confirmation, verified TLS and production-like role/ownership identity checks, plus bootstrap actor context. Also verified `check-staging-merchant-bootstrap.ts` as guarded, read-only staging verification; `verify-migration-ledger.mjs` as a direct Pool read-only verifier with optional CA and no local target/actor preflight in the reviewed file.
+- Do not misclassify `bootstrap-issue-token.ts` with weak seeders or the read-only staging checker as a mutating bootstrap. Helper modules that accept a PoolClient are not independent connection constructors.
+- The direct connection inventory remains provisional: 648 API source files exist; known scripts were checked but exhaustive search of every source blob and indirect factory remains outstanding.
+- Next: finish direct Client/Pool repository-wide call graph, then outbox publisher caller chain and migration 0001–0077 crosswalk. Only implement proven gaps in one bounded source/test batch; one consolidated CI.
+- No database or script execution, DB writes, migrations, seed/reset/bootstrap execution, grants/default-ACL/RLS changes, Render mutation, deployment, provider call, credential change, worker activation or release occurred. PR #138 remains protected and untouched.
+
+---
+
 ## Latest continuation checkpoint — 28 November 2026, after 18:05 UTC
 
 - Read the current `project-memory/START-HERE.md` and the G-002 continuation record before proceeding. The prior carrier worker and credential actor-context integrations are complete; do not repeat them.
