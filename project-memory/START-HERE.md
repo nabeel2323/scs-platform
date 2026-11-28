@@ -1,3 +1,15 @@
+## G-002 carrier actor-context guard — PR #178 — 28 November 2026
+
+- PR #176 is merged to develop at `f3e9105a075b9a5b37f6acd3469ec91eaa09d9f7`; exact-head CI #1727 passed all mandatory jobs, including container smoke.
+- PR #178: https://github.com/nabeel2323/scs-platform/pull/178. Draft/open/unmerged, target develop. Branch `fix/g002-carrier-actor-context-guard-20261128`; current head `bc300e93572e9671680dec2d8ea911508e85b5fd`. One initial test fixture typing failure was fixed in a follow-up commit; exact-head CI run #1737 / GitHub run `46135480156` is now testing the corrected head.
+- On exact head `bc300e9`, lint, typecheck, format, Flutter analyze/tests, Web/Admin tests, Boundary Lint E6, and Migration Full Apply have passed. API unit/coverage and PostgreSQL integration remain in progress. Do not merge until those pass, and inspect Container Build & Smoke Test / contract-codegen / build once they start. Staging release and k6 are not expected.
+- PR #178 adds shared `assertCarrierTenantActorContext`: active user/worker/system contexts must be bound to the exact requested organization; null-org, mismatched-org, anonymous, authentication, bootstrap and audit contexts are rejected. Fresh calls open a dedicated org-bound worker transaction.
+- Aramex now constrains store-owner lookup to the current org when already in a tenant context. Unscoped store-owner discovery is permitted only on a fresh short worker transaction; the scope closes before org-bound configuration/credential lookup. Actor switching inside an active transaction remains forbidden.
+- This is contract hardening; no exploit was established. SQL predicates already include organization IDs. No staging DB, Render, provider, worker activation, credential, grants, default ACL, RLS or deployment operation was performed.
+- Further worker lineage review: `ShippingCarrierWorker.assertOutboxTenantMatchesShipment` verifies event store/org against authoritative store and verifies order.storeId equals shipment.storeId before provider side effects; subsequent shipment updates use the resolved org-bound worker context. The tracking poller and reconciliation service still perform global unscoped worker claims/order-store checks and several shipment updates by ID without a per-tenant actor context. Treat these as a separate G-002 worker/system-principal design and regression-test workstream; do not silently broaden PR #178.
+- PR #138 remains OPEN / DRAFT / UNMERGED and its preservation branch/source remain untouched. PR #175 remains OPEN / DRAFT / UNMERGED and separate.
+- Next: finish #178 exact-head CI; if green, source-review and merge to develop. Then continue G-002 tracking/reconciliation worker operation-to-table lineage, webhook/outbox nesting, direct PostgreSQL Pool/Client inventory and migration object/ownership crosswalk. Keep implementation grouped and avoid unnecessary CI campaigns.
+
 ## PR #177 — carrier credential actor-context hardening — 28 November 2026
 
 - Draft PR: https://github.com/nabeel2323/scs-platform/pull/177
