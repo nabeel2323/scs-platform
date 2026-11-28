@@ -433,3 +433,8 @@ A three-way Git tree comparison was run using merge base `f74eb588cc58fc99b105e7
 
 - Post-merge CI run #1723 (`46085878528`) on PR #174 merge commit `4c5c755571385b346902c74c9f4f0578f48d9433` has now COMPLETED SUCCESSFULLY. All ten mandatory jobs passed, including Container Build & Smoke Test, Build, Mobile, Web/Admin, Integration, Unit/Coverage, Migration Full Apply, Contract/Codegen and E6 Boundary Lint. k6 was skipped on develop; the staging release gate remained disabled. No staging deployment occurred.
 - PR #175 CI run #1724 (`46087426872`) is still running on exact head `b48e2a463c28eb7bcb1c880634c4f4f388ad5b5b`. Lint & Typecheck and Mobile analyze/test have passed; Web/Admin tests, API Unit/Coverage, Integration Tests, Migration Full Apply and Boundary Lint were still in progress at last poll. Keep PR #175 draft until every mandatory job passes.
+
+
+## PR #175 CI progress — 28 November 2026
+
+- Exact-head run #1724 (`46087426872`) on `b48e2a463c28eb7bcb1c880634c4f4f388ad5b5b`: Lint & Typecheck, Mobile analyze/test, Web & Admin App Tests, Migration Full Apply and E6 Boundary Lint have passed. API Unit Tests/Coverage and Integration Tests remain in progress. Build/container/contract gates have not yet reported at this poll. PR #175 stays draft; do not merge until all mandatory checks complete successfully.
