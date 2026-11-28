@@ -366,3 +366,14 @@ Scope reviewed: production API database startup, migration/seed/reset CLIs, manu
 - PR #174 merge commit `4c5c755571385b346902c74c9f4f0578f48d9433` has CI run #1723 (`46085878528`) in progress at this checkpoint. Mobile, Lint/Typecheck, Web/Admin, Migration Full Apply and Boundary Lint had succeeded; Integration Tests and Unit/Coverage were still running. This push CI is on the merge commit; the following documentation-only `[skip ci]` commits are not part of that run.
 - PR #138 remains OPEN / DRAFT / UNMERGED at exact head `81f30f5c30654b233ef373c15fd3f2cb867aba01`. Its preservation branch remains present. Never merge it wholesale or rewrite either ref.
 - Next: complete the full 0001–0077 migration DDL/FK/ownership/default-ACL crosswalk; finish direct PostgreSQL import/client inventory beyond the reviewed API CLI entrypoints; prepare a least-privilege migration principal and verified TLS rollout plan without applying it; then batch the necessary source changes into one reviewable PR and one exact-head CI campaign.
+
+
+## PR #138 preservation and mergeability reassessment — 28 November 2026
+
+A fresh GitHub compare against current `develop` confirms PR #138 is not a safe merge candidate:
+
+- PR #138 remains OPEN / DRAFT / UNMERGED. Its exact head is still `81f30f5c30654b233ef373c15fd3f2cb867aba01`; its PR base SHA is `f74eb588cc58fc99b105e749d39dbfbacb4f9775`, while current `develop` has advanced to `e0244b49303c1f76b0812ebf5765e4fd5718cf9d`.
+- `develop...81f30f5c30654b233ef373c15fd3f2cb867aba01` reports DIVERGED: 3,044 commits ahead and 315 behind. The PR metadata reports 1,943 changed files, 108,107 additions and 414,514 deletions. The compare endpoint returns a capped file list, so these counts are repository metadata, not a full manual diff review.
+- The original source branch `remediation/phase-0-1-tenant-security` and preservation branch `preservation/pr138-remediation-2026-11-25` are both at the unchanged SHA `81f30f5c30654b233ef373c15fd3f2cb867aba01`.
+- The older `integration/pr138-bulk-remediation-2026-11-26` branch is at `a249d7368aefa715d32e8480452e8aff61535af6`; compare against current develop reports 0 ahead / 46 behind. It contains no unique commits to bring forward and is not a current integration candidate.
+- Do not merge PR #138 or move either source/preservation ref. Treat the PR branch as read-only recovery source. The next safe PR #138 work is a deliberate logical-area salvage: enumerate changed production source/test/docs files, exclude scratch/archive deletions and unrelated history, compare each selected implementation against current develop, then cherry-pick or reimplement only verified deltas onto a fresh branch from current develop with focused tests. Group by cohesive remediation area and run one exact-head CI campaign per grouped PR.
