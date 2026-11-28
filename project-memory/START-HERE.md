@@ -330,3 +330,39 @@ Superseded: PR #174 is merged into develop; see the exact-head CI and merge chec
 - Re-reviewed `apps/api/infra/drizzle/migrate-pg.ts` and `migration-identity.ts`: the migration runner still treats identity capture as diagnostic/non-fatal; it only configures verified TLS when `PGSSLROOTCERT` is explicitly supplied, otherwise node-postgres TLS is not forced. It also applies migrations through a direct PoolClient without transaction-local actor context. This remains a gated migration-role/TLS/ownership design item; do not make it fail-closed or change its privileges/TLS configuration until the migration principal and target DB ownership/ACL have been reconciled and the transition is separately authorized.
 - Realtime review: WebSocket store/order room authorization wraps its DB work in `withSocketActor` using the authenticated JWT subject/role/org; room joins fail closed. Worker lease operations use `actorKind: worker` and stable process holder ID. The manual `forceExpire` recovery path uses an explicit `system` actor context, consistent with its operator-only runbook scope. No source change was made from this review.
 - Next bounded audit: finish repository-wide raw PostgreSQL client/Pool callsite inventory, map migration-created ownership and FK references to runtime principals, and test the remaining realtime/worker actor-context boundaries. Keep runtime/migration role transition, grants/default ACLs, RLS and staging audit behind their existing authorization gates.
+
+
+## G-002 raw database access and worker-context inventory — 28 November 2026
+
+Scope reviewed: production API database startup, migration/seed/reset CLIs, manual staging bootstrap scripts, local Docker database utilities, worker entrypoints, audit writes and realtime room authorization. This is a source review only; no database connection, migration, seed, reset, provider call, worker activation or deployment was performed.
+
+### Direct PostgreSQL entrypoints
+
+- `apps/api/infra/drizzle/migrate-pg.ts`: standalone `PoolClient` migration runner. Identity metadata is diagnostic/non-fatal; verified TLS is configured only when `PGSSLROOTCERT` is present; no transaction-local operator actor context is established. This remains the highest-priority migration-boundary gap. Do not change runtime role, migration role, grants/default ACLs or TLS rollout until the actual migration principal, object ownership and target-environment TLS requirements have been reconciled.
+- `apps/api/infra/drizzle/seed-pg.ts` and `seed-catalog.ts`: standalone pools; both establish a transaction-local `system` actor context for their seed transactions, but both treat `PGSSLROOTCERT` as optional and neither performs the production API's full session/effective role and ownership check nor an explicit environment/database target allowlist. Catalog seed defaults to the `production` profile. Treat as potentially mutating entrypoints; never invoke during audit. Design explicit environment/target/identity gates as a separate compatibility-reviewed change.
+- `apps/api/infra/drizzle/reset-pg.ts`: standalone `Client`; requires a CA and verified TLS, restricts environment to development/test/staging, restricts dev/test to local hosts, checks exact target database, requires `DROP:<environment>:<database>`, and requires an additional exact staging approval. It does not establish operator actor context or validate session/effective role capabilities. The reset was not run.
+- Manual staging bootstrap scripts (`bootstrap-staging-merchant.ts`, `-platform.ts`, `-rbac.ts`, `-staff.ts`, `-store.ts`) require `PGSSLROOTCERT` and verified TLS, use the shared explicit staging + exact database + confirmation + separate approval guard, and establish transaction-local `bootstrap` actor context before writes. The guard currently validates `current_database()` and `current_user`, but not `session_user`, role flags, ownership or `pg_stat_ssl` independently. This is a narrower manual-staging control, not a substitute for the API/migration identity gate.
+- `verify-staging-bootstrap-target.ts` is read-only preflight and uses the same staging guard with verified TLS.
+- `apps/api/src/scripts/bootstrap-issue-token.ts` was addressed by merged PR #174: verified TLS, exact connection identity/privilege/ownership checks and transaction-local bootstrap actor context.
+- `apps/api/src/scripts/seed.ts`, `infra/drizzle/migrate.ts` and `infra/drizzle/reset.ts` use fixed local Docker container/user/database via `docker exec psql`, not arbitrary `DATABASE_URL`. They are local utilities; keep their use limited to disposable/local DBs.
+- `infra/catalog-import-cli.ts` only reads/writes XLSX files and does not connect to PostgreSQL. `infra/pg-proxy.ts` is a local development proxy.
+
+### Runtime actor-context coverage
+
+- Worker DB work reviewed in `auto-complete.worker.ts`, `return-expiration.worker.ts`, `shipping-carrier.worker.ts`, and payment proof cleanup (`PaymentProofCleanupWorker` / `PaymentsService.cleanupStaleProofUploads`) uses `actorKind: worker` with a worker-specific ID around DB operations. Auto-complete claim/process/release calls are scoped by `withActorContext`; payment cleanup wraps claim, reference checks, and state transitions in worker context.
+- `WorkerLeaseService` uses `actorKind: worker` for lease operations; the manual force-expire operation uses explicit `system` context. `worker-count-monitor.ts` has no direct SQL client.
+- Audit service writes use `actorKind: audit`; the deferred response-finish middleware wraps its deferred write explicitly. Realtime store/order room authorization uses `withSocketActor` derived from authenticated socket identity and fails closed on authorization errors.
+- No worker/realtime/audit code change was required by this bounded review.
+
+### Migration observations
+
+- Repository currently contains 77 numbered SQL migrations (0001–0077).
+- Migration 0076 explicitly revokes table/sequence privileges from Supabase `anon` and `authenticated` roles and alters default privileges for the migration's `current_user`. Its comments state that server-only `service_role` and the configured API database role are untouched; it does not enable RLS. Treat its default-ACL scope as migration-principal-dependent and include it in the ownership/default-privilege crosswalk; do not replay or modify it as part of this audit.
+- Migration 0077 is a bounded DML quarantine of carrier webhook rows missing credential binding; it detaches the shipment link and preserves processed state.
+- Previously completed targeted review of migrations 0064–0077 found no CREATE FUNCTION/PROCEDURE/TRIGGER/RULE or PARTITION BY declarations in that range. This does not establish that the full 0001–0077 set has no such objects; the full migration DDL/FK/ownership crosswalk remains open.
+
+### CI and protected remediation work
+
+- PR #174 merge commit `4c5c755571385b346902c74c9f4f0578f48d9433` has CI run #1723 (`46085878528`) in progress at this checkpoint. Mobile, Lint/Typecheck, Web/Admin, Migration Full Apply and Boundary Lint had succeeded; Integration Tests and Unit/Coverage were still running. This push CI is on the merge commit; the following documentation-only `[skip ci]` commits are not part of that run.
+- PR #138 remains OPEN / DRAFT / UNMERGED at exact head `81f30f5c30654b233ef373c15fd3f2cb867aba01`. Its preservation branch remains present. Never merge it wholesale or rewrite either ref.
+- Next: complete the full 0001–0077 migration DDL/FK/ownership/default-ACL crosswalk; finish direct PostgreSQL import/client inventory beyond the reviewed API CLI entrypoints; prepare a least-privilege migration principal and verified TLS rollout plan without applying it; then batch the necessary source changes into one reviewable PR and one exact-head CI campaign.
