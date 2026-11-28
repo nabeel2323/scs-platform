@@ -27,6 +27,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { Pool } from 'pg';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { drizzle } from 'drizzle-orm/node-postgres';
+import { eq } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
 import { ShippingProviderRegistry } from '../../modules/shipping/shipping-registry';
 import { ShippingProvider } from '../../modules/shipping/shipping-provider';
@@ -132,6 +133,13 @@ function createPoller(
     { incrementCounter: vi.fn(), generateCorrelationId: vi.fn().mockReturnValue('corr-b34') } as any,
     { canRequest: vi.fn(() => true), recordSuccess: vi.fn(), recordFailure: vi.fn() } as any,
     { processCarrierDelivery } as any,
+    {
+      getStoreTenantContextForSystem: async (storeId: string) =>
+        dbService.db.query.stores.findFirst({
+          where: eq(schema.stores.id, storeId),
+          columns: { id: true, orgId: true },
+        }),
+    } as any,
   );
   return { poller, processCarrierDelivery };
 }
@@ -145,6 +153,13 @@ function createReconService(dbService: DatabaseService, provider: ShippingProvid
     { incrementCounter: vi.fn() } as any,
     { canRequest: vi.fn(() => true), recordSuccess: vi.fn(), recordFailure: vi.fn() } as any,
     { tryResolve: vi.fn(async () => null) } as any,
+    {
+      getStoreTenantContextForSystem: async (storeId: string) =>
+        dbService.db.query.stores.findFirst({
+          where: eq(schema.stores.id, storeId),
+          columns: { id: true, orgId: true },
+        }),
+    } as any,
   );
 }
 

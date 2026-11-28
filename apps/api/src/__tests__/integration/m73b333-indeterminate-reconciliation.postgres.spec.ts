@@ -135,6 +135,13 @@ function createReconciliationService(
     { incrementCounter: vi.fn() } as any,
     { canRequest: vi.fn(() => true), recordSuccess: vi.fn(), recordFailure: vi.fn() } as any,
     { tryResolve: vi.fn(async () => null) } as any,
+    {
+      getStoreTenantContextForSystem: async (storeId: string) =>
+        dbService.db.query.stores.findFirst({
+          where: eq(schema.stores.id, storeId),
+          columns: { id: true, orgId: true },
+        }),
+    } as any,
   );
 }
 

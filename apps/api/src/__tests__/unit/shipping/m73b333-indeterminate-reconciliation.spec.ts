@@ -195,6 +195,7 @@ describe('M7.3-B.3.3.3 — Reconciliation Logic', () => {
       { incrementCounter: vi.fn() } as any,
       mockCircuitBreaker as any,
       { tryResolve: vi.fn() } as any,
+      { getStoreTenantContextForSystem: vi.fn().mockResolvedValue({ id: 'store-1', orgId: 'org-1' }) } as any,
     );
 
     return { service, mockDb, mockProvider, mockRegistry, mockCircuitBreaker };
