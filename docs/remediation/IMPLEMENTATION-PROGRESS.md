@@ -1,3 +1,17 @@
+# Live continuation update — 28 November 2026
+
+This dated handoff supersedes the historical PR/CI coordination snapshots below where they conflict.
+
+- Repository: `nabeel2323/scs-platform`; `develop` is the integration baseline. Current ref after the documentation-only memory sync is `07926eb7ccffc9f2c9c3d9d7b9002e025b465864`; preceding source head was `2f6bb106e7147b83cdcc98ad93b4ef688e163e84`.
+- PR #170 and #171 are MERGED. PR #173 (carrier configuration/provider credential binding) and #174 (bootstrap CLI database identity and actor context) are MERGED.
+- PR #138 remains OPEN / DRAFT / UNMERGED at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; preserve it and never merge wholesale.
+- Develop CI run `46085878528` targets source head `4c5c755571385b346902c74c9f4f0578f48d9433`. Eight mandatory jobs passed; Build and Container Build & Smoke remained in progress at last check. It is not fully green until both complete. PR #173 run `46077477944` and PR #174 run `46080913174` passed exact-head CI.
+- Next: complete G-002 raw SQL/database-object inventory, operation ownership predicates, FK-to-tenant crosswalk, and worker/migration/bootstrap/CLI/carrier/audit/realtime actor-context nesting. Reconcile merged PR #173/#174 against evidence and do not repeat their work.
+- Protected read-only runtime/catalog audit must use the authorized staging process; do not dispatch it automatically. No staging/production writes or migrations, RLS/grant/default-ACL changes, provider calls, worker activation, Render mutations, deployment/restart/release, or staging-release workflow dispatch. Keep the staging-release safety hold.
+- Batch source and tests, then one consolidated exact-head CI campaign. No per-file CI, reviewers, or redundant Vercel builds. Never weaken tenant/actor guards or relax FSM rules to satisfy stale tests.
+
+---
+
 # SCS Platform — Audit-Driven Implementation Progress Tracker
 
 **Living tracker. Update this file as part of every remediation task and phase transition.**
