@@ -1,4 +1,15 @@
 
+## Outbox caller-chain spot checks — 28 November 2026
+
+- Reviewed the controller and service call paths for inventory, merchant verification, reviews, returns, commission reversal and settlement adjustments.
+- Inventory controller has class-level tenant DB interceptor; merchant verification has endpoint-level interceptor; reviews and returns controllers have class-level interceptors. These handlers run within the awaited `DatabaseService.withActorContext` transaction scope.
+- The refund finalization path passes its existing transaction client to commission reversal and to the `return.refunded` outbox write. Settlement adjustment creation passes its transaction client to the outbox writer. The sampled candidates are not confirmed actor-context gaps.
+- Continue tracing publishers invoked by non-HTTP workers, schedules, listeners, detached callbacks and direct service invocations; this spot check is not a complete outbox audit.
+- PR #181 remains open with Vercel previews rate-limited by the free-plan external service; no GitHub Actions checks surfaced. Do not retry previews or run redundant CI. Keep PR open until merge-check status is known.
+
+---
+
+
 ## Direct PostgreSQL inventory follow-up — 28 November 2026
 
 - Expanded the audit with `src/scripts/bootstrap-issue-token.ts` (explicit environment and production confirmation, verified TLS and role/ownership checks for production-like targets, bootstrap actor), `check-staging-merchant-bootstrap.ts` (guarded read-only staging verification), and `scripts/verify-migration-ledger.mjs` (read-only ledger verifier, optional CA, no explicit target/actor preflight in the reviewed file).
