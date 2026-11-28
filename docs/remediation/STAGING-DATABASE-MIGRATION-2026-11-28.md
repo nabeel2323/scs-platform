@@ -5,6 +5,7 @@
 - Environment: SCS Platform staging database, Supabase project `SCS-PlatForm`, ref `wplsxxevoevzqbgtpctw`, region `eu-west-1`, PostgreSQL 17.6.1.166.
 - The user confirmed that no production database exists yet and explicitly authorized changes to the staging database to improve migration cleanliness and readiness for the future production database.
 - This report documents staging-only changes. No production database was created or modified. No application deployment, worker activation, provider call, or staging release was performed.
+- No backup/restore operation was performed in this batch; the independent staging backup strategy remains deferred from the earlier project decision. The migrations' affected webhook and reconciliation tables had zero rows, and no business records were deleted or reset. Do not perform future destructive staging operations until a backup/restore path is established.
 - The Supabase MCP SQL session reported `session_user=current_user=postgres`, with `rolbypassrls=true`, `rolsuper=false`, `rolcreaterole=true`, `rolcreatedb=true`. This proves the MCP session identity only; the Render API runtime connection identity and the deployed migration-runner connection identity still require separate verification.
 - Staging migration tracking is the application's `public._migration_log`; Supabase-native `list_migrations` currently reports no Supabase CLI migration history. Do not introduce a second competing ledger without a deliberate migration-system decision.
 
