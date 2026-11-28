@@ -1,3 +1,14 @@
+## Latest checkpoint — 28 November 2026, session close
+
+- PR #181 latest branch head: `980cd85fb9aeaf5854a7f2a419da4c5de6c380a4`; base `develop` at `5356cd182cb41fc8f2266a0b75eb60056c43675d`; branch compare is 26 commits ahead, 0 behind, six changed files. The post-CI commits are documentation/memory-only; tested source/test head is `f6be9ca18157c391842b55168616975c10f3b67e`.
+- CI #1753 / run ID `46163157475` succeeded across all mandatory GitHub Actions jobs. k6 smoke and staging-release jobs were skipped. Vercel web/admin statuses are external free-plan build-rate-limit failures; no retry.
+- PR #181 remains OPEN, non-draft, GitHub mergeable=true / mergeable_state=unstable. Do not merge while the separate staging-release authorization gate remains unresolved.
+- PR #138 remains OPEN/DRAFT/UNMERGED at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; its preservation branch is identical. `develop` remains `5356cd182cb41fc8f2266a0b75eb60056c43675d`.
+- G-002 docs corrected stale carrier worker and staging-bootstrap findings, extended the direct PostgreSQL inventory with local UAT and manual check scripts, and recorded outbox caller-chain coverage. Inventory remains provisional; do not claim exhaustive source/blob search.
+- No DB, staging, migration, seed/reset/bootstrap execution, grant/default ACL/RLS, Render, deployment, provider, credential, worker activation or release operation was performed.
+
+---
+
 ## Latest continuation checkpoint — 28 November 2026, outbox caller-chain coverage
 
 - Extended source review of `OutboxDispatcher.publish` callers across CatalogService/ProductGovernance, InventoryService, MerchantService, StoreMembershipService, ReturnsService/commission reversal/settlement adjustments, ReviewsService and DisputesService. Reviewed controller boundaries provide tenant actor context (method-level or class-level); selected service paths also explicitly establish user actor context. No new confirmed unscoped publisher was found in this sample.
