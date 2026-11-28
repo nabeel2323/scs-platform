@@ -1,3 +1,16 @@
+## Latest continuation checkpoint — 28 November 2026, after 18:05 UTC
+
+- Read the current `project-memory/START-HERE.md` and the G-002 continuation record before proceeding. The prior carrier worker and credential actor-context integrations are complete; do not repeat them.
+- New read-only direct PostgreSQL entrypoint audit committed on branch `docs/g002-postgres-entrypoint-audit-20261128`: `docs/remediation/G-002-DIRECT-POSTGRES-ENTRYPOINT-AUDIT-2026-11-28.md`, commit `b444eff8a7e3e21a6d777654e0f42548bdfd17dd`.
+- Confirmed source-level assurance differences: API runtime `DatabaseService` enforces verified TLS and fatal production-like identity checks; `migrate-pg.ts` treats identity diagnostics as non-fatal and configures CA verification only when `PGSSLROOTCERT` is supplied; standalone platform/catalog seed CLIs also make CA optional and lack the same exact staging target/role guard. This is not proof of an active insecure connection; URL/environment TLS behavior must be verified without exposing secrets.
+- All five `bootstrap-staging-*` scripts reviewed call the shared fail-closed `assertStagingBootstrapTarget` and establish bootstrap actor context. The reset utility has separate explicit destructive target approvals. The read-only audit CLI has optional CA posture. Local create-admin utility has a development/test boundary and is not a staging tool.
+- Outbox dispatcher is a transactional writer only; no generic poller/consumer is active. Carrier event family remains exclusively owned by `ShippingCarrierWorker`. Caller-chain actor/transaction audit is still incomplete; publisher presence alone is not proof of context.
+- Current audit branch has a documentation commit only so far. Next: complete repository-wide direct `pg.Client`/`pg.Pool` and helper/import scan (including `src/scripts/bootstrap-issue-token.ts`), trace every production outbox publisher through controller/service boundaries, and finish migration 0001–0077 DDL/object ownership crosswalk. Then make one bounded source/test PR for proven gaps and one consolidated exact-head CI.
+- PR #138 remains OPEN/DRAFT/UNMERGED and protected. PR #175 remains separate. Do not merge/cherry-pick stale worker branch wholesale.
+- Safety unchanged: no DB connection or script execution during this audit; no shared/staging DB writes, migrations, seed/reset/bootstrap execution, grants/default-ACL/RLS changes, Render mutation, deployments/restarts, provider calls, credential changes, worker activation or release. CI success is not staging/release authorization.
+
+---
+
 ## Latest continuation checkpoint — 28 November 2026, 18:05 UTC
 
 - PR #180 remains merged into `develop` by squash at `a56b77ba09a8e185c9ecdf8649d6602cb3a94143`.
