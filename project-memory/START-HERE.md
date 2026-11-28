@@ -427,3 +427,9 @@ A three-way Git tree comparison was run using merge base `f74eb588cc58fc99b105e7
 - PR #151 is closed as superseded by #175; its original source branch remains unchanged. PR #138 remains the only other open PR and remains protected OPEN/DRAFT/UNMERGED at `81f30f5c30654b233ef373c15fd3f2cb867aba01`.
 - PR #174 merge commit CI #1723 (`46085878528`) has all jobs passed except Container Build & Smoke Test still in progress; k6 was skipped. No staging release was triggered. Exact-head PR #174 run #1722 passed all ten mandatory jobs.
 - Current open PR backlog is intentionally reduced to #138 (preserved source archive) and #175 (current-base country/currency feature). Continue with the G-002 migration-principal/TLS evidence gate; do not change staging/production DB roles, grants/default ACLs, RLS, Render settings, deploy or activate workers before protected read-only catalog evidence and explicit approval.
+
+
+## CI completion update — 28 November 2026
+
+- Post-merge CI run #1723 (`46085878528`) on PR #174 merge commit `4c5c755571385b346902c74c9f4f0578f48d9433` has now COMPLETED SUCCESSFULLY. All ten mandatory jobs passed, including Container Build & Smoke Test, Build, Mobile, Web/Admin, Integration, Unit/Coverage, Migration Full Apply, Contract/Codegen and E6 Boundary Lint. k6 was skipped on develop; the staging release gate remained disabled. No staging deployment occurred.
+- PR #175 CI run #1724 (`46087426872`) is still running on exact head `b48e2a463c28eb7bcb1c880634c4f4f388ad5b5b`. Lint & Typecheck and Mobile analyze/test have passed; Web/Admin tests, API Unit/Coverage, Integration Tests, Migration Full Apply and Boundary Lint were still in progress at last poll. Keep PR #175 draft until every mandatory job passes.
