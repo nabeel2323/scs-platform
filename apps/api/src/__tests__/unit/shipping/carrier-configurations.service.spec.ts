@@ -20,7 +20,7 @@ function makeDatabase() {
   const insert = vi.fn(() => ({ values: insertValues }));
 
   const db = {
-    currentActorContext: null,
+    currentActorContext: null as any,
     withActorContext: vi.fn(async (_context: unknown, operation: () => Promise<unknown>) => operation()),
     db: {
       query: {
