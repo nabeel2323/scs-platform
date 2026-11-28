@@ -2,6 +2,8 @@
 # M7.3-A.2 Verification Part 2: Concurrency races, inventory, outbox, failure injection
 set +e
 PSQL="psql -U postgres -d m73a_verify"
+source "$(dirname "$0")/assert-verification-target.sh"
+assert_verification_target m73a_verify postgres
 PASS=0; FAIL=0
 
 check() {
