@@ -3681,3 +3681,9 @@ PR #170's 574-path non-overlapping extraction merged at `d078fe0124ac04fb0da3fc2
 - PR #151 closed as superseded by #175; original branch preserved. Current open PRs are #138 (protected source archive, never merge wholesale) and #175 (new-base feature PR).
 - PR #174 merge CI #1723: nine jobs succeeded, Container Build & Smoke Test remained in progress, k6 skipped; no staging release. Exact-head PR #174 run #1722 passed all mandatory jobs.
 - G-002 remains in progress. Continue migration principal/TLS evidence work; no staging/production DB role, grant/default ACL, RLS, Render or deployment changes before the protected read-only catalog audit and explicit approval.
+
+
+## CI completion update — 28 November 2026
+
+- Post-merge CI #1723 (`46085878528`) on PR #174 merge commit `4c5c755571385b346902c74c9f4f0578f48d9433` completed SUCCESSFULLY: all ten mandatory jobs passed, including Container Build & Smoke Test. k6 was skipped on develop and staging release remained disabled; no staging deployment occurred.
+- PR #175 CI #1724 (`46087426872`) is running on exact head `b48e2a463c28eb7bcb1c880634c4f4f388ad5b5b`. Lint/Typecheck and Mobile passed; Web/Admin, Unit/Coverage, Integration, Migration Full Apply and E6 Boundary Lint remained in progress. Keep draft until all mandatory jobs pass.
