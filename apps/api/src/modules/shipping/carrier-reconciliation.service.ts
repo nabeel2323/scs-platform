@@ -276,7 +276,6 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     const carrierShipmentId = shipment.carrierShipmentId ?? shipment.carrier_shipment_id;
     const trackingId = shipment.carrierTrackingId ?? shipment.carrier_tracking_id ?? carrierShipmentId;
     const idempotencyKey = shipment.idempotencyKey ?? shipment.idempotency_key;
-    const carrierCreateRetries = shipment.carrierCreateRetries ?? shipment.carrier_create_retries ?? 0;
 
     if (carrierCreateStatus === 'SUCCESS' && carrierShipmentId) {
       return { shipmentId, outcome: 'already_complete' };
