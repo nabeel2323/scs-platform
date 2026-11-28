@@ -1,3 +1,13 @@
+
+## Direct PostgreSQL inventory follow-up — 28 November 2026
+
+- Expanded the audit with `src/scripts/bootstrap-issue-token.ts` (explicit environment and production confirmation, verified TLS and role/ownership checks for production-like targets, bootstrap actor), `check-staging-merchant-bootstrap.ts` (guarded read-only staging verification), and `scripts/verify-migration-ledger.mjs` (read-only ledger verifier, optional CA, no explicit target/actor preflight in the reviewed file).
+- The audit distinguishes direct connection constructors from helpers accepting a PoolClient; the latter are not separate connection entrypoints.
+- Current audit PR #181 head is `ece78974f9c25d6f7accf79ef8aedf5ad124d1a4`. Inventory remains provisional pending exhaustive scan of all 648 API source files and helper/import call graph.
+- Next: complete repository-wide direct connection search, trace production outbox publisher caller chains, finish migrations 0001–0077 ownership crosswalk, then one bounded source/test PR for verified gaps.
+
+---
+
 ## Direct PostgreSQL entrypoint audit — 28 November 2026
 
 - Read-only source audit recorded in `docs/remediation/G-002-DIRECT-POSTGRES-ENTRYPOINT-AUDIT-2026-11-28.md` on branch `docs/g002-postgres-entrypoint-audit-20261128` (initial audit commit `b444eff8a7e3e21a6d777654e0f42548bdfd17dd`).
