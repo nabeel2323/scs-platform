@@ -143,6 +143,7 @@ function createPoller(opts: {
     { incrementCounter: vi.fn(), generateCorrelationId: vi.fn().mockReturnValue('corr-1') } as any,
     circuitBreaker as any,
     { processCarrierDelivery } as any,
+    { getStoreTenantContextForSystem: vi.fn().mockResolvedValue({ id: 'store-b34-001', orgId: 'org-b34-001' }) } as any,
   );
 
   // Shipment row shape mirrors what `UPDATE ... RETURNING *` yields: snake_case
@@ -174,6 +175,7 @@ function createReconciliationService(mockDb: ReturnType<typeof createMockDb>) {
       recordFailure: vi.fn(),
     } as any,
     { tryResolve: vi.fn() } as any,
+    { getStoreTenantContextForSystem: vi.fn().mockResolvedValue({ id: 'store-b34-001', orgId: 'org-b34-001' }) } as any,
   );
 }
 
@@ -547,6 +549,7 @@ describe('M7.3-B.3.4 — PICKUP_CANCELLED Removal (BD-3.4-09 / C7)', () => {
       { incrementCounter: vi.fn() } as any,
       { canRequest: vi.fn().mockReturnValue(true), recordSuccess: vi.fn(), recordFailure: vi.fn() } as any,
       { tryResolve: vi.fn() } as any,
+      { getStoreTenantContextForSystem: vi.fn().mockResolvedValue({ id: 'store-b34-001', orgId: 'org-b34-001' }) } as any,
     );
 
     const result = await service.reconcileCancelShipment(cancelShipmentFixture());
@@ -563,6 +566,7 @@ describe('M7.3-B.3.4 — PICKUP_CANCELLED Removal (BD-3.4-09 / C7)', () => {
       { incrementCounter: vi.fn() } as any,
       { canRequest: vi.fn().mockReturnValue(true), recordSuccess: vi.fn(), recordFailure: vi.fn() } as any,
       { tryResolve: vi.fn() } as any,
+      { getStoreTenantContextForSystem: vi.fn().mockResolvedValue({ id: 'store-b34-001', orgId: 'org-b34-001' }) } as any,
     );
 
     const result = await service.reconcileCancelShipment(cancelShipmentFixture());
@@ -684,6 +688,7 @@ describe('M7.3-B.3.4 — Schema Vocabulary and Cancellation Regression Guarantee
       { incrementCounter: vi.fn() } as any,
       { canRequest: vi.fn().mockReturnValue(true), recordSuccess: vi.fn(), recordFailure: vi.fn() } as any,
       { tryResolve: vi.fn() } as any,
+      { getStoreTenantContextForSystem: vi.fn().mockResolvedValue({ id: 'store-b34-001', orgId: 'org-b34-001' }) } as any,
     );
 
     await service.reconcileCancelShipment({
@@ -715,6 +720,7 @@ describe('M7.3-B.3.4 — Schema Vocabulary and Cancellation Regression Guarantee
       { incrementCounter: vi.fn() } as any,
       { canRequest: vi.fn().mockReturnValue(true), recordSuccess: vi.fn(), recordFailure: vi.fn() } as any,
       { tryResolve: vi.fn() } as any,
+      { getStoreTenantContextForSystem: vi.fn().mockResolvedValue({ id: 'store-b34-001', orgId: 'org-b34-001' }) } as any,
     );
 
     await service.reconcileCancelShipment({
