@@ -1,10 +1,23 @@
+## Staging database authorization and latest state — 28 November 2026
+
+- The user confirms **no production database exists or is provisioned**. Do not describe any environment as production or claim production readiness/verification.
+- The user explicitly authorizes source-reviewed changes and forward migrations on the SCS staging database to improve migration cleanliness, schema quality, security and readiness for the future production database. Preserve useful staging data; do not reset/truncate or seed demo data. Destructive changes still require careful preflight and a reversible plan.
+- Confirmed staging DB: Supabase project `SCS-PlatForm`, ref `wplsxxevoevzqbgtpctw`, region `eu-west-1`, PostgreSQL `17.6.1.166`. Render hosts the `scs-api-staging` service; this is not a Render PostgreSQL database.
+- Applied repository migrations 0072–0077 to staging on 28 Nov 2026 in one transaction, protected by the repository advisory-lock key. The application's `public._migration_log` now contains 77 entries through `0077_carrier_webhook_legacy_manual_review.sql`. Full preflight and post-apply evidence: [Staging database migration reconciliation](../docs/remediation/STAGING-DATABASE-MIGRATION-2026-11-28.md).
+- Post-apply checks confirmed credential-scoped webhook FK/indexes, updated ops-alert index, organization-scoped reconciliation version uniqueness, payment-proof upload-intent table and API-role privilege revocation. No webhook/reconciliation history rows were rewritten; existing ops alert was RESOLVED.
+- The SQL session used for the staging migration reported `current_user=postgres`, `rolbypassrls=true`, `rolsuper=false`. This is the MCP session identity, not proof of the Render API runtime identity. Verify the actual deployed API and migration-runner roles and TLS independently.
+- `anon` and `authenticated` now have no table privileges on public tables; RLS remains disabled on all 115 public tables pending least-privilege runtime role and per-table actor/tenant policy design. Do not enable RLS wholesale.
+- Remaining advisor findings: `pg_trgm` is in `public` and owned by `supabase_admin`; 55 unindexed FKs, one pg_partman template table without a primary key, and 275 unused-index observations. Do not mass-move extensions or create/drop indexes without ownership and workload evidence.
+- Staging DB changes are authorized. Production DB creation/changes, application deployments/restarts, provider calls, worker activation and staging/production release remain separate actions and are not authorized by this database instruction.
+- Do not dispatch the protected staging audit or release workflows automatically. Keep changes grouped and run one consolidated exact-head CI after source implementation is complete.
+
 ## Current continuation — 28 November 2026
 
 **Live repository state (verified 28 Nov 2026):**
 - Repository: `nabeel2323/scs-platform`; integration baseline: `develop`, source baseline before the documentation-only handoff updates was `2f6bb106e7147b83cdcc98ad93b4ef688e163e84`; the current `develop` tip includes only the subsequent project-memory documentation commits.
 - PR #170 and #171 are MERGED. PR #173 (carrier configuration/provider credential binding) and PR #174 (bootstrap CLI database identity and actor context) are also MERGED.
 - PR #138 remains OPEN / DRAFT / UNMERGED at `81f30f5c30654b233ef373c15fd3f2cb867aba01`. Preserve the source and synchronized preservation ref; never merge it wholesale, reset, force-push, delete or destructively rebase it.
-- Latest develop CI run #1723 / `46085878528` targets prior develop head `4c5c755571385b346902c74c9f4f0578f48d9433`. Eight mandatory jobs passed (Lint/Typecheck, Flutter, API Unit/Coverage, API Integration, Web/Admin, Migration Full Apply, E6, Contract/Codegen); Build and Container Build & Smoke were still running at the last inspection. Do not call it fully green until those two finish.
+- Latest develop CI run #1723 / `46085878528` targets prior develop head `4c5c755571385b346902c74c9f4f0578f48d9433`. All ten mandatory jobs passed, including Build and Container Build & Smoke. k6 Smoke and Trigger Staging Release were skipped. Run conclusion SUCCESS.
 - PR #173 exact-head run `46077477944` and PR #174 exact-head run `46080913174` completed SUCCESS. The prior develop run `46080692700` also completed SUCCESS.
 - Vercel Web/Admin contexts currently show external free-plan build-rate-limit failures. Do not trigger redundant Vercel builds.
 - Only other open PRs found were #138 and unrelated draft #151. No GitHub reviewers are required or should be requested.
