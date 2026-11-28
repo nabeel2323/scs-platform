@@ -3786,3 +3786,22 @@ The failed smoke job #140873148300 ended before starting the API container. The 
 PR #176 now also updates `.github/workflows/ci.yml`: wait for the official init-complete log marker, verify the container remains running, and require three consecutive successful readiness probes before creating the restricted runtime role. Latest PR head: `dc7572e53b09a38cd9979cd76d0b22717c0f35cb`. Keep PR #176 draft until the follow-up exact-head CI completes successfully. Do not rerun full CI manually if the push-triggered run is already active.
 
 No staging/database/Render/deployment action was performed. PR #138 and its preservation refs remain protected; PR #175 remains separate. After PR #176 is verified and merged, continue G-002 with the raw PostgreSQL client/pool inventory, carrier actor-context edge-case tests, worker organization-lineage audit, and operation-to-table ownership matrix.
+
+
+## G-002 follow-up: carrier helper actor-context edge cases — 28 November 2026
+
+A deeper read-only callsite review identified a broader, concrete fail-open contract in three internal helpers (not yet classified as an exploitable vulnerability; focused tests and call-graph review are required):
+
+- `CarrierCredentialsService.withInternalContext()` (`apps/api/src/modules/shipping/carrier-credentials.service.ts`) and `CarrierConfigurationsService.withInternalContext()` (`apps/api/src/modules/shipping/carrier-configurations.service.ts`) reject a user/worker context only when its `activeOrgId` is non-null and mismatched. A user/worker context with `activeOrgId === null` is reused for org-specific credential/configuration queries. Other active actor kinds are also reused without an explicit allowlist.
+- `AramexProvider.withCredentialDatabaseContext()` (`apps/api/src/modules/shipping/aramex/aramex.provider.ts`) has the same null-scope gap; when its requested `activeOrgId` is null it skips the organization comparison entirely, and it reuses any active actor kind.
+- `AramexProvider.resolveCredentials()` first resolves a store's `orgId` using an unscoped worker context, then calls org-specific configuration and credential helpers. `DatabaseService.withActorContext()` deliberately forbids changing actors inside an active transaction. Any fix must therefore preserve the two-stage lookup while ensuring tenant-specific reads happen only after a fresh org-bound worker context is established; do not try to switch actor inside the existing transaction.
+- The webhook path is already more explicit: credential resolution is performed in a platform worker context; after resolving one credential, secret decryption and subsequent webhook work run in a worker context bound to that credential's org.
+
+Required next work (group into one source/test PR after PR #176 is green/merged):
+1. Trace all callsites for `decryptCredentials`, `decryptWebhookSecret`, `findCredentialId`, `resolveForStore`, and `withCredentialDatabaseContext`.
+2. Define a narrow actor allowlist: user/worker contexts must carry exactly the requested org; null-org user/worker contexts must not perform tenant-specific credential/configuration access; only explicitly reviewed platform-system context may perform intentional cross-org resolution. Reject anonymous/authentication/bootstrap/audit contexts unless a documented caller requires them.
+3. Refactor Aramex store-owner discovery and tenant-scoped credential resolution into separate context scopes without switching actor within a transaction.
+4. Add focused tests for matching org, mismatched org, null-org user, null-org worker, platform-system path, and anonymous/authentication contexts for both service helpers and the Aramex provider helper.
+5. Complete the worker operation-to-table ownership matrix and prove that claimed shipment/order/store lineage is bound to the owning org before tenant-specific writes.
+
+No application code, database, RLS, grants, credentials, deployment or staging state was changed as part of this additional review.
