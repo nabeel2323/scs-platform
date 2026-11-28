@@ -132,6 +132,13 @@ function createPoller(
     { incrementCounter: vi.fn(), generateCorrelationId: vi.fn().mockReturnValue('corr-b34') } as any,
     { canRequest: vi.fn(() => true), recordSuccess: vi.fn(), recordFailure: vi.fn() } as any,
     { processCarrierDelivery } as any,
+    {
+      getStoreTenantContextForSystem: async (storeId: string) =>
+        dbService.db.query.stores.findFirst({
+          where: eq(schema.stores.id, storeId),
+          columns: { id: true, orgId: true },
+        }),
+    } as any,
   );
   return { poller, processCarrierDelivery };
 }
@@ -145,6 +152,13 @@ function createReconService(dbService: DatabaseService, provider: ShippingProvid
     { incrementCounter: vi.fn() } as any,
     { canRequest: vi.fn(() => true), recordSuccess: vi.fn(), recordFailure: vi.fn() } as any,
     { tryResolve: vi.fn(async () => null) } as any,
+    {
+      getStoreTenantContextForSystem: async (storeId: string) =>
+        dbService.db.query.stores.findFirst({
+          where: eq(schema.stores.id, storeId),
+          columns: { id: true, orgId: true },
+        }),
+    } as any,
   );
 }
 
