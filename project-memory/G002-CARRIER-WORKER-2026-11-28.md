@@ -1,4 +1,11 @@
 
+## Migration crosswalk continuity — 28 November 2026
+
+- Compared all numbered migration tree blob SHAs between the crosswalk's recorded baseline `c37c4d94f728b2806e7efb59d0380adb24472597` and current `develop` `5356cd182cb41fc8f2266a0b75eb60056c43675d`.
+- Both contain the same 77 numbered files `0001`–`0077`; no migration path or blob changed. Existing static migration object crosswalk remains applicable; no reason to repeat its full scan.
+- This is not live catalog, migration ledger, owner, grant, default-ACL or RLS evidence. Keep those checks separate and authorized.
+
+
 ## Outbox caller-chain spot checks — 28 November 2026
 
 - Reviewed the controller and service call paths for inventory, merchant verification, reviews, returns, commission reversal and settlement adjustments.
