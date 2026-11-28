@@ -89,3 +89,42 @@ This is a source-level inventory against the named `develop` commit. It is not a
 - Domain predicate spot-check: merchant offer creation/listing calls `assertStoreInOrg` and `assertStoreMember`; inventory operations cross-check store/org membership and ensure warehouse/variant resolve to the same store; shipping checks active organization membership and driver/store assignment; carrier credentials are scoped by org and actor context; payment operations resolve the order and enforce buyer or merchant store/org access; cart insertion resolves store from product/offer rather than trusting caller-supplied storeId. These are positive source findings, not a complete method-by-method authorization proof.
 - Actor context remains opt-in rather than global. AppModule registers AuditLogMiddleware globally but does not globally register TenantDatabaseContextInterceptor. A subset of services (notably catalog, orders, payments, merchant and carrier-credential workflows) use explicit `withActorContext`; several reviewed services rely on explicit caller parameters and service-level predicates without a transaction-bound actor context. RLS must remain disabled until every route/service/worker/raw SQL path is classified and tests prove actor context coverage.
 
+
+
+## G-002 refreshed worker, webhook/outbox and PostgreSQL entrypoint review — 28 November 2026
+
+Read-only verification against current `develop` after exact merge-commit CI #1750 passed all ten mandatory jobs. No application source or runtime configuration was changed in this review.
+
+### Carrier worker lineage — refreshed finding supersedes the earlier preliminary note above
+
+- `apps/api/src/modules/shipping/carrier-shipment-tenant-context.ts` resolves the authoritative store through `MerchantService.getStoreTenantContextForSystem` in a platform worker scope, rejects missing/malformed store or org identity, then verifies the independent order reference under a worker context bound to that exact `orgId`. It returns the verified `orgId/storeId/orderId` tuple only when `orders.store_id === shipments.store_id`.
+- `CarrierTrackingPoller` and both create/cancel paths in `CarrierReconciliationService` use that resolver before provider lookups or tenant-specific writes. Tracking-event inserts, recovery/status updates, delivery bridge, reconciliation updates and retry outbox insertion all run with the resolved org-bound worker context and constrain shipment updates by both shipment and store IDs. Retry events carry `organizationId` and `storeId`.
+- Global claim/lease SQL remains a separate platform-worker operation, preserving `FOR UPDATE SKIP LOCKED`, bounded batches and claim semantics. Provider network calls remain outside the actor-context transaction. The source and focused lineage tests are present on current `develop`; exact-head CI #1750 passed all mandatory jobs.
+- This closes the specific per-shipment worker attribution gap described in the preliminary section above at source level; it does not prove all worker paths or all tenant predicates across the application.
+
+### Webhook and outbox
+
+- `CarrierWebhookController` uses a dedicated platform worker context only for global credential discovery. Tokenized requests select one exact credential; legacy provider-only lookup rejects multiple active credentials rather than choosing one.
+- Secret decryption, webhook event persistence/deduplication, shipment routing, pending-state updates and retry outbox reads/writes use a worker context bound to the credential's exact `orgId`. Retry outbox rows set `organizationId` explicitly.
+- `apps/api/src/common/outbox/outbox-dispatcher.service.ts` deliberately does not poll or mark rows dispatched because no generic delivery adapter exists. Its `publish` method only inserts PENDING rows and uses a supplied transaction client when provided, otherwise the shared DatabaseService handle; caller actor-context inheritance therefore depends on the caller. Carrier events are owned by `ShippingCarrierWorker`. No generic consumer-side actor-context/acknowledgement path is currently active in this dispatcher.
+- Audit middleware opens a dedicated `audit` actor context for deferred writes; `AuditService.record` reuses an active transaction or opens its own audit context. This remains distinct from tenant business writes.
+
+### Direct PostgreSQL entrypoint paths confirmed
+
+- API runtime: `apps/api/src/common/database/database.service.ts` — `pg.Pool`, production-like fail-closed TLS/identity gate and opt-in transaction-bound actor context.
+- Migration runner: `apps/api/infra/drizzle/migrate-pg.ts` — `pg.Pool` plus direct `PoolClient`; optional CA TLS and non-fatal identity diagnostic. Preserve advisory lock, per-migration transactions and ledger semantics.
+- RBAC seed: `apps/api/infra/drizzle/seed-pg.ts` — `pg.Pool`/client and optional CA TLS; operator/system actor context. Never run as part of this audit.
+- Catalog seed: `apps/api/infra/drizzle/seed-catalog.ts` — `pg.Pool`/client and optional CA TLS; production-profile default and demo-data path require explicit target/profile safeguards. Never run as part of this audit.
+- Destructive reset: `apps/api/infra/drizzle/reset-pg.ts` — direct `pg.Client`, requires CA TLS and environment/database confirmation; identity check is not a complete role-capability/ownership guard. Never run.
+- Bootstrap token issuer: `apps/api/src/scripts/bootstrap-issue-token.ts` — direct `pg.Client`, performs production-like identity/TLS/ownership checks and uses a transaction-local bootstrap actor context.
+- Five manual staging bootstrap scripts, read-only `audit-db-access.ts`, and local-only `create-admin-user.ts` remain part of the inventory. Their exact file-by-file helper and guard matrix remains to be completed; no scripts were executed. `src/scripts/seed.ts` delegates to configured Drizzle and is not another direct pg pool.
+- The source inventory does not authorize changing the API or migration credentials, TLS, roles, grants/default ACLs, RLS or Render configuration. The previously recorded live API diagnostic and SQL-tool catalog session are distinct principals and must not be conflated.
+
+### Remaining bounded work
+
+1. Complete the five bootstrap-script/shared-guard and audit-db-access helper matrix, including exact paths, target guards, TLS, identity enforcement, actor context and read/write scope.
+2. Finish outbox callsite inventory: identify all `publish` callers, whether they pass a transaction client, and whether their transaction already has an appropriate actor context. Keep the dispatcher disabled until a real delivery adapter has explicit ownership, ack and retry semantics.
+3. Compare the existing diverged `fix/g002-carrier-worker-tenant-scope-20261128` branch's eight commits against current `develop`; current source already contains the resolver and org-bound write pattern, so do not merge/cherry-pick the branch wholesale or duplicate it.
+4. Continue the service operation-to-table tenant predicate matrix. No RLS/role transition until complete route/service/worker/raw-SQL coverage and tests exist.
+
+No staging/shared database write, migration, seed/reset/bootstrap execution, provider call, worker activation, Render mutation, deployment, restart, credential/role/grant/default-ACL/RLS change or release was performed.
