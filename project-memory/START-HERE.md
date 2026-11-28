@@ -377,3 +377,22 @@ A fresh GitHub compare against current `develop` confirms PR #138 is not a safe 
 - The original source branch `remediation/phase-0-1-tenant-security` and preservation branch `preservation/pr138-remediation-2026-11-25` are both at the unchanged SHA `81f30f5c30654b233ef373c15fd3f2cb867aba01`.
 - The older `integration/pr138-bulk-remediation-2026-11-26` branch is at `a249d7368aefa715d32e8480452e8aff61535af6`; compare against current develop reports 0 ahead / 46 behind. It contains no unique commits to bring forward and is not a current integration candidate.
 - Do not merge PR #138 or move either source/preservation ref. Treat the PR branch as read-only recovery source. The next safe PR #138 work is a deliberate logical-area salvage: enumerate changed production source/test/docs files, exclude scratch/archive deletions and unrelated history, compare each selected implementation against current develop, then cherry-pick or reimplement only verified deltas onto a fresh branch from current develop with focused tests. Group by cohesive remediation area and run one exact-head CI campaign per grouped PR.
+
+
+## PR #138 three-way extraction reconciliation — 28 November 2026
+
+A three-way Git tree comparison was run using merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`, preserved source head `81f30f5c30654b233ef373c15fd3f2cb867aba01`, and current `develop` head `91795390cff5115dee475e07fd87d0c870a6e821`. The comparison excludes `.m73b6-scratch/`, `__tests__/scratch/`, and token-like artifacts; all three trees were complete (not truncated).
+
+- 533 paths are byte-identical between PR #138 and current develop.
+- 109 paths changed on both sides since the merge base and differ: 81 tests, 22 source files, 3 docs, 2 migrations and 1 workflow.
+- 95 of those 109 paths were already part of the merged PR #170 file set. Of the remaining 14, twelve are covered by focused merged follow-ups: PR #157 (database actor context/runtime identity/tenant scope), #159 (orders schema), #169 (cancel/reject actor context tests), #171 (migration runner/lock test), and #174 (bootstrap CLI). The focused PR file list also confirms the relevant paths for #158/#172/#173 as appropriate.
+- The two remaining differences are intentionally not copied: current develop's `outbox-dispatcher.service.ts` is safer than PR #138's old polling implementation (the source version logs events and marks them DISPATCHED without a real delivery adapter; current develop leaves events PENDING and disables polling). The source version of `catalog-governance-roundtrip.spec.ts` uses a random fixture UUID, while current develop uses its fixed isolated fixture.
+- 60 paths are develop-only and must remain untouched.
+- The 20 paths changed only on PR #138 are ten legacy migration verification/apply scripts, the old migration `0070_public_access_and_function_search_path_hardening.sql`, and ten historical project-memory files. None is a missing application source file. The old 0070 collides with current develop's `0070_normalize_arabic_search_path.sql` and overlaps security/default-ACL hardening now represented by develop migration 0076; do not import or apply it. Keep historical project-memory and shell evidence on the preserved source branch unless a specific document is deliberately promoted after review.
+
+### PR #138 integration decision
+
+- PR #170 (the 574-path non-conflicting extraction) merged at `d078fe0124ac04fb0da3fc26f3ff02306c45a33f` on 27 November. Current develop contains this merge commit (compare reports 0 ahead / 47 behind from the merge commit).
+- Focused follow-ups #157, #158, #159, #169, #171, #172, #173 and #174 are also merged. Their exact changes replace/reconcile the overlapping actor-context, identity, order, worker, carrier, migration-audit and bootstrap paths.
+- No further bulk extraction from PR #138 is justified by the current tree comparison. Its substantive application changes have been extracted or superseded by safer current-develop implementations. The residual PR-only files are historical project-memory/legacy verification artifacts and the colliding 0070 migration.
+- PR #138 remains OPEN / DRAFT / UNMERGED at unchanged head `81f30f5c30654b233ef373c15fd3f2cb867aba01`; preservation ref is verified identical. Do not merge, rebase, reset, delete or force-push either source or preservation ref. Keep PR #138 as the preserved evidence/source archive. Any genuinely missing behavior must be raised as a new bounded PR from current develop with exact file provenance and focused tests.
