@@ -34,11 +34,12 @@ import { eq, and, sql, isNull } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
 import { ShippingProviderRegistry } from './shipping-registry';
 import { shipments, shipmentEvents } from '../orders/shipment.schema';
-import { orders } from '../orders/orders.schema';
 import { CarrierObservabilityService } from './carrier-observability';
 import { CarrierCircuitBreaker } from './carrier-circuit-breaker';
 import { randomUUID } from 'node:crypto';
 import { OrdersService } from '../orders/orders.service';
+import { MerchantService } from '../merchant/merchant.service';
+import { resolveCarrierShipmentTenantContext } from './carrier-shipment-tenant-context';
 
 // ── Status Progression ──────────────────────────────────────────────────────
 
@@ -154,11 +155,19 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
   /** Minimum interval between tracking polls for the same shipment (ms). */
   private static readonly MIN_POLL_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
-  private withWorkerContext<T>(operation: () => Promise<T>): Promise<T> {
+  private withWorkerContext<T>(operation: () => Promise<T>, activeOrgId?: string): Promise<T> {
     return this.db.withActorContext(
-      { actorKind: 'worker', workerId: this.workerId },
+      { actorKind: 'worker', workerId: this.workerId, activeOrgId },
       operation,
     );
+  }
+
+  private resolveShipmentTenantContext(shipment: any) {
+    return resolveCarrierShipmentTenantContext(shipment, {
+      withWorkerContext: (operation, activeOrgId) => this.withWorkerContext(operation, activeOrgId),
+      merchant: this.merchant,
+      db: this.db,
+    });
   }
 
   constructor(
@@ -169,6 +178,7 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
     // M7.3-A: Carrier → Order delivery bridge
     @Inject(forwardRef(() => OrdersService))
     private readonly ordersService: OrdersService,
+    private readonly merchant: MerchantService,
   ) {
     this.pollIntervalMs = parseInt(
       process.env['CARRIER_TRACKING_POLL_INTERVAL_MS'] || '600000',
@@ -271,16 +281,12 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
       this.logger.error(`Tracking poll blocked for shipment ${shipment.id}: missing order/store lineage`);
       return;
     }
-    const order = await this.withWorkerContext(() =>
-      this.db.db.query.orders.findFirst({
-        where: eq(orders.id, orderId),
-        columns: { storeId: true },
-      }),
-    );
-    if (!order || order.storeId !== storeId) {
-      this.logger.error(`Tracking poll blocked for shipment ${shipment.id}: order does not belong to its store`);
+    const tenantContext = await this.resolveShipmentTenantContext(shipment);
+    if (!tenantContext) {
+      this.logger.error(`Tracking poll blocked for shipment ${shipment.id}: store organization or order/store lineage is invalid`);
       return;
     }
+    const activeOrgId = tenantContext.orgId;
 
     const providerKey = shipment.shippingProviderKey || shipment.shipping_provider_key || 'aramex';
     const provider = this.registry.findProvider(providerKey);
@@ -316,7 +322,7 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
       let deliveredAfterCancel = false;
       if (trackingInfo?.status === 'DELIVERED' && isDeliveredAfterCancel(cancelStatus)) {
         deliveredAfterCancel = true;
-        await this.handleDeliveredAfterCancel(shipment, providerKey, cancelStatus);
+        await this.handleDeliveredAfterCancel(shipment, providerKey, cancelStatus, activeOrgId);
       }
 
       if (!trackingInfo || !trackingInfo.events.length) {
@@ -324,13 +330,13 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
         await this.withWorkerContext(() => this.db.db
           .update(shipments)
           .set({ lastCarrierSyncAt: new Date(), updatedAt: new Date() })
-          .where(eq(shipments.id, shipment.id)));
+          .where(and(eq(shipments.id, shipment.id), eq(shipments.storeId, storeId))), activeOrgId);
         return;
       }
 
       // Process each tracking event
       for (const event of trackingInfo.events) {
-        await this.processTrackingEvent(shipment, providerKey, event);
+        await this.processTrackingEvent(shipment, providerKey, event, activeOrgId);
       }
 
       // Update shipment status if advanced
@@ -349,7 +355,7 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
             lastCarrierSyncAt: new Date(),
             updatedAt: new Date(),
           })
-          .where(eq(shipments.id, shipment.id)));
+          .where(and(eq(shipments.id, shipment.id), eq(shipments.storeId, storeId))), activeOrgId);
 
         // M7.3-A: Bridge carrier DELIVERED → order DELIVERED
         if (latestStatus === 'DELIVERED' && shipment.order_id) {
@@ -358,7 +364,7 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
               shipment.order_id,
               shipment.carrier_shipment_id,
               'tracking_poll',
-            ));
+            ), activeOrgId);
           } catch (bridgeErr: any) {
             this.logger.warn(
               `Carrier delivery bridge failed for order ${shipment.order_id}: ${bridgeErr?.message}`,
@@ -369,7 +375,7 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
         await this.withWorkerContext(() => this.db.db
           .update(shipments)
           .set({ lastCarrierSyncAt: new Date(), updatedAt: new Date() })
-          .where(eq(shipments.id, shipment.id)));
+          .where(and(eq(shipments.id, shipment.id), eq(shipments.storeId, storeId))), activeOrgId);
       }
     } catch (err: any) {
       this.circuitBreaker.recordFailure(cbScope);
@@ -396,7 +402,9 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
     shipment: any,
     providerKey: string,
     cancelStatus: string,
+    activeOrgId: string,
   ): Promise<void> {
+    const storeId = shipment.storeId ?? shipment.store_id;
     return this.withWorkerContext(async () => {
     const shipmentId = shipment.id as string;
     // Deterministic per shipment + anomaly: stable across polls => idempotent dedup.
@@ -445,6 +453,7 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
       .where(
         and(
           eq(shipments.id, shipmentId),
+          eq(shipments.storeId, storeId),
           sql`${shipments.recoveryStatus} IS DISTINCT FROM 'DELIVERED_AFTER_CANCEL'`,
         ),
       );
@@ -454,7 +463,7 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
     //      - carrier_status_mapped / carrier_status_raw advance
     //      - shipment.status mutation
     //      - order status mutation / inventory SALE settlement
-    });
+    }, activeOrgId);
   }
 
   /**
@@ -473,6 +482,7 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
       location?: string;
       description?: string;
     },
+    activeOrgId: string,
   ): Promise<void> {
     const externalId = event.carrierStatus || null;
     const fingerprint = trackingEventFingerprint(
@@ -510,7 +520,7 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
         },
         externalEventId: fingerprint,
         carrierEventCode: externalId?.slice(0, 40) || null,
-      }));
+      }), activeOrgId);
     } catch (err: any) {
       if (err?.code === '23505') {
         // Duplicate — idempotent dedup. Another worker or a previous cycle
