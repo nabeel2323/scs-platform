@@ -95,4 +95,56 @@ describe('CarrierConfigurationsService provider binding', () => {
 
     await expect(service.resolveForStore(ORG_ID, STORE_ID, 'aramex')).resolves.toEqual(config);
   });
+
+  it('rejects a null-org user context instead of reusing it for tenant configuration access', async () => {
+    const mocks = makeDatabase();
+    mocks.db.currentActorContext = {
+      actorKind: 'user', actorId: 'user-1', actorRole: 'ADMIN', activeOrgId: null,
+    };
+    const service = new CarrierConfigurationsService(mocks.db as any);
+
+    await expect(service.resolveForStore(ORG_ID, STORE_ID, 'aramex'))
+      .rejects.toThrow('worker context bound to the requested organization');
+    expect(mocks.storeFind).not.toHaveBeenCalled();
+    expect(mocks.db.withActorContext).not.toHaveBeenCalled();
+  });
+
+  it('rejects a worker context bound to a different organization', async () => {
+    const mocks = makeDatabase();
+    mocks.db.currentActorContext = {
+      actorKind: 'worker', workerId: 'worker-1', activeOrgId: 'other-org',
+    };
+    const service = new CarrierConfigurationsService(mocks.db as any);
+
+    await expect(service.resolveForStore(ORG_ID, STORE_ID, 'aramex'))
+      .rejects.toThrow('worker context bound to the requested organization');
+    expect(mocks.storeFind).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-worker actor kinds even when they carry the requested organization', async () => {
+    const mocks = makeDatabase();
+    mocks.db.currentActorContext = {
+      actorKind: 'system', actorId: 'system-1', actorRole: null, activeOrgId: ORG_ID,
+    };
+    const service = new CarrierConfigurationsService(mocks.db as any);
+
+    await expect(service.resolveForStore(ORG_ID, STORE_ID, 'aramex'))
+      .rejects.toThrow('worker context bound to the requested organization');
+    expect(mocks.storeFind).not.toHaveBeenCalled();
+  });
+
+  it('reuses an existing worker context only when its organization matches exactly', async () => {
+    const mocks = makeDatabase();
+    mocks.db.currentActorContext = {
+      actorKind: 'worker', workerId: 'worker-1', activeOrgId: ORG_ID,
+    };
+    mocks.storeFind.mockResolvedValue({ id: STORE_ID, orgId: ORG_ID });
+    mocks.configurationFind.mockResolvedValue(null);
+    const service = new CarrierConfigurationsService(mocks.db as any);
+
+    await expect(service.resolveForStore(ORG_ID, STORE_ID, 'aramex')).resolves.toBeNull();
+    expect(mocks.db.withActorContext).not.toHaveBeenCalled();
+    expect(mocks.storeFind).toHaveBeenCalledOnce();
+  });
+
 });
