@@ -1,3 +1,16 @@
+## Staging database authorization and latest state — 28 November 2026
+
+- The user confirms **no production database exists or is provisioned**. Do not describe any environment as production or claim production readiness/verification.
+- The user explicitly authorizes source-reviewed changes and forward migrations on the SCS staging database to improve migration cleanliness, schema quality, security and readiness for the future production database. Preserve useful staging data; do not reset/truncate or seed demo data. Destructive changes still require careful preflight and a reversible plan.
+- Confirmed staging DB: Supabase project `SCS-PlatForm`, ref `wplsxxevoevzqbgtpctw`, region `eu-west-1`, PostgreSQL `17.6.1.166`. Render hosts the `scs-api-staging` service; this is not a Render PostgreSQL database.
+- Applied repository migrations 0072–0077 to staging on 28 Nov 2026 in one transaction, protected by the repository advisory-lock key. The application's `public._migration_log` now contains 77 entries through `0077_carrier_webhook_legacy_manual_review.sql`. Full preflight and post-apply evidence: [Staging database migration reconciliation](../docs/remediation/STAGING-DATABASE-MIGRATION-2026-11-28.md).
+- Post-apply checks confirmed credential-scoped webhook FK/indexes, updated ops-alert index, organization-scoped reconciliation version uniqueness, payment-proof upload-intent table and API-role privilege revocation. No webhook/reconciliation history rows were rewritten; existing ops alert was RESOLVED.
+- The SQL session used for the staging migration reported `current_user=postgres`, `rolbypassrls=true`, `rolsuper=false`. This is the MCP session identity, not proof of the Render API runtime identity. Verify the actual deployed API and migration-runner roles and TLS independently.
+- `anon` and `authenticated` now have no table privileges on public tables; RLS remains disabled on all 115 public tables pending least-privilege runtime role and per-table actor/tenant policy design. Do not enable RLS wholesale.
+- Remaining advisor findings: `pg_trgm` is in `public` and owned by `supabase_admin`; 55 unindexed FKs, one pg_partman template table without a primary key, and 275 unused-index observations. Do not mass-move extensions or create/drop indexes without ownership and workload evidence.
+- Staging DB changes are authorized. Production DB creation/changes, application deployments/restarts, provider calls, worker activation and staging/production release remain separate actions and are not authorized by this database instruction.
+- Do not dispatch the protected staging audit or release workflows automatically. Keep changes grouped and run one consolidated exact-head CI after source implementation is complete.
+
 # Live continuation update — 28 November 2026
 
 This dated handoff supersedes the historical PR/CI coordination snapshots below where they conflict.
@@ -51,7 +64,7 @@ This dated handoff supersedes the historical PR/CI coordination snapshots below 
 
 ### Overall status
 
-<badge color="success">IN PROGRESS</badge> Source implementation continues in grouped commits. The latest exact workflow run is CI #1408 on `a76b0bef436af8bde2d9329b1cd6ee5980f593fc`: lint and typecheck passed, Flutter analysis/tests passed, but changed-file Prettier failed on 245 files in the cumulative PR diff. Dependent Web/Admin, API unit/coverage, PostgreSQL integration, migration, E6, build/container, contract and k6 jobs were skipped. UX-098/099 commits use [skip ci] and are not covered by that run. G-001 remains PARTIAL pending independent review; G-002 and G-036 remain IN PROGRESS; G-007's implementation is CI-verified but Phase 6 buyer journey/order-detail UAT remains pending. Phase 6 full test campaign is NOT STARTED. No staging/production deployment or database mutation is claimed.
+<badge color="success">IN PROGRESS</badge> Source implementation continues in grouped commits. Historical status below is superseded by the live 28 Nov continuation above. The latest inspected develop workflow is CI #1723 (`46085878528`), completed SUCCESS with all ten mandatory jobs; k6 and staging release were skipped. The staging migration ledger is now at 0077. Older status below records historical findings and must not be treated as current. lint and typecheck passed, Flutter analysis/tests passed, but changed-file Prettier failed on 245 files in the cumulative PR diff. Dependent Web/Admin, API unit/coverage, PostgreSQL integration, migration, E6, build/container, contract and k6 jobs were skipped. UX-098/099 commits use [skip ci] and are not covered by that run. G-001 remains PARTIAL pending independent review; G-002 and G-036 remain IN PROGRESS; G-007's implementation is CI-verified but Phase 6 buyer journey/order-detail UAT remains pending. Phase 6 full test campaign is NOT STARTED. No staging/production deployment or database mutation is claimed.
 ---
 
 ## 2. Phase dashboard
