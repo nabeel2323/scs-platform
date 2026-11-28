@@ -1,3 +1,18 @@
+## Latest continuation checkpoint — 28 November 2026, 18:05 UTC
+
+- PR #180 remains merged into `develop` by squash at `a56b77ba09a8e185c9ecdf8649d6602cb3a94143`.
+- Exact merge-commit push CI run #1750 (`46151002279`) is now complete: all 10 mandatory jobs passed — Lint & Typecheck, Mobile, Migration Full Apply, Unit/Coverage, Boundary Lint E6, Web/Admin, Integration, Contract Spec & Codegen, Container Build & Smoke, and Build. k6 Smoke and Trigger Staging Release were skipped. No staging release occurred.
+- `develop` has advanced two documentation-only commits beyond the #180 merge commit; no application-code delta was reported in that comparison.
+- Refreshed source review supersedes the older G-002 carrier-worker notes below: `carrier-shipment-tenant-context.ts` is present on current `develop`. Both `CarrierTrackingPoller` and `CarrierReconciliationService` now resolve authoritative `shipment.store_id → stores.org_id`, then verify `shipment.order_id → orders.store_id` inside an exact-org worker context. Their per-shipment updates, event inserts, retry outbox writes and delivery bridge use that resolved org. Global atomic claim/lease scans intentionally remain platform-worker operations. Provider calls remain outside DB actor transactions.
+- Webhook review: credential discovery uses a dedicated platform worker scope; token routes resolve one exact credential; legacy provider-only routes reject ambiguous credentials. Secret decryption, webhook-event writes, shipment routing, retry state and retry outbox writes use the credential's exact-org worker context. Outbox dispatcher consumer/nesting review is still outstanding.
+- Direct PostgreSQL source entrypoints already inventoried in the crosswalk: API `DatabaseService`; standalone `migrate-pg.ts`; `seed-pg.ts`; `seed-catalog.ts`; destructive `reset-pg.ts`; five staging bootstrap scripts; read-only `audit-db-access.ts`; local-only `create-admin-user.ts`; and `bootstrap-issue-token.ts`. `src/scripts/seed.ts` delegates to Drizzle and is not another direct pool. The remaining task is to verify exact paths/helpers and classify every script's target guard, TLS, identity, actor context and read/write scope; no script should be run.
+- An existing branch `fix/g002-carrier-worker-tenant-scope-20261128` contains an eight-commit carrier worker implementation/test series and is diverged from current `develop` (7 commits behind). It is not an open PR (#181 lookup returned 404). Do not merge/cherry-pick it wholesale; compare its eight commits against current source and retain only changes not already present.
+- PR #138 remains OPEN / DRAFT / UNMERGED at unchanged head `81f30f5c30654b233ef373c15fd3f2cb867aba01`; its preservation ref remains protected. The three-way extraction is final; do not bulk-merge or reimplement completed work. PR #175 remains a separate draft and is not part of G-002.
+- Next: finish outbox-dispatcher/consumer actor-context and direct-pg script/helper audit, reconcile the existing worker-scope branch against current `develop`, then prepare one bounded source/test PR only for a proven gap and run one consolidated exact-head CI. Do not trigger redundant CI or Vercel builds.
+- Safety: no shared/staging DB writes, migrations, grants/default-ACL/RLS changes, Render mutation, deployment/restart, provider call, credential rotation, worker activation or release. CI success is not staging/release authorization.
+
+---
+
 ## Latest continuation checkpoint — 28 November 2026, 13:43 UTC
 
 - PR #180, `fix(security): bind carrier credential access to tenant workers`, is now **MERGED** into `develop` by squash.
