@@ -3589,3 +3589,14 @@ PR #173 implements provider-key constrained carrier configuration resolution and
 - A targeted scan of migrations 0064–0077 found no CREATE FUNCTION/PROCEDURE/TRIGGER/RULE or PARTITION BY declarations. Explicit FK references in this range include device-trust user/session links, carrier credential linkage, and payment-proof upload-intent linkage. This supplements (but does not replace) the earlier 75-migration inventory.
 - This implementation is not yet CI-verified. Run one consolidated exact-head campaign after grouped review; do not merge until all mandatory checks pass.
 - No staging/production DB writes or migrations, RLS/grant/default-ACL changes, provider calls, worker activation, Render changes, deployments, restarts or releases occurred. PR #138 remains protected and unmerged.
+
+
+## PR #174 merged — 28 November 2026
+
+- PR #174 (G-002 bootstrap CLI database identity and actor context) merged into `develop` at `4c5c755571385b346902c74c9f4f0578f48d9433`. Exact PR head `96c0276a7cd68a2125197d85d16b8e739d9cd5ef`; base was `57130a37a27a4d960f396b985c599274b91caa9e`.
+- Exact-head GitHub Actions CI #1722 (run `46080913174`) completed successfully. All 10 mandatory jobs passed: Lint & Typecheck, Mobile, Migration Full Apply, E6 Boundary Lint, Web/Admin Tests, Integration Tests, Unit/Coverage, Container Build & Smoke, Build, and Contract/Codegen. k6 Smoke Test and Trigger Staging Release were skipped.
+- Two external Vercel preview status contexts reported build-rate-limit failures; these are provider preview-build failures, not failures in the mandatory GitHub Actions test/build campaign. No preview deployment was triggered by this merge.
+- The CLI now enforces verified TLS for staging/production, checks the exact database session/effective identity and unsafe privileges/ownership, and sets transaction-local bootstrap actor context before bootstrap-state reads/writes. Disposable PostgreSQL regression tests cover TLS fail-closed behavior and audit-trigger actor attribution.
+- PR #138 remains OPEN / DRAFT / UNMERGED. Preserve its implementation and preservation branch; never merge it wholesale or rewrite either ref.
+- G-002 is still IN PROGRESS overall: this bounded CLI fix does not authorize changes to runtime/migration roles, grants/default ACLs, RLS, or TLS environment. Continue the source inventory, ownership/FK crosswalk, worker/realtime/audit actor-context review, and prepare the least-privilege role/TLS transition as a separately reviewed and authorized step.
+- No staging/production DB writes or migrations, grants/default-ACL changes, RLS enablement, provider calls, worker activation, Render changes, deployments, restarts or releases occurred. No reviewers were requested.
