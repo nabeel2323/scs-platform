@@ -26,6 +26,7 @@ function makeHarness() {
     ...process.env,
     PATH: bin + delimiter + (process.env['PATH'] ?? ''),
     PSQL_MARKER: marker,
+    PGSERVICE: '',
   } };
 }
 
