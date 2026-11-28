@@ -575,7 +575,31 @@ jobs:
             -c ssl_key_file=/var/lib/postgresql/certs/server.key
           docker run -d --name ci-redis --network ci-smoke-net redis:7-alpine
           # Wait for real readiness instead of assuming fixed startup time.
-          timeout 60s sh -c 'until docker exec ci-postgres pg_isready -U scs -d scs_platform >/dev/null 2>&1; do sleep 1; done'
+          # The official postgres entrypoint briefly starts a temporary server while
+          # initializing the data directory, then shuts it down before starting
+          # the final server. pg_isready alone can catch that temporary server.
+          # Wait for the entrypoint's init-complete marker, then require three
+          # consecutive successful readiness probes against the final server.
+          timeout 90s sh -ec '
+            until docker logs ci-postgres 2>&1 | grep -q "PostgreSQL init process complete; ready for start up."; do
+              if [ "$(docker inspect ci-postgres --format="{{.State.Running}}")" != "true" ]; then
+                docker logs ci-postgres
+                exit 1
+              fi
+              sleep 1
+            done
+          '
+          timeout 60s sh -ec '
+            successes=0
+            while [ "$successes" -lt 3 ]; do
+              if docker exec ci-postgres pg_isready -U scs -d scs_platform >/dev/null 2>&1; then
+                successes=$((successes + 1))
+              else
+                successes=0
+              fi
+              sleep 2
+            done
+          '
           timeout 30s sh -c 'until docker exec ci-redis redis-cli ping 2>/dev/null | grep -q PONG; do sleep 1; done'
 
           # Never use the privileged bootstrap account as the API runtime role.
