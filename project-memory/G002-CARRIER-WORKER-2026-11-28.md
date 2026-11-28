@@ -1,3 +1,22 @@
+## PR #180 merged — 28 November 2026, 13:43 UTC
+
+- PR #180 merged into `develop` by squash; merge commit `a56b77ba09a8e185c9ecdf8649d6602cb3a94143`; exact source head `d0c3639f0c3820fa44bbadbb9c8b62264cd62413`.
+- Exact-head CI run #1748 / GitHub run `46147121948` passed all 10 mandatory jobs, including lint/typecheck/format, Flutter, API unit/coverage, PostgreSQL integration, Web/Admin, E6 boundary lint, isolated full migration apply, contract/codegen, build and container smoke. k6 and staging release were skipped.
+- Six changed files (184 additions, 57 deletions) were integrated unchanged from PR #177 with the fixture typing correction. Strict helper behavior now reuses an existing actor only for an exact-org worker context; null-org user, mismatched worker and non-worker actor kinds are rejected. Separate null-org store-owner/webhook credential discovery and exact-org secret decryption scopes remain separate.
+- PR #177 remains superseded/closed; no duplicate implementation was created. PR #138 remains OPEN/DRAFT/UNMERGED at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; preservation refs unchanged. PR #175 remains separate.
+- New develop merge commit CI run #1750 (`46151002279`) was queued at checkpoint time; verify exact-head completion before another integration batch.
+
+## Next tasks after merge
+
+1. Complete read-only audit of every production `OutboxDispatcher.publish` caller: prove tenant/worker actor scope or explicit transaction-client propagation; map event writes to owning org/store.
+2. Complete a repository-wide direct PostgreSQL `Client`/`Pool` entrypoint inventory, distinguishing runtime pool from dev/test bootstrap and migration advisory-lock clients.
+3. Finish migration 0001–0077 crosswalk: tables, FKs, functions, triggers, partitions, object ownership, grants/default ACLs and tenant ownership predicates; reconcile against merged PRs #170–#180.
+4. Batch only source-backed findings and focused tests; one consolidated exact-head CI for the next meaningful implementation batch.
+
+No database, staging, Render, provider, credential, grants/default-ACL/RLS, worker activation, deployment or release operation was performed. Preserve the staging-release hold.
+
+---
+
 # G-002 continuation — 28 November 2026
 
 ## Integration completed
