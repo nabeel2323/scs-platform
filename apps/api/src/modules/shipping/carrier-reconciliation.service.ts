@@ -361,7 +361,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
         id: randomUUID(),
         eventType: 'shipping.carrier.create',
         aggregateId: shipment.id,
-        payload: { source: 'reconciliation', retryCount: carrierCreateRetries + 1 },
+        payload: { source: 'reconciliation', retryCount: (shipment.carrierCreateRetries ?? shipment.carrier_create_retries ?? 0) + 1 },
         status: 'PENDING',
         organizationId: orgId,
         storeId,
