@@ -188,3 +188,13 @@ The change is source-only. No database connection or diagnostic execution was pe
 - This run validates the new read-only audit safety spec and updated diagnostic on that source/test head. It does not prove a live staging target or authorize a release. No database connection or staging script execution occurred.
 - PR #181 latest fetched metadata: head `ab21cdd8fca01e6e5bb29a0f8a61f71863fb3587`, 43 commits, nine changed files, open/non-draft/unmerged, mergeable=true. Base remains `develop` at `5356cd182cb41fc8f2266a0b75eb60056c43675d`. Keep merge gated by the separate staging-release authorization.
 - PR #138 remains protected and untouched. Direct PostgreSQL constructor inventory and OutboxDispatcher caller graph remain provisional; continue targeted source review without repeated CI.
+
+
+## Non-HTTP worker caller-chain follow-up — 28 November 2026
+
+- Reviewed `OutboxDispatcher` implementation and its delivery-boundary unit tests: `publish()` is a writer only, persists `PENDING`, accepts optional transaction client, and does not poll, ack, retry or dispatch generic events. The carrier worker remains the separately owned consumer for `shipping.carrier.*` only.
+- Reviewed `AutoCompleteWorker`: order claim and completion are both run inside `DatabaseService.withActorContext({ actorKind: 'worker', workerId })`; the claim-release call is nested in the same awaited completion scope. No unscoped write gap was confirmed in this path.
+- Reviewed `PaymentProofCleanupWorker` → `PaymentsService.cleanupStaleProofUploads`: worker activation is explicitly opt-in; DB claim and each state transition use the dedicated `runWithProofCleanupActor` scope. Provider object head/delete calls occur outside DB actor transactions; no DB actor context is required for those external calls.
+- Reviewed `ReturnExpirationWorker`: lease operations, pause checks, claim, per-item processing and escalation are enclosed in worker actor context and fenced by the P13 lease epoch. No new actor-context gap confirmed in this sample.
+- Reviewed `WorkerLeaseService`: lease writes and reads use worker actor context; `forceExpire` uses explicit system actor context. These are platform worker/lease operations, not tenant business writes.
+- This is a bounded worker sample, not a complete all-source caller graph. Continue tracing every outbox publisher and indirect DB connection factory before calling the audit exhaustive. No worker was enabled or run; no database/provider call occurred.
