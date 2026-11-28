@@ -1,11 +1,11 @@
-## Latest checkpoint — 28 November 2026, session close
+## Latest checkpoint — 28 November 2026, verified continuation
 
-- PR #181 latest branch head: `980cd85fb9aeaf5854a7f2a419da4c5de6c380a4`; base `develop` at `5356cd182cb41fc8f2266a0b75eb60056c43675d`; branch compare is 26 commits ahead, 0 behind, six changed files. The post-CI commits are documentation/memory-only; tested source/test head is `f6be9ca18157c391842b55168616975c10f3b67e`.
-- CI #1753 / run ID `46163157475` succeeded across all mandatory GitHub Actions jobs. k6 smoke and staging-release jobs were skipped. Vercel web/admin statuses are external free-plan build-rate-limit failures; no retry.
-- PR #181 remains OPEN, non-draft, GitHub mergeable=true / mergeable_state=unstable. Do not merge while the separate staging-release authorization gate remains unresolved.
-- PR #138 remains OPEN/DRAFT/UNMERGED at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; its preservation branch is identical. `develop` remains `5356cd182cb41fc8f2266a0b75eb60056c43675d`.
-- G-002 docs corrected stale carrier worker and staging-bootstrap findings, extended the direct PostgreSQL inventory with local UAT and manual check scripts, and recorded outbox caller-chain coverage. Inventory remains provisional; do not claim exhaustive source/blob search.
-- No DB, staging, migration, seed/reset/bootstrap execution, grant/default ACL/RLS, Render, deployment, provider, credential, worker activation or release operation was performed.
+- PR #181 branch `docs/g002-postgres-entrypoint-audit-20261128` latest verified head: `6137862fceec1e7a65faa9c40a5061d573ccfd2d`; base `develop` remains `5356cd182cb41fc8f2266a0b75eb60056c43675d`. Exact GitHub compare: 27 commits ahead, 0 behind, six changed files. Latest head commit changes only this memory file; the tested source/test head remains `f6be9ca18157c391842b55168616975c10f3b67e`.
+- CI #1753 / run ID `46163157475` succeeded across all mandatory GitHub Actions jobs on the tested source/test head. k6 smoke and staging-release jobs were skipped. The latest memory-only head has no new Actions run; its two reported Vercel statuses remain external free-plan build-rate-limit failures. Do not retry previews.
+- PR #181 remains OPEN, non-draft, GitHub mergeable=true / mergeable_state=unstable. Keep merge gated while the separate staging-release authorization gate remains unresolved; do not infer deployment approval from CI.
+- PR #138 remains OPEN/DRAFT/UNMERGED at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; its preservation branch is identical. Do not touch or wholesale merge it. PR #175 remains separate. `develop` remains `5356cd182cb41fc8f2266a0b75eb60056c43675d`.
+- G-002 source findings remain as recorded below. Direct PostgreSQL inventory and outbox publisher caller graph are still provisional, not exhaustive. `apps/api/check-staging-users.ts` remains a sensitive manual diagnostic: CA TLS is required, but there is no explicit staging/database/role preflight or actor context, and it prints user phone/email/full name. Do not run it or point it at a shared target; hardening remains pending.
+- No DB connection/script execution, staging/shared DB write, migration, seed/reset/bootstrap, grant/default ACL/RLS change, Render mutation, deployment, provider call, credential change, worker activation or release operation was performed.
 
 ---
 
