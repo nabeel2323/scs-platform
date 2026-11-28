@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { statusColors, colors, radii, typeScale } from '@scs/ui-kit';
+import { currencyMinorUnits } from '../lib/reference-data';
 
 const DEFAULT_COLOR = { bg: '#eef1f3', fg: colors.muted };
 
@@ -26,11 +27,9 @@ export function StatusBadge({ status }: { status: string }) {
 }
 
 export function formatMinor(minor: number, currency = 'SAR'): string {
-  const major = minor / 100;
-  if (currency === 'SAR') {
-    return `${major.toFixed(2)} SAR`;
-  }
-  return `${major.toFixed(2)} ${currency}`;
+  const decimals = currencyMinorUnits(currency);
+  const major = minor / (10 ** decimals);
+  return `${major.toFixed(decimals)} ${currency}`;
 }
 
 /**
