@@ -3775,3 +3775,14 @@ Read-only source review against the current `develop` ref; no application source
 5. Only after the grouped source/test work is complete, run one consolidated exact-head mandatory CI campaign. No per-file CI or unnecessary Vercel builds.
 
 No database, migration, grant/default-ACL, RLS, Render, deployment, worker, provider or staging action was performed. No CI was triggered for this read-only review.
+
+
+## PR #176 CI follow-up and smoke-test diagnosis — 28 November 2026
+
+First exact-head CI run #1725 (`46109661958`) passed all application-quality jobs: lint/typecheck, Flutter analyze/tests, migration full apply, unit/coverage gates, web/admin tests, E6 boundary lint, integration tests, contract/codegen, and build. Container Build & Smoke Test alone failed; k6 and staging release were skipped.
+
+The failed smoke job #140873148300 ended before starting the API container. The PostgreSQL readiness loop used only `pg_isready`, which can report ready against the temporary server used by the official PostgreSQL Docker entrypoint during first-time database initialization. The entrypoint then stops that temporary server, and the immediate role-creation command received `FATAL: the database system is shutting down`. This is a smoke-workflow startup race, not evidence of an API regression.
+
+PR #176 now also updates `.github/workflows/ci.yml`: wait for the official init-complete log marker, verify the container remains running, and require three consecutive successful readiness probes before creating the restricted runtime role. Latest PR head: `dc7572e53b09a38cd9979cd76d0b22717c0f35cb`. Keep PR #176 draft until the follow-up exact-head CI completes successfully. Do not rerun full CI manually if the push-triggered run is already active.
+
+No staging/database/Render/deployment action was performed. PR #138 and its preservation refs remain protected; PR #175 remains separate. After PR #176 is verified and merged, continue G-002 with the raw PostgreSQL client/pool inventory, carrier actor-context edge-case tests, worker organization-lineage audit, and operation-to-table ownership matrix.
