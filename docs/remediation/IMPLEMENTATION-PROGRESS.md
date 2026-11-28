@@ -3687,3 +3687,8 @@ PR #170's 574-path non-overlapping extraction merged at `d078fe0124ac04fb0da3fc2
 
 - Post-merge CI #1723 (`46085878528`) on PR #174 merge commit `4c5c755571385b346902c74c9f4f0578f48d9433` completed SUCCESSFULLY: all ten mandatory jobs passed, including Container Build & Smoke Test. k6 was skipped on develop and staging release remained disabled; no staging deployment occurred.
 - PR #175 CI #1724 (`46087426872`) is running on exact head `b48e2a463c28eb7bcb1c880634c4f4f388ad5b5b`. Lint/Typecheck and Mobile passed; Web/Admin, Unit/Coverage, Integration, Migration Full Apply and E6 Boundary Lint remained in progress. Keep draft until all mandatory jobs pass.
+
+
+## PR #175 CI progress — 28 November 2026
+
+Exact-head run #1724 (`46087426872`) on `b48e2a463c28eb7bcb1c880634c4f4f388ad5b5b`: Lint/Typecheck, Mobile, Web/Admin, Migration Full Apply and E6 Boundary Lint passed; API Unit/Coverage and Integration Tests are still running. Build/container/contract gates have not yet reported. PR #175 remains draft pending every mandatory check.
