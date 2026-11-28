@@ -122,3 +122,20 @@ The fact that these methods pass a transaction client to `OutboxDispatcher.publi
 Existing internal call paths remain compatible: merchant-rejection refund creation from `OrdersService.rejectOrder` already runs inside `runAsCaller`, and return-driven refund creation is invoked through `ReturnsController`'s class-level interceptor. `DatabaseService.withActorContext` reuses an identical nested actor and rejects actor switching, so the added route scope does not require a second actor transaction in those paths.
 
 A focused controller metadata regression test is included with the source correction. This finding is an actor-attribution/context gap; it is not presented as proof of a cross-tenant exploit. Other non-HTTP payment paths (including the un-routed `expirePayment` method) remain subject to caller-graph verification; no worker or scheduler is activated by this audit.
+
+
+## Additional direct PostgreSQL entrypoints found by path-targeted follow-up — 28 November 2026
+
+The follow-up enumerated the current API tree (648 source files) and inspected additional operational scripts whose names indicate database, migration, bootstrap, check or UAT responsibilities. This is a targeted path/content pass, not an exhaustive blob scan of every source file.
+
+| Entrypoint | Connection and target boundary | Operation / actor finding |
+|---|---|---|
+| `b1-migration-test.js` | Three `pg.Pool` instances; fixed `localhost:15432`; requires `SCS_ENVIRONMENT=development|test` and `SCS_UAT_CONFIRM=true` | Destructive disposable migration harness: drops/creates local test databases and applies migrations. It is not a staging tool; do not run during audit |
+| `p311-migration-verify.js` | `pg.Pool`; fixed `localhost:25433` and `scs_p311_verify`; same development/test + UAT confirmation gate | Applies migration chain and verifies constraints/idempotency on its dedicated local verification database; no staging target |
+| `scripts/m5-uat-run.ts`, `m5-uat-verification.ts` | Direct `pg.Pool`; `assertLocalUatExecution` checks development/test, explicit confirmation, and local DB/API hosts | Manual API UAT flows with direct DB inspection; do not run outside disposable local/test environment |
+| `scripts/m6-uat-run.ts` | Direct `pg.Pool`; hard-coded localhost DB/API/Redis targets; same local UAT confirmation helper | Mutating multi-merchant UAT flow; local-only guard is present; not run |
+| `check-merchant-rbac.ts` | Direct `pg.Pool`; requires `DATABASE_URL` and CA file, configures certificate verification; no explicit environment/database/role preflight | SELECT-only role/permission diagnostic; no transaction actor context. Avoid pointing it at shared or production-like targets without an explicit operational gate |
+| `check-staging-users.ts` | Direct `pg.Pool`; requires `DATABASE_URL` and CA file, configures certificate verification; no explicit staging/database/role preflight | SELECT-only but returns user phone, email and full name to console; no actor context. This is a sensitive manual diagnostic and should receive a read-only exact-staging target guard and output minimization before any shared staging use |
+| `scripts/verify-staging-bootstrap-target.ts` | Direct `pg.Client`; requires `DATABASE_URL` and CA file; calls the shared fail-closed staging bootstrap target guard | Read-only preflight; exact staging/database/role/ownership/TLS validation is inherited from the helper; no writes |
+
+These additions correct the earlier operational-entrypoint list, but they do not close the repository-wide inventory. The API tree has 648 source files; a full scan of every source blob and indirect/dynamic connection factory remains outstanding. The two ad hoc check scripts above are not evidence of an application runtime bypass: they are standalone manual diagnostics. The staging-user diagnostic is nevertheless too permissive for sensitive PII output and is recorded as a follow-up hardening candidate; no script was executed.
