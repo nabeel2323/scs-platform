@@ -10,7 +10,6 @@ import { DatabaseService } from '../../common/database/database.service';
 import { assertActiveOrgMembership, type CallerContext } from '../../common/tenant-scope';
 import { carrierConfigurations, carrierCredentials } from './shipping.schema';
 import { stores } from '../merchant/merchant.schema';
-import { assertCarrierTenantActorContext } from './carrier-tenant-context';
 
 // ── Input types ─────────────────────────────────────────────────────────────
 
@@ -218,7 +217,9 @@ export class CarrierConfigurationsService {
   private withInternalContext<T>(orgId: string, workerId: string, operation: () => Promise<T>): Promise<T> {
     const active = this.db.currentActorContext;
     if (active) {
-      assertCarrierTenantActorContext(active, orgId, 'Carrier configuration access');
+      if (active.actorKind !== 'worker' || active.activeOrgId !== orgId) {
+        throw new Error('Carrier configuration access requires a worker context bound to the requested organization');
+      }
       return operation();
     }
     return this.db.withActorContext({ actorKind: 'worker', workerId, activeOrgId: orgId }, operation);
