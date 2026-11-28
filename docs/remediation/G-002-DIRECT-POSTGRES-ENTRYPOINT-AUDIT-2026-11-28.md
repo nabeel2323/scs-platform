@@ -157,3 +157,15 @@ A further source pass traced the current `OutboxDispatcher.publish` callsites in
 | `PaymentsService` refund paths | The buyer refund-request and admin refund-approval endpoints are corrected on PR #181; both now apply the tenant interceptor | Focused metadata tests included; exact source/test head passed CI #1753 |
 
 This remains a bounded callsite review, not a claim that every `publish` call across all 648 API files has been exhaustively enumerated. The dispatcher itself remains intentionally non-polling: `publish` creates PENDING intent only; no generic consumer/ack/retry adapter was introduced. Continue checking direct service invocations, detached callbacks and worker/scheduled paths before closing the inventory. Do not add a generic consumer as part of this audit.
+
+
+## Read-only staging user diagnostic hardening — 28 November 2026
+
+The manual `apps/api/check-staging-users.ts` diagnostic has now been hardened in this audit branch:
+
+- Added a purpose-specific `staging-read-only-audit-safety.ts` guard. It requires `SCS_ENVIRONMENT=staging`, an exact `SCS_STAGING_READ_ONLY_AUDIT_DATABASE`, and matching `SCS_STAGING_READ_ONLY_AUDIT_APPROVAL=I_APPROVE_STAGING_READ_ONLY_AUDIT:<database>`.
+- Before reading application rows, it verifies the connected database, equality of session/effective roles, rejects superuser/BYPASSRLS/CREATEROLE/CREATEDB and public table/schema ownership, and requires `pg_stat_ssl.ssl = true`. The script separately requires `PGSSLROOTCERT` and uses `rejectUnauthorized: true`.
+- The diagnostic now starts an explicit `BEGIN READ ONLY` transaction and sets a transaction-local `audit` actor. Output is aggregate user counts by status and role only; phone, email, full name, organization names and individual user rows are no longer selected or printed.
+- Added focused guard tests for environment/approval/target mismatch, privileged roles, ownership, TLS, successful restricted identity and audit actor attribution.
+
+The change is source-only. No database connection or diagnostic execution was performed. The new tests are authored but have not yet been executed; exact-head validation remains pending. The separate bootstrap safety contract was not weakened or reused for read-only auditing.
