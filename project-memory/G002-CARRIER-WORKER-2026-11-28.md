@@ -103,3 +103,12 @@ No database, staging, Render, provider, credential, grants/default-ACL/RLS, work
 - Direct PostgreSQL application entrypoints confirmed in the reviewed API files: the runtime `Pool` in `DatabaseService.onModuleInit`, a separate development/test-only bootstrap `Pool` + `PoolClient` for migration/seed work, and the advisory-lock helpers in `migration-lock.ts` that consume a `PoolClient`. The runtime identity/TLS startup gate applies to the runtime pool; the dev/test bootstrap path is distinct. Complete a wider source-tree search before declaring the direct Client/Pool inventory exhaustive.
 - `OutboxDispatcher` does not poll or mark events dispatched; it intentionally leaves events PENDING because no generic delivery adapter is configured. Its `publish` method accepts an optional transaction client and otherwise uses `this.db.db`; audit every production caller to prove that it runs inside a tenant/worker actor scope or passes the transaction client before relying on RLS or tenant attribution. No conclusion about its callers is made yet.
 - No source, database, Render, provider, worker activation, credential, grant, default-ACL, RLS, deployment or release changes were made during this read-only pass.
+
+
+## Payment refund outbox actor-context correction — 28 November 2026
+
+- PR #181 now includes a focused source/test correction in `PaymentsController`: both `requestRefund` and `approveRefund` endpoints now apply `TenantDatabaseContextInterceptor`.
+- Before the change, those routes called `PaymentsService.requestRefund` / `approveRefund` without a request actor transaction. The service methods persisted refund/payment state, payment events and corresponding outbox rows, but did not establish their own actor context. A tx client preserved atomicity only, not actor attribution.
+- Existing nested paths remain compatible: `OrdersService.rejectOrder` already wraps merchant-rejection refund creation in the exact caller actor; return-driven refund creation is inside `ReturnsController`'s class-level interceptor. Same-actor nested scopes reuse the active transaction.
+- A metadata regression test asserts both methods retain the interceptor. No runtime DB, staging, worker, provider, Render, deployment, credential, grants/default ACL or RLS action occurred.
+- Continue tracing remaining non-HTTP publisher callsites and complete the direct Client/Pool inventory before declaring G-002 exhaustive. Do not infer a callsite for `expirePayment` or activate workers without evidence.
