@@ -108,3 +108,17 @@ The existing `docs/remediation/G-002-MIGRATION-OBJECT-CROSSWALK.md` already cont
 - No numbered migration file was added, removed or changed between those two refs (77 matching paths and blob SHAs).
 - Therefore the existing 77-migration source crosswalk remains applicable to the current `develop` migration files. This does not validate live database state, migration ledger state, physical object ownership, or runtime grants/ACLs; those remain separate live-catalog questions and were not queried.
 - Do not repeat the full 77-file static review unless a migration changes. Focus follow-up effort on reconciling the existing object/FK map with the source-level operation predicates and the direct entrypoint findings above.
+
+
+## Payment refund endpoint actor-context gap — 28 November 2026
+
+A focused pass over the payment publisher paths found two direct HTTP routes that were not covered by the tenant database interceptor and whose service methods do not establish an equivalent actor scope themselves:
+
+- `POST /v1/payments/:id/refund` in `apps/api/src/modules/payments/payments.controller.ts` called `PaymentsService.requestRefund` without `TenantDatabaseContextInterceptor`. The service reads the payment/order, opens or reuses a transaction, inserts the refund and payment event, and writes `payment.refund_requested` through `OutboxDispatcher.publish`; it does not call `runWithUserActor` or `withActorContext` on this direct route.
+- `POST /v1/admin/refunds/:id/approve` likewise lacked the interceptor. `PaymentsService.approveRefund` checks the caller's privileged role and atomically updates refund/payment/order state, inserts the payment event and writes `payment.refund_succeeded`, but does not establish its own actor context.
+
+The fact that these methods pass a transaction client to `OutboxDispatcher.publish` preserves write atomicity; it does not establish PostgreSQL transaction-local actor settings. The correction is to apply the existing `TenantDatabaseContextInterceptor` at both controller methods, so the full awaited handler—including service reads, nested transaction work and outbox insertion—runs under the authenticated user actor. This is consistent with the adjacent payment verification/settlement routes.
+
+Existing internal call paths remain compatible: merchant-rejection refund creation from `OrdersService.rejectOrder` already runs inside `runAsCaller`, and return-driven refund creation is invoked through `ReturnsController`'s class-level interceptor. `DatabaseService.withActorContext` reuses an identical nested actor and rejects actor switching, so the added route scope does not require a second actor transaction in those paths.
+
+A focused controller metadata regression test is included with the source correction. This finding is an actor-attribution/context gap; it is not presented as proof of a cross-tenant exploit. Other non-HTTP payment paths (including the un-routed `expirePayment` method) remain subject to caller-graph verification; no worker or scheduler is activated by this audit.
