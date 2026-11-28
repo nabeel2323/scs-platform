@@ -30,7 +30,7 @@
 - Latest develop CI run #1723 / `46085878528` targets prior develop head `4c5c755571385b346902c74c9f4f0578f48d9433`. All ten mandatory jobs passed, including Build and Container Build & Smoke. k6 Smoke and Trigger Staging Release were skipped. Run conclusion SUCCESS.
 - PR #173 exact-head run `46077477944` and PR #174 exact-head run `46080913174` completed SUCCESS. The prior develop run `46080692700` also completed SUCCESS.
 - Vercel Web/Admin contexts currently show external free-plan build-rate-limit failures. Do not trigger redundant Vercel builds.
-- Only other open PRs found were #138 and unrelated draft #151. No GitHub reviewers are required or should be requested.
+- Open PRs currently include #138 (protected remediation source) and #175 (unrelated draft country/currency reference-data work). Keep #175 separate from G-002 and do not merge it as part of this remediation. No GitHub reviewers are required or should be requested.
 
 **Next implementation priority — G-002 (continue from merged develop):**
 1. Complete the source inventory for raw SQL and database functions/triggers/partitions; verify each sensitive operation's exact ownership predicate.
