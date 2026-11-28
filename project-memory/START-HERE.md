@@ -1,3 +1,9 @@
+## Latest continuation directive — 28 November 2026
+
+- User explicitly reiterates that all implemented features from PR #138 must be integrated into `develop` and no already-implemented feature should be reimplemented. Follow the completed three-way reconciliation below: 533 identical paths; 95 merged through #170; 12 covered by focused merged PRs; two deliberate exclusions; 20 source-only legacy scripts/conflicting migration/historical docs with no missing application source. Preserve PR #138 and its preservation branch unchanged; only create a bounded PR for a newly proven gap.
+- Read-only Render log inspection now directly confirms the live API pool identity from 26 Nov: `postgres`, BYPASSRLS/CREATEROLE/CREATEDB true, TLS false. The standalone migration runner remains a separate principal with non-fatal identity diagnostics and optional TLS. No Render values were changed and no deployment/restart occurred.
+- Next G-002 task: complete the 0001–0077 migration DDL/FK/function/trigger/partition/object-owner/default-ACL crosswalk and direct PostgreSQL entrypoint map. Keep runtime/migration role, TLS, grants/default ACLs and RLS changes behind a separate reviewed rollout and authorization. Do not reimplement #170/#157–#174 work.
+
 ## G-002 runtime identity and actor-context audit — 28 November 2026
 
 - The application runtime identity guard in `DatabaseService.onModuleInit` rejects production-like runtime sessions that are superuser, BYPASSRLS, CREATEROLE, CREATEDB, own public tables/schema, or lack verified TLS. The source includes a dedicated non-secret identity diagnostic query.
