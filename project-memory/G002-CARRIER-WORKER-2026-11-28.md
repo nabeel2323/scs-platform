@@ -144,3 +144,15 @@ No database, staging, Render, provider, credential, grants/default-ACL/RLS, work
 - Confirmed `apps/api/check-staging-users.ts` is at the API root (not `scripts/`). It requires `DATABASE_URL` and `PGSSLROOTCERT` and uses certificate verification, but has no explicit staging/environment/database/role preflight, no audit actor context or explicit read-only transaction, and prints phone, email and full name. It is SELECT-only as written, but remains a sensitive manual diagnostic. Do not execute it or point it at shared/staging/production targets until a purpose-specific read-only exact-target gate, actor attribution and output minimization are implemented and tested.
 - The shared `staging-bootstrap-safety.ts` guard is specifically for bootstrap operations and requires bootstrap approval; do not reuse it blindly for a read-only audit command. A future fix should introduce a separate purpose-specific read-only audit guard rather than weakening the bootstrap policy.
 - No source code changed in this continuation. No database/script execution, staging mutation, migration, seed/reset/bootstrap, grants/default ACL/RLS, Render, deployment, provider, credential, worker activation or release operation occurred. PR #138 and its preservation ref remain untouched.
+
+
+## Read-only staging user diagnostic hardening — 28 November 2026
+
+The manual `apps/api/check-staging-users.ts` diagnostic has now been hardened in this audit branch:
+
+- Added a purpose-specific `staging-read-only-audit-safety.ts` guard. It requires `SCS_ENVIRONMENT=staging`, an exact `SCS_STAGING_READ_ONLY_AUDIT_DATABASE`, and matching `SCS_STAGING_READ_ONLY_AUDIT_APPROVAL=I_APPROVE_STAGING_READ_ONLY_AUDIT:<database>`.
+- Before reading application rows, it verifies the connected database, equality of session/effective roles, rejects superuser/BYPASSRLS/CREATEROLE/CREATEDB and public table/schema ownership, and requires `pg_stat_ssl.ssl = true`. The script separately requires `PGSSLROOTCERT` and uses `rejectUnauthorized: true`.
+- The diagnostic now starts an explicit `BEGIN READ ONLY` transaction and sets a transaction-local `audit` actor. Output is aggregate user counts by status and role only; phone, email, full name, organization names and individual user rows are no longer selected or printed.
+- Added focused guard tests for environment/approval/target mismatch, privileged roles, ownership, TLS, successful restricted identity and audit actor attribution.
+
+The change is source-only. No database connection or diagnostic execution was performed. The new tests are authored but have not yet been executed; exact-head validation remains pending. The separate bootstrap safety contract was not weakened or reused for read-only auditing.
