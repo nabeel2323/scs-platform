@@ -1,10 +1,10 @@
 ## Current continuation — 28 November 2026
 
 **Live repository state (verified 28 Nov 2026):**
-- Repository: `nabeel2323/scs-platform`; integration baseline: `develop`, current ref SHA `07926eb7ccffc9f2c9c3d9d7b9002e025b465864` (after the two documentation-only handoff updates; pre-documentation source head was `2f6bb106e7147b83cdcc98ad93b4ef688e163e84`).
+- Repository: `nabeel2323/scs-platform`; integration baseline: `develop`, source baseline before the documentation-only handoff updates was `2f6bb106e7147b83cdcc98ad93b4ef688e163e84`; the current `develop` tip includes only the subsequent project-memory documentation commits.
 - PR #170 and #171 are MERGED. PR #173 (carrier configuration/provider credential binding) and PR #174 (bootstrap CLI database identity and actor context) are also MERGED.
 - PR #138 remains OPEN / DRAFT / UNMERGED at `81f30f5c30654b233ef373c15fd3f2cb867aba01`. Preserve the source and synchronized preservation ref; never merge it wholesale, reset, force-push, delete or destructively rebase it.
-- Latest develop CI run #1713 / `46085878528` targets prior develop head `4c5c755571385b346902c74c9f4f0578f48d9433`. Eight mandatory jobs passed (Lint/Typecheck, Flutter, API Unit/Coverage, API Integration, Web/Admin, Migration Full Apply, E6, Contract/Codegen); Build and Container Build & Smoke were still running at the last inspection. Do not call it fully green until those two finish.
+- Latest develop CI run #1723 / `46085878528` targets prior develop head `4c5c755571385b346902c74c9f4f0578f48d9433`. Eight mandatory jobs passed (Lint/Typecheck, Flutter, API Unit/Coverage, API Integration, Web/Admin, Migration Full Apply, E6, Contract/Codegen); Build and Container Build & Smoke were still running at the last inspection. Do not call it fully green until those two finish.
 - PR #173 exact-head run `46077477944` and PR #174 exact-head run `46080913174` completed SUCCESS. The prior develop run `46080692700` also completed SUCCESS.
 - Vercel Web/Admin contexts currently show external free-plan build-rate-limit failures. Do not trigger redundant Vercel builds.
 - Only other open PRs found were #138 and unrelated draft #151. No GitHub reviewers are required or should be requested.
