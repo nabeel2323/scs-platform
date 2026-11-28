@@ -745,3 +745,13 @@ The 28 November source review also identified null-org actor-context reuse in th
 - The run was discovered from the source/test commit. Later `[skip ci]` documentation commits do not change the code being tested. Current PR #181 head at this memory checkpoint is `8b978b061a8f550034e46fe7d464d365d106f0bd`, with code/test head `803ce6f`; compare to `develop` is 41 commits ahead / 0 behind with nine changed paths.
 - PR #181 description now records the diagnostic hardening and CI #1758 in-progress status. PR remains open, non-draft and unmerged; GitHub last reported mergeable=true. Do not merge until the consolidated run completes and the separate staging-release authorization gate is resolved.
 - No database connection/script execution, staging mutation, migration, seed/reset/bootstrap, grants/default ACL/RLS, Render mutation, deployment, provider call, credential change, worker activation or release operation occurred. PR #138 remains protected and untouched.
+
+
+## Non-HTTP worker caller-chain follow-up — 28 November 2026
+
+- Reviewed `OutboxDispatcher` implementation and its delivery-boundary unit tests: `publish()` is a writer only, persists `PENDING`, accepts optional transaction client, and does not poll, ack, retry or dispatch generic events. The carrier worker remains the separately owned consumer for `shipping.carrier.*` only.
+- Reviewed `AutoCompleteWorker`: order claim and completion are both run inside `DatabaseService.withActorContext({ actorKind: 'worker', workerId })`; the claim-release call is nested in the same awaited completion scope. No unscoped write gap was confirmed in this path.
+- Reviewed `PaymentProofCleanupWorker` → `PaymentsService.cleanupStaleProofUploads`: worker activation is explicitly opt-in; DB claim and each state transition use the dedicated `runWithProofCleanupActor` scope. Provider object head/delete calls occur outside DB actor transactions; no DB actor context is required for those external calls.
+- Reviewed `ReturnExpirationWorker`: lease operations, pause checks, claim, per-item processing and escalation are enclosed in worker actor context and fenced by the P13 lease epoch. No new actor-context gap confirmed in this sample.
+- Reviewed `WorkerLeaseService`: lease writes and reads use worker actor context; `forceExpire` uses explicit system actor context. These are platform worker/lease operations, not tenant business writes.
+- This is a bounded worker sample, not a complete all-source caller graph. Continue tracing every outbox publisher and indirect DB connection factory before calling the audit exhaustive. No worker was enabled or run; no database/provider call occurred.
