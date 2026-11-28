@@ -1081,9 +1081,8 @@ export class AramexProvider extends ShippingProvider {
   ): Promise<T> {
     const active = this.db.currentActorContext;
     if (active) {
-      if (activeOrgId && (active.actorKind === 'user' || active.actorKind === 'worker') &&
-          active.activeOrgId !== null && active.activeOrgId !== activeOrgId) {
-        throw new Error('Aramex credential lookup crossed the active organization context');
+      if (active.actorKind !== 'worker' || active.activeOrgId !== activeOrgId) {
+        throw new Error('Aramex credential lookup requires a worker context bound to the requested organization');
       }
       return operation();
     }
