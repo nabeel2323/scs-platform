@@ -9,7 +9,6 @@ import { eq, and } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
 import { assertActiveOrgMembership, type CallerContext } from '../../common/tenant-scope';
 import { carrierCredentials } from './shipping.schema';
-import { assertCarrierTenantActorContext } from './carrier-tenant-context';
 import { CarrierCredentialCryptoService } from './carrier-credential-crypto.service';
 
 // ── Input types ─────────────────────────────────────────────────────────────
@@ -235,7 +234,9 @@ export class CarrierCredentialsService {
   private withInternalContext<T>(orgId: string, workerId: string, operation: () => Promise<T>): Promise<T> {
     const active = this.db.currentActorContext;
     if (active) {
-      assertCarrierTenantActorContext(active, orgId, 'Carrier credential access');
+      if (active.actorKind !== 'worker' || active.activeOrgId !== orgId) {
+        throw new Error('Carrier credential access requires a worker context bound to the requested organization');
+      }
       return operation();
     }
     return this.db.withActorContext({ actorKind: 'worker', workerId, activeOrgId: orgId }, operation);
