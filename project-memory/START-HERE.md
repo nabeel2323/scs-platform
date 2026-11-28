@@ -1,3 +1,16 @@
+## Latest continuation checkpoint — 28 November 2026, outbox caller spot check
+
+- PR #181 remains open: https://github.com/nabeel2323/scs-platform/pull/181. Latest audit source commit: `efeae7adea936755b4a2b81dae6ae62d6ae55d92`; memory update follows this commit.
+- Outbox caller-chain spot checks confirmed actor context for inventory stock adjust/transfer/low-stock through class-level `TenantDatabaseContextInterceptor`; merchant verification through method-level interceptor; review creation through class-level interceptor; and returns/settlement-adjustment through class-level interceptor with explicit tx propagation for commission reversal and refund outbox writes. These sampled candidates are not confirmed actor-context gaps.
+- The interceptor awaits the full HTTP handler inside `DatabaseService.withActorContext`; `DatabaseService.db` resolves to the transaction-bound handle in that scope. Same-actor nested calls reuse the active transaction; actor changes fail closed.
+- Remaining outbox audit must focus on non-HTTP entrypoints, scheduled jobs, listeners, detached callbacks and direct service invocation. Do not assume every publisher is safe based on these samples.
+- PR #181 has no GitHub Actions run/checks surfaced. Two Vercel preview statuses fail only with the external free-plan deployment rate limit ("retry in 24 hours"); no app code changed. Do not retry previews or launch redundant CI. Leave the documentation PR open until required merge checks are available/mergeability is known.
+- Direct PostgreSQL inventory remains provisional pending exhaustive search of all 648 API source files and helper/import graph. See `docs/remediation/G-002-DIRECT-POSTGRES-ENTRYPOINT-AUDIT-2026-11-28.md`.
+- Next: finish the all-source direct Client/Pool search, trace remaining outbox publishers, then complete migration 0001–0077 ownership crosswalk. Only then prepare one bounded source/test PR for proven gaps.
+- Safety unchanged: no database connection/script execution, DB writes, migrations, seed/reset/bootstrap, grants/default-ACL/RLS, Render mutation, deployments, provider calls, credential changes, worker activation or release. PR #138 remains protected and untouched.
+
+---
+
 ## Latest continuation checkpoint — 28 November 2026, follow-up audit pass
 
 - The direct PostgreSQL audit PR #181 is open against `develop`: https://github.com/nabeel2323/scs-platform/pull/181. Current head after the expanded entrypoint inventory: `11c3e34803c725a936a4ea01f39780bf5802bdc0`.
