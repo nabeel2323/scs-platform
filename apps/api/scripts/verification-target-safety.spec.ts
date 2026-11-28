@@ -12,7 +12,7 @@ function makeHarness() {
   const bin = resolve(directory, 'bin');
   const marker = resolve(directory, 'psql-called');
   const helperCandidates = [
-    resolve(process.cwd(), '../infra/drizzle/migrations/assert-verification-target.sh'),
+    resolve(process.cwd(), '../../infra/drizzle/migrations/assert-verification-target.sh'),
     resolve(process.cwd(), 'infra/drizzle/migrations/assert-verification-target.sh'),
   ];
   const helper = helperCandidates.find(existsSync);
