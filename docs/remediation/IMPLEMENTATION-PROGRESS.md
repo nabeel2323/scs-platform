@@ -3625,3 +3625,12 @@ Source review only; no database connection, migration, seed, reset, provider cal
 - CI run #1723 (`46085878528`) on PR #174 merge commit `4c5c755571385b346902c74c9f4f0578f48d9433`: Mobile, Lint/Typecheck, Web/Admin, Migration Full Apply and Boundary Lint passed; Integration and Unit/Coverage were still running at this checkpoint. Documentation updates use `[skip ci]` and are not part of that run.
 - PR #138 remains open/draft/unmerged at head `81f30f5c30654b233ef373c15fd3f2cb867aba01`; preserve it and its preservation branch.
 - Next: complete migration DDL/FK/ownership/default-ACL crosswalk and direct PostgreSQL entrypoint inventory; prepare, but do not apply, a least-privilege migration principal and verified TLS transition. Group code changes into one reviewable PR and one exact-head CI campaign.
+
+
+## PR #138 divergence check — 28 November 2026
+
+- PR #138 is OPEN / DRAFT / UNMERGED at unchanged head `81f30f5c30654b233ef373c15fd3f2cb867aba01`; PR base SHA `f74eb588cc58fc99b105e749d39dbfbacb4f9775` is stale relative to current develop.
+- Compare against current develop: 3,044 commits ahead, 315 behind, DIVERGED. PR metadata: 1,943 changed files, 108,107 additions, 414,514 deletions. Compare file response is capped; do not interpret it as a reviewed full diff.
+- Verified source branch `remediation/phase-0-1-tenant-security` and preservation branch `preservation/pr138-remediation-2026-11-25` remain identical at the protected head.
+- Old integration branch `integration/pr138-bulk-remediation-2026-11-26` is 0 ahead / 46 behind current develop; it contributes no unique commits.
+- Decision: never merge PR #138 wholesale or rewrite either protected ref. Recover selected implementation by logical area only: enumerate meaningful source/test/docs deltas, exclude scratch/archive/unrelated history, compare with current develop, and cherry-pick/reimplement verified deltas onto a fresh current-develop branch with focused tests. Batch coherent changes and use one exact-head CI campaign per grouped PR.
