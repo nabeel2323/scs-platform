@@ -280,3 +280,33 @@ Commits: f9bfccf3ac11b7fbb0904634845c24a31d7c805a (service), 0b14f11c3fd6f787baa
 - All 75 numbered `infra/drizzle/migrations/*.sql` files were scanned for function/procedure/trigger/rule/view/partition and dynamic-execution DDL. No `CREATE TRIGGER`, `CREATE PROCEDURE`, `EXECUTE FUNCTION` or `CREATE RULE` statements were found. The application function remains `normalize_arabic` (0007; search-path hardening in 0070); analytics partition management remains 0002/0013/0018. This source result does not replace live catalog, pg_partman, extension, ownership or ACL checks.
 
 **No CI, local test run, database write, migration, staging mutation, worker activation or deployment was performed for this PR #138 source update.**
+
+
+## 28 November 2026 — direct PostgreSQL CLI and worker boundary continuation
+
+This addendum reconciles the current `develop` source after PR #174. Static source review only; no database connection, workflow dispatch, migration, seed, reset, bootstrap, storage/provider call, worker activation, deployment or CI action was performed.
+
+### Migration and operator entrypoints
+
+- `migrate-pg.ts` remains the unresolved migration principal boundary: the identity diagnostic is non-fatal, TLS is conditional on `PGSSLROOTCERT`, and the migration transaction does not set a migration/operator actor context. The protected read-only audit workflow is the intended evidence path for the actual staging migration identity, object owners, default ACLs, extensions, partitions and connections; it uses the staging environment gate and the CA secret. It has not been dispatched in this continuation.
+- `seed-pg.ts` and `seed-catalog.ts` set transaction-local `system` actor context inside their data transactions. Their CLI pools still treat the CA as optional and do not apply the API startup role/ownership gate or explicit target environment/database confirmation. The catalog seed defaults to the production profile. These are potential write entrypoints; do not invoke during source audit. Any target guard must be designed against deployment/package workflows before changing their contract.
+- `reset-pg.ts` has stronger destructive controls: verified CA TLS required, environment restricted to development/test/staging, local-host restriction for development/test, exact target database, exact `DROP:<environment>:<database>` confirmation and a second staging approval. It does not set an operator actor context or inspect session/effective role flags. It was not run.
+- The five manual staging bootstrap scripts now consistently require verified CA TLS, the shared exact staging database/confirmation/approval guard, and transaction-local `bootstrap` actor context before writes. The shared guard currently verifies `current_database()` and `current_user`, but not session/effective role flags, ownership or `pg_stat_ssl`. Their guard is not a substitute for the API or migration principal gate.
+- `verify-staging-bootstrap-target.ts` is read-only preflight using the same staging target guard and verified TLS. PR #174 now applies equivalent verified TLS, session/effective role and ownership/privilege checks plus transaction-local bootstrap actor context to `bootstrap-issue-token.ts`.
+- Local `src/scripts/seed.ts`, `infra/drizzle/migrate.ts` and `infra/drizzle/reset.ts` call fixed local Docker container/user/database through `docker exec psql`; `src/scripts/demo-data.ts` is also fixed-container psql and requires development/test plus explicit demo opt-in, with a production-like DATABASE_URL refusal heuristic. `create-admin-user.ts` is restricted to local development/test hosts and sets bootstrap actor context. `catalog-import-cli.ts` is file-only. `audit-db-access.ts` is a read-only transaction with an audit actor and inspects role flags, table/sequence/schema privileges, default ACLs, RLS, relation/partition inventory, functions/triggers, extensions and connection identities.
+- Migration 0076 revokes table/sequence privileges from `anon` and `authenticated`, and changes default privileges for the migration executor's `current_user`; it does not enable RLS. The default-ACL effect depends on which role executes the migration and must be included in the migration-role/creator crosswalk.
+
+### Worker and actor-context spot-check
+
+- `auto-complete.worker.ts` scopes claim and processing (including release-claim) under `actorKind: worker`.
+- `return-expiration.worker.ts` wraps lease, claim, processing, failure and alert DB operations in worker context.
+- `shipping-carrier.worker.ts` uses a stable worker ID and wraps DB operations in worker context, including credential and shipment resolution before provider effects.
+- Payment proof cleanup uses a generated worker ID in `PaymentsService.runWithProofCleanupActor` around claims, payment-reference checks and intent state transitions; the worker remains disabled unless its explicit enable flag is true.
+- WorkerLeaseService, audit service/middleware and realtime room authorization retain their previously reviewed explicit worker/system/audit/user actor contexts. No actor-context source defect was established by this spot-check.
+
+### Remaining blockers
+
+1. Complete the SQL migration FK/unique/check inventory and reconcile the 183 source-level REFERENCES clauses already recorded against Drizzle declarations, service predicates and the protected live `pg_constraint` snapshot.
+2. Complete source-wide raw SQL/dynamic SQL and direct-client callsite inventory beyond the enumerated CLI and worker paths.
+3. Obtain protected read-only staging catalog evidence for API vs migration login/effective roles, role memberships, owners, default ACLs, RLS, extensions, partitions and active connections. Do not substitute the API identity for the migration identity.
+4. Prepare the `scs_api_runtime` / `scs_migrator` role and TLS plan only after that evidence. No role provisioning, grant/default-ACL change, RLS, migration or Render configuration change is authorized by this source review.
