@@ -1,3 +1,13 @@
+## Latest continuation checkpoint — 28 November 2026, expanded PostgreSQL entrypoint inventory
+
+- Extended the direct PostgreSQL audit by enumerating the current API tree (648 source files) and inspecting additional database/UAT/check scripts. Newly recorded direct constructors include `b1-migration-test.js`, `p311-migration-verify.js`, `check-merchant-rbac.ts`, `check-staging-users.ts`, M5/M6 UAT scripts, and `verify-staging-bootstrap-target.ts`.
+- B1/P311 migration harnesses are fixed-localhost disposable DB tools gated to development/test plus explicit UAT confirmation. M5/M6 scripts use the local UAT guard for DB/API/Redis hosts. `verify-staging-bootstrap-target.ts` uses the shared fail-closed staging guard and CA TLS.
+- `check-merchant-rbac.ts` and `check-staging-users.ts` require a CA-verified connection but lack explicit environment/database/role preflight and actor context. Both are SELECT-only. The staging-users diagnostic prints phone/email/full name, so record it as a sensitive manual-diagnostic hardening candidate (read-only exact-staging target gate + output minimization) before any shared staging use. No script was executed.
+- The inventory is still provisional: API tree enumeration is complete (648 source files), but exhaustive content/blob scan and indirect/dynamic connection factory search remain outstanding. Do not claim completeness.
+- PR #181 exact-head CI #1753 passed all mandatory GitHub Actions jobs. Vercel previews remain free-plan rate limited. PR #181 stays open; no merge because project memory retains a separate staging-release authorization gate. PR #138 remains protected and untouched.
+
+---
+
 ## Latest continuation checkpoint — 28 November 2026, CI and source-crosswalk reconciliation
 
 - Exact-head CI #1753 / run ID `46163157475` completed SUCCESS on the payment refund actor-context correction; all mandatory jobs passed, including lint/typecheck, mobile, unit/coverage, integration, full migration apply on disposable CI PostgreSQL, boundary lint, web/admin, build, contract/codegen and container smoke. k6 and staging release were skipped by workflow conditions. This is CI validation only, not authorization for a staging release or database mutation.
