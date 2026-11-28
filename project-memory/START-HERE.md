@@ -1,3 +1,14 @@
+## PR #178 merged — carrier tenant actor-context guard — 28 November 2026
+
+- PR #178 is MERGED into `develop`: https://github.com/nabeel2323/scs-platform/pull/178
+- Squash merge commit: `9a885762f3040b2761b352e999d1ccc21b396931`; reviewed head: `bc300e93572e9671680dec2d8ea911508e85b5fd`.
+- Exact-head CI run #1737 / GitHub run `46135480156` completed successfully: all 10 mandatory jobs passed (Lint & Typecheck, Mobile, Integration, Unit/Coverage, Boundary Lint E6, Web/Admin, Migration Full Apply, Container Build & Smoke, Contract Spec & Codegen, Build). k6 Smoke and Trigger Staging Release were skipped.
+- Source review covered all six changed files. Shared `assertCarrierTenantActorContext` permits active user/worker/system actors only when bound to the exact requested org; rejects null-org, mismatched-org and anonymous/authentication/bootstrap/audit contexts. Aramex retains separate store-owner discovery and org-bound credential/configuration scopes; no actor switching inside an active transaction.
+- This is actor/tenant contract hardening; no confirmed exploit was established. No staging DB, Render, provider, worker activation, credentials, grants, default ACLs, RLS, deployment or release operation occurred.
+- PR #176 remains merged at `f3e9105a075b9a5b37f6acd3469ec91eaa09d9f7`. PR #138 remains OPEN/DRAFT/UNMERGED and its preservation source/ref must remain untouched. PR #175 remains separate and OPEN/DRAFT/UNMERGED.
+- Next G-002 work is separate: complete carrier tracking-poller and reconciliation worker operation-to-table / shipment → order → store → organization lineage; define explicit scoped system-worker policy; review webhook/outbox actor nesting and direct PostgreSQL Client/Pool entrypoints. Group source/tests and run one consolidated exact-head CI. Do not broaden the merged PR #178.
+- Continue respecting the staging-release hold and do not perform DB/Render/deployment/provider/worker/RLS/grant/credential actions without their separate authorization.
+
 ## G-002 carrier actor-context guard — PR #178 — 28 November 2026
 
 - PR #176 is merged to develop at `f3e9105a075b9a5b37f6acd3469ec91eaa09d9f7`; exact-head CI #1727 passed all mandatory jobs, including container smoke.
