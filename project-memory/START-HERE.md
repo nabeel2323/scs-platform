@@ -1,3 +1,16 @@
+## Latest continuation checkpoint — 28 November 2026, 13:43 UTC
+
+- PR #180, `fix(security): bind carrier credential access to tenant workers`, is now **MERGED** into `develop` by squash.
+- Merge commit / new `develop` head: `a56b77ba09a8e185c9ecdf8649d6602cb3a94143`; exact source head: `d0c3639f0c3820fa44bbadbb9c8b62264cd62413`.
+- Exact-head PR CI run #1748 (`46147121948`) passed all 10 mandatory jobs: Lint & Typecheck, Mobile, Boundary Lint E6, Web/Admin, Integration Tests, Migration Full Apply, Unit/Coverage, Build, Container Build & Smoke, Contract Spec & Codegen. k6 Smoke and Trigger Staging Release were skipped.
+- PR #180 integrates six source/test files (184 additions, 57 deletions), carried forward from superseded PR #177 with the test-double type correction; no reimplementation. It enforces exact-org worker actor reuse for credential/configuration resolution and preserves the distinct null-org store-owner/webhook discovery scope before exact-org credential decryption.
+- PR #138 remains **OPEN / DRAFT / UNMERGED**, head `81f30f5c30654b233ef373c15fd3f2cb867aba01`, 1,943 changed files. Its source and preservation refs remain protected and untouched; never wholesale-merge, reset, force-push, delete or destructively rebase it. PR #175 remains separate and draft.
+- Push CI for the new develop merge commit is queued as run #1750 (`46151002279`); verify this exact commit's result before the next integration batch. Do not launch redundant CI.
+- Next read-only/source task after run #1750: complete the webhook/outbox actor-context caller inventory and full direct PostgreSQL Client/Pool entrypoint search; finish migration 0001–0077 DDL/FK/function/trigger/partition/object-owner/default-ACL crosswalk. Reconcile findings against merged PRs #170–#180; do not repeat completed carrier worker lineage or credential actor-context work.
+- Safety remains unchanged: no shared/staging database writes, migrations, grants/default-ACL/RLS changes, Render mutation, deployment/restart, provider call, credential rotation, worker activation or release. Do not treat CI success as staging/release authorization.
+
+---
+
 ## G-002 worker-lineage review — tracking poller and reconciliation — 28 November 2026
 
 - Reviewed current `develop` source for `carrier-tracking-poller.ts`, `carrier-reconciliation.service.ts`, `shipping-carrier.worker.ts`, `DatabaseService.withActorContext`, the merchant `stores` schema and `OrdersService.processCarrierDelivery`.
