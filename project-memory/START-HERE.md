@@ -1,3 +1,14 @@
+## Latest continuation checkpoint — 28 November 2026, outbox caller-chain coverage
+
+- Extended source review of `OutboxDispatcher.publish` callers across CatalogService/ProductGovernance, InventoryService, MerchantService, StoreMembershipService, ReturnsService/commission reversal/settlement adjustments, ReviewsService and DisputesService. Reviewed controller boundaries provide tenant actor context (method-level or class-level); selected service paths also explicitly establish user actor context. No new confirmed unscoped publisher was found in this sample.
+- The buyer refund-request and admin refund-approval payment endpoints remain the only confirmed gap in the reviewed HTTP publisher paths; PR #181 adds the interceptor to both and CI #1753 passed all mandatory jobs on that code/test head.
+- OutboxDispatcher remains intentionally non-polling: publish creates PENDING intent; no generic consumer, ack/retry adapter or worker was added. The broad caller inventory remains incomplete until direct service calls, detached callbacks, workers/schedules and all source files are covered.
+- Current branch tree compare: PR #181 branch is 23 commits ahead and 0 behind develop, with six changed files. PR #181 is open, non-draft, GitHub mergeable=true / mergeable_state=unstable. Vercel admin/web checks still fail solely due free-plan preview rate limit. CI #1753 succeeded; k6 and staging release were skipped. Keep merge gated by the separate release authorization policy.
+- PR #138 remains open/draft/unmerged; its source head and `preservation/pr138-remediation-2026-11-25` remain identical at `81f30f5c30654b233ef373c15fd3f2cb867aba01`. Do not touch or wholesale merge PR #138.
+- Direct PostgreSQL inventory now includes targeted extra local UAT/check scripts; remains provisional because full source-blob and indirect factory scan is not complete. `check-staging-users.ts` remains a sensitive read-only diagnostic candidate due to missing exact-target preflight and PII console output; no script was executed.
+
+---
+
 ## Latest continuation checkpoint — 28 November 2026, expanded PostgreSQL entrypoint inventory
 
 - Extended the direct PostgreSQL audit by enumerating the current API tree (648 source files) and inspecting additional database/UAT/check scripts. Newly recorded direct constructors include `b1-migration-test.js`, `p311-migration-verify.js`, `check-merchant-rbac.ts`, `check-staging-users.ts`, M5/M6 UAT scripts, and `verify-staging-bootstrap-target.ts`.
