@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import fs from 'node:fs';
 import {
   assertStagingReadOnlyAuditTarget,
@@ -28,20 +28,21 @@ async function main(): Promise<void> {
       rejectUnauthorized: true,
     },
   });
-  const client = await pool.connect();
+  let client: PoolClient | undefined;
   let transactionStarted = false;
 
   try {
+    client = await pool.connect();
     await assertStagingReadOnlyAuditTarget(client, AUDIT_NAME);
     await client.query('BEGIN READ ONLY');
     transactionStarted = true;
     await setStagingReadOnlyAuditActorContext(client, AUDIT_NAME);
 
     const userCounts = await client.query(`
-      SELECT COALESCE(status, 'UNKNOWN') AS status,
+      SELECT COALESCE(status::text, 'UNKNOWN') AS status,
              count(*)::int AS user_count
       FROM users
-      GROUP BY status
+      GROUP BY status::text
       ORDER BY status;
     `);
 
@@ -71,7 +72,7 @@ async function main(): Promise<void> {
     }
     throw error;
   } finally {
-    client.release();
+    client?.release();
     await pool.end();
   }
 }
