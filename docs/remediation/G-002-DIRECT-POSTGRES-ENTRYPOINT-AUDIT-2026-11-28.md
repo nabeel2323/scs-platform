@@ -139,3 +139,21 @@ The follow-up enumerated the current API tree (648 source files) and inspected a
 | `scripts/verify-staging-bootstrap-target.ts` | Direct `pg.Client`; requires `DATABASE_URL` and CA file; calls the shared fail-closed staging bootstrap target guard | Read-only preflight; exact staging/database/role/ownership/TLS validation is inherited from the helper; no writes |
 
 These additions correct the earlier operational-entrypoint list, but they do not close the repository-wide inventory. The API tree has 648 source files; a full scan of every source blob and indirect/dynamic connection factory remains outstanding. The two ad hoc check scripts above are not evidence of an application runtime bypass: they are standalone manual diagnostics. The staging-user diagnostic is nevertheless too permissive for sensitive PII output and is recorded as a follow-up hardening candidate; no script was executed.
+
+
+## Outbox publisher caller-chain pass — 28 November 2026
+
+A further source pass traced the current `OutboxDispatcher.publish` callsites in catalog/product governance, inventory, merchant/store membership, returns/financial helpers, reviews and disputes to their controller or nested-service boundaries:
+
+| Publisher area | Verified caller boundary | Finding |
+|---|---|---|
+| `CatalogService` product publication | Catalog publish/update handlers apply `TenantDatabaseContextInterceptor`; selected service paths additionally call `withUserActorContext` explicitly | Reviewed publication writes are actor-scoped; no missing scope found in these paths |
+| `ProductGovernanceService` | Submit/withdraw/publish/unpublish/moderation handlers in `CatalogController` apply the tenant interceptor; service publishes with the supplied transaction client | Actor context comes from the awaited controller scope and event write is transaction-bound |
+| `InventoryService` | `InventoryController` has class-level tenant interceptor, including the low-stock notification route | Reviewed adjust/transfer/low-stock publishes run inside the authenticated request actor context; no scheduler caller was established in this pass |
+| `MerchantService` | Store creation and verification routes in `MerchantController` apply the tenant interceptor | Store creation passes the transaction client; verification uses the context-bound DatabaseService handle |
+| `StoreMembershipService` | `StoreMembershipController` has class-level tenant interceptor | Membership events pass the transaction client where transactionally coupled; request actor scope covers the service |
+| `ReturnsService`, `CommissionReversalService`, `SettlementAdjustmentService` | `ReturnsController` has class-level tenant interceptor; commission reversal and settlement adjustment helpers are invoked within the return workflow's active actor scope | Reviewed return/financial events retain the caller context; transaction-client propagation is used on the inspected transition paths |
+| `ReviewsService` and `DisputesService` | Both controllers have class-level tenant interceptor | Reviewed event writes are request actor-scoped |
+| `PaymentsService` refund paths | The buyer refund-request and admin refund-approval endpoints are corrected on PR #181; both now apply the tenant interceptor | Focused metadata tests included; exact source/test head passed CI #1753 |
+
+This remains a bounded callsite review, not a claim that every `publish` call across all 648 API files has been exhaustively enumerated. The dispatcher itself remains intentionally non-polling: `publish` creates PENDING intent only; no generic consumer/ack/retry adapter was introduced. Continue checking direct service invocations, detached callbacks and worker/scheduled paths before closing the inventory. Do not add a generic consumer as part of this audit.
