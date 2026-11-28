@@ -1,3 +1,13 @@
+## G-002 runtime identity and actor-context audit — 28 November 2026
+
+- The application runtime identity guard in `DatabaseService.onModuleInit` rejects production-like runtime sessions that are superuser, BYPASSRLS, CREATEROLE, CREATEDB, own public tables/schema, or lack verified TLS. The source includes a dedicated non-secret identity diagnostic query.
+- `DatabaseService.withActorContext` is transaction-bound and uses transaction-local `set_config(..., true)`, but it is explicitly opt-in. `TenantDatabaseContextInterceptor` is also explicitly opt-in, not global; it requires JWT-authenticated request context and revalidates active organization membership inside the same transaction. `AppModule` currently registers AuditLogMiddleware, not this interceptor globally.
+- Therefore, do not assume all API routes have database actor context. Continue a route/service callsite inventory and test coverage audit before RLS or runtime-role changes. Include raw SQL, worker, auth, bootstrap, migration, audit and realtime paths.
+- Supabase PostgreSQL logs over the inspected last 24 hours showed only the MCP management connection as `postgres` (`application_name=mgmt-api`) plus a `supabase_admin` connection; no `scs-api-staging`/Render application connection was visible. This does not prove the API runtime identity. The live Render service configuration must be inspected to verify the deployed API and migration credentials and TLS.
+- The only listed Render workspace is `My Workspace`; a workspace selection is required before reading the staging service's Render configuration. Do not guess the workspace or mutate the service.
+- Supabase currently reports PostgreSQL `17.6.1.166`. The current Supabase changelog notes the 17.11 minor release includes security fixes; schedule an upgrade review and downtime/reindex assessment rather than initiating an upgrade blindly.
+- Staging DB migration authorization does not authorize RLS activation, runtime credential rotation, Render env changes, service restarts, or deployment. Those require the complete access matrix and a separate controlled rollout plan.
+
 ## Staging database authorization and latest state — 28 November 2026
 
 - The user confirms **no production database exists or is provisioned**. Do not describe any environment as production or claim production readiness/verification.
