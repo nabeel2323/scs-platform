@@ -575,7 +575,7 @@ jobs:
             -c ssl_key_file=/var/lib/postgresql/certs/server.key
           docker run -d --name ci-redis --network ci-smoke-net redis:7-alpine
           # Wait for real readiness instead of assuming fixed startup time.
-# The official postgres entrypoint briefly starts a temporary server while
+          # The official postgres entrypoint briefly starts a temporary server while
           # initializing the data directory, then shuts it down before starting
           # the final server. pg_isready alone can catch that temporary server.
           # Wait for the entrypoint's init-complete marker, then require three
