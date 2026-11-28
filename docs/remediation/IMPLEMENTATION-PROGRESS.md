@@ -1,3 +1,15 @@
+## G-002 carrier actor-context guard — PR #178 — 28 November 2026
+
+- PR #176 merged into develop at `f3e9105a075b9a5b37f6acd3469ec91eaa09d9f7`; exact-head CI #1727 passed all mandatory jobs including container smoke.
+- PR #178 is open/draft/unmerged: https://github.com/nabeel2323/scs-platform/pull/178. Branch `fix/g002-carrier-actor-context-guard-20261128`, exact head `bc300e93572e9671680dec2d8ea911508e85b5fd`. CI #1737 / run `46135480156` is testing the corrected head after a first-run test-fixture typing error was fixed.
+- Passed on corrected head: lint, typecheck, format, Flutter analyze/tests, Web/Admin tests, Boundary Lint E6, Migration Full Apply. API unit/coverage and PostgreSQL integration are still running; container smoke, contract/codegen and build are pending. No merge until all mandatory jobs pass.
+- Shared guard requires exact org binding for active user/worker/system actors; rejects null-org, mismatched-org, anonymous, authentication, bootstrap and audit contexts. Fresh internal operations establish an org-bound worker transaction.
+- Aramex store-owner discovery is tenant-constrained when already in an org-bound actor context. The unscoped discovery path is retained only for a fresh short-lived worker transaction that closes before org-bound config/credential reads.
+- This is fail-closed contract hardening, not a confirmed exploit. No database/staging/Render/provider/worker/grant/default-ACL/RLS/credential/deployment action was performed.
+- Separate worker follow-up: the tracking poller and reconciliation service still use global unscoped worker contexts for claim/order-store checks and some shipment updates by ID. Design a deliberate system-worker/tenant-scope policy with full lineage tests before changing. ShippingCarrierWorker's outbox path already verifies event store/org and shipment.order.store lineage before provider side effects, then performs subsequent writes under resolved org context.
+- PR #138 remains open/draft/unmerged and preserved; PR #175 remains separate/open/draft/unmerged.
+- Next: complete exact-head CI for #178; merge only after all required jobs pass. Then continue tracking/reconciliation worker lineage, webhook/outbox actor-context nesting, direct PG Client/Pool entrypoint inventory, and migration object/ownership crosswalk. Batch changes to avoid repeated CI.
+
 ## PR #177 — carrier credential actor-context hardening — 28 November 2026
 
 - Draft PR: https://github.com/nabeel2323/scs-platform/pull/177
