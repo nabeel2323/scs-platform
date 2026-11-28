@@ -39,16 +39,22 @@
 | Reset utility | Direct `pg.Client`; CA-verified TLS, environment/database confirmation and separate staging reset approval | Destructive by design; identity check currently reports database/current_user but does not enforce role capability/ownership or actor context. Not run; preserve staging data |
 | Manual staging bootstrap scripts | Shared helper validates explicit staging environment, exact DB name and approval; establishes transaction-local bootstrap actor context; scripts configure CA-verified TLS | Shared helper currently checks only `current_database()` and `current_user`; it does not validate `session_user`, role capability flags, public ownership or `pg_stat_ssl`. Review/harden as a bounded source change after confirming script-specific required privileges |
 
-## Live catalog evidence still required
+## Live catalog evidence — staging read-only inspection, 28 November 2026
 
-The source scan does **not** prove actual database object ownership. A protected, read-only catalog inventory must capture, without exposing credentials:
+A SELECT-only catalog inventory was executed against Supabase project `wplsxxevoevzqbgtpctw`. It ran as the Supabase SQL tool's own `postgres` session over TLS. This is **not** proof of the Render API runtime or standalone migration runner identity; the earlier Render API diagnostic independently reported `postgres` with TLS disabled and elevated role flags.
 
-1. `pg_class` / `pg_namespace` owners for all public tables, partitions, indexes, sequences and the pg_partman template.
-2. `pg_proc` owner, language, `prosecdef`, `proconfig` and ACL for `public.normalize_arabic(TEXT)` and any non-migration routines.
-3. `pg_trigger` and `pg_rewrite` inventory, including enabled state and referenced functions.
-4. Parent/child partition tree and pg_partman configuration/template owner and ACLs.
-5. Effective ACL and default ACL inventory by every object-creating role, including the role that actually ran migrations 0072–0077.
-6. Separate API runtime, migration, seed/bootstrap and administrative session/effective identities plus verified TLS state.
+- Public relation ownership: 114 ordinary tables, one partitioned parent, and one sequence are owned by `postgres`. The analytics partition children and default partition are also owned by `postgres`.
+- RLS: 115 public tables/partitioned relations inspected; 0 have RLS enabled and 0 have FORCE RLS.
+- Foreign keys: 182 public-schema foreign-key constraints are present.
+- Application function: `public.normalize_arabic(TEXT)` is owned by `postgres`, PL/pgSQL, not SECURITY DEFINER, and has `search_path=pg_catalog` in `proconfig`.
+- Public functions also include pg_trgm extension C functions owned by `supabase_admin`; these are extension objects, not extra application-defined routines.
+- No non-internal triggers were returned for public tables.
+- pg_partman 5.3.1 is installed in schema `partman`, extension owner `postgres`; `public.analytics_events` is configured for monthly range partitioning and 12-month retention, with `retention_keep_table=false` and `retention_keep_index=false`.
+- Effective privileges: `anon` and `authenticated` have zero SELECT/INSERT/UPDATE/DELETE/TRUNCATE privileges on the 115 public relations; both retain public-schema USAGE but not CREATE. `postgres` has full table privileges and public-schema CREATE. `service_role` has zero CRUD privileges but does have TRUNCATE, REFERENCES and TRIGGER on all 115 relations (and MAINTAIN where supported), granted by `postgres`. Treat this role as highly privileged and server-only; do not expose its key to clients.
+- Default ACLs for objects created by `postgres` in `public` no longer grant table/sequence privileges to `anon` or `authenticated`; the table default ACL still grants `service_role` TRUNCATE/REFERENCES/TRIGGER/MAINTAIN, not CRUD. The `supabase_admin` default ACL in `public` still grants broad table and sequence privileges to `anon`, `authenticated` and `service_role`. Current application relations are all owned by `postgres`, so this is a future-object risk if application objects are ever created as `supabase_admin`; do not change Supabase-managed defaults without a provider-aware review.
+- The SQL tool session itself reported `session_user=current_user=postgres`, `ssl=true`, `rolsuper=false`, `rolbypassrls=true`, `rolcreaterole=true`, and `rolcreatedb=true`. These flags are privileged but belong to the SQL tool connection, not necessarily the app/migration connections.
+
+This evidence closes the live ownership/partition/function/trigger/ACL inventory for the current staging catalog, but it does not establish the standalone migration runner's identity, TLS, or the Render API pool's current live state beyond the previously observed application log diagnostic. It also does not prove route-by-route authorization predicates.
 
 ## Controlled next steps
 
@@ -61,3 +67,14 @@ The source scan does **not** prove actual database object ownership. A protected
 ## Scope limitations
 
 This is a source-level inventory against the named `develop` commit. It is not a database catalog dump, a complete per-query service predicate proof, a live API/migration credential verification, or a claim of production readiness. The project has no production database; Supabase is staging only.
+
+
+## Additional application callsite and tenant-predicate review — 28 November 2026
+
+- Direct `pg.Pool`/`pg.Client` source entrypoints confirmed in the reviewed operational files: API `DatabaseService`; standalone `migrate-pg.ts`; RBAC seed `seed-pg.ts`; catalog seed `seed-catalog.ts`; destructive `reset-pg.ts`; five staging bootstrap scripts (merchant/platform/RBAC/staff/store); read-only `audit-db-access.ts`; local-only `create-admin-user.ts`; and `bootstrap-issue-token.ts`. `src/scripts/seed.ts` delegates to the configured Drizzle database and is not a separate direct pg pool. The scan did not identify direct pg pools in the reviewed domain service files; those use the shared DatabaseService/Drizzle handle.
+- The five staging bootstrap scripts all require CA-verified TLS and invoke the shared exact-database/environment/approval guard, then set transaction-local bootstrap actor context. The helper still validates only `current_database()` and `current_user`; it does not verify session/effective role flags, public object/schema ownership, or live TLS. No bootstrap script was executed.
+- `audit-db-access.ts` is designed as a read-only catalog audit and opens a read-only transaction with audit actor context, but CA TLS is optional and it reports rather than rejects unsafe identity. It was not executed through the actual Render API connection; the separate Supabase SQL-tool catalog queries above were SELECT-only and used the tool's own postgres/TLS session.
+- `create-admin-user.ts` is restricted to development/test and local database hostnames, with explicit confirmation and transaction-local bootstrap actor context. `bootstrap-issue-token.ts` applies production-like role/TLS/ownership checks before issuing a token and sets transaction-local bootstrap actor context.
+- Domain predicate spot-check: merchant offer creation/listing calls `assertStoreInOrg` and `assertStoreMember`; inventory operations cross-check store/org membership and ensure warehouse/variant resolve to the same store; shipping checks active organization membership and driver/store assignment; carrier credentials are scoped by org and actor context; payment operations resolve the order and enforce buyer or merchant store/org access; cart insertion resolves store from product/offer rather than trusting caller-supplied storeId. These are positive source findings, not a complete method-by-method authorization proof.
+- Actor context remains opt-in rather than global. AppModule registers AuditLogMiddleware globally but does not globally register TenantDatabaseContextInterceptor. A subset of services (notably catalog, orders, payments, merchant and carrier-credential workflows) use explicit `withActorContext`; several reviewed services rely on explicit caller parameters and service-level predicates without a transaction-bound actor context. RLS must remain disabled until every route/service/worker/raw SQL path is classified and tests prove actor context coverage.
+
