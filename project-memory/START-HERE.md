@@ -1,3 +1,14 @@
+## PR #177 — carrier credential actor-context hardening — 28 November 2026
+
+- Draft PR: https://github.com/nabeel2323/scs-platform/pull/177
+- Branch: `fix/g002-carrier-actor-context-20261128`; exact head `1e79ebac50fb50109d254bca71b94bf7a805242f`; base `develop` at `246f1235bcaa89a7b40614cb65d39ac3ce5ff529`.
+- Source changes: carrier credential decryption, carrier configuration resolution and Aramex credential lookup now require an existing actor to be a `worker` with `activeOrgId` exactly equal to the requested org (including exact null-org equality for store-owner discovery). With no active actor, each helper establishes its own worker scope as before.
+- Tests added/extended for exact worker context, null-org user, mismatched worker, system/anonymous/authentication actors, null-org Aramex store-owner discovery, and tenant-bound Aramex credential lookup.
+- Callsite review: Aramex provider calls are made after short DB actor scopes have completed in ShippingCarrierWorker, CarrierTrackingPoller, CarrierReconciliationService and the shipment tracking route. Provider lookup establishes its own worker contexts. CarrierWebhookController performs global credential discovery in a separate null-org worker scope and secret decryption in a credential-org-bound worker scope. The two-stage lookup is preserved.
+- `findCredentialId` has no production callsite in the reviewed shipping module; a complete wider API source scan remains outstanding. The helper behavior is a tenant/actor contract-hardening issue; no exploitability claim is made.
+- Exact-head CI run #1733 / `46131141943` is IN PROGRESS. Initial jobs observed: Lint & Typecheck and Mobile Flutter. Vercel Web/Admin checks report external free-plan build-rate-limit failures; do not trigger redundant Vercel builds. Wait for mandatory GitHub Actions results before considering merge.
+- Source/tests only. No staging DB access or writes, provider calls, worker activation, Render mutation, deployment, credentials/grants/default-ACL/RLS changes or release occurred.
+
 ## G-002 carrier actor-context callsite pass — 28 November 2026
 
 - Reviewed the current `DatabaseService.withActorContext` contract: an existing async actor scope is reused only for an identical normalized actor; attempting to switch actor inside the active transaction throws. This confirms any two-stage store-owner → tenant credential resolution must use separate completed scopes, not nested actor switching.
