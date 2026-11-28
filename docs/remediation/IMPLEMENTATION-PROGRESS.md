@@ -3634,3 +3634,25 @@ Source review only; no database connection, migration, seed, reset, provider cal
 - Verified source branch `remediation/phase-0-1-tenant-security` and preservation branch `preservation/pr138-remediation-2026-11-25` remain identical at the protected head.
 - Old integration branch `integration/pr138-bulk-remediation-2026-11-26` is 0 ahead / 46 behind current develop; it contributes no unique commits.
 - Decision: never merge PR #138 wholesale or rewrite either protected ref. Recover selected implementation by logical area only: enumerate meaningful source/test/docs deltas, exclude scratch/archive/unrelated history, compare with current develop, and cherry-pick/reimplement verified deltas onto a fresh current-develop branch with focused tests. Batch coherent changes and use one exact-head CI campaign per grouped PR.
+
+
+## PR #138 three-way extraction reconciliation — 28 November 2026
+
+Three-way Git tree comparison: merge base `f74eb588cc58fc99b105e749d39dbfbacb4f9775`; preserved PR #138 source `81f30f5c30654b233ef373c15fd3f2cb867aba01`; current develop `91795390cff5115dee475e07fd87d0c870a6e821`. Scratch directories/test suites and token-like artifacts excluded; all trees complete.
+
+| Classification | Paths | Disposition |
+|---|---:|---|
+| Source and develop identical | 533 | Already reconciled |
+| Both changed differently | 109 | 95 included in merged PR #170; 12 of remaining 14 covered by focused merged follow-ups; 2 intentionally not copied |
+| Develop-only | 60 | Keep current develop version |
+| PR #138 source-only | 20 | Legacy migration scripts, old colliding migration 0070, and historical project-memory documents; retain on source branch |
+
+The 109 both-different paths comprise 81 tests, 22 source files, 3 docs, 2 migrations and 1 workflow. The 12 follow-up-covered residual paths are migration runner/lock paths (#157/#171), DatabaseService/tenant-scope/main/interceptor/operator-context tests (#157), orders schema/migration 0071 (#159), cancel/reject actor-context tests (#169), and bootstrap CLI (#174).
+
+The two deliberately non-copied differences:
+- `outbox-dispatcher.service.ts`: PR #138 version polls and marks log-only events DISPATCHED without a delivery adapter. Current develop disables polling and leaves events PENDING; keep the safer version. PR #160 is a separate refreshed outbox workstream.
+- `catalog-governance-roundtrip.spec.ts`: PR #138 version uses a random fixture UUID; current develop uses its fixed isolated fixture. No missing production behavior.
+
+PR #138's 20 source-only paths contain no missing application source: ten legacy migration apply/verification scripts, the old `0070_public_access_and_function_search_path_hardening.sql` (collides with current develop's `0070_normalize_arabic_search_path.sql` and overlaps current migration 0076 default-ACL hardening), and ten historical project-memory files. Do not import the old 0070 or run the legacy scripts. Historical docs remain preserved on PR #138 source branch.
+
+PR #170's 574-path non-overlapping extraction merged at `d078fe0124ac04fb0da3fc26f3ff02306c45a33f`; current develop comparison reports 0 ahead / 47 behind from that merge commit. Focused PRs #157, #158, #159, #169, #171, #172, #173 and #174 are also merged. Decision: no further bulk PR #138 extraction is justified. Keep PR #138 OPEN/DRAFT/UNMERGED and both source/preservation refs identical at `81f30f5c30654b233ef373c15fd3f2cb867aba01`. Any newly identified gap must become a fresh, bounded PR from current develop with path provenance and focused tests; never merge/rewrite the preserved source.
