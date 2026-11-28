@@ -120,3 +120,10 @@ No database, staging, Render, provider, credential, grants/default-ACL/RLS, work
 - Current `staging-bootstrap-safety.ts` is already fail-closed: exact staging database/approval, session/effective user equality, dangerous-role rejection, public table/schema ownership rejection and TLS verification via `pg_stat_ssl`. The five staging bootstrap scripts also require CA TLS and establish bootstrap actor context. The previous stale crosswalk claim about missing checks has been corrected; no additional helper code is justified.
 - Current `CarrierTrackingPoller` and `CarrierReconciliationService` already use `resolveCarrierShipmentTenantContext` to resolve store org and verify order/store equality. Per-shipment mutations, events, delivery bridge and retry outbox rows use exact org-bound worker context; retries carry org/store metadata. Global atomic claims remain platform-worker lease operations. Corrected the preliminary contradictory crosswalk section; do not reimplement this already-present work.
 - Remaining G-002 scope: complete generic OutboxDispatcher publish caller graph and exhaustive direct PostgreSQL constructor/import inventory. The API tree has 648 source files, but full content/blob scan has not completed; inventory remains provisional.
+
+
+## Expanded PostgreSQL entrypoint follow-up — 28 November 2026
+
+- Targeted path/content review added `b1-migration-test.js` and `p311-migration-verify.js` (fixed localhost disposable DBs, development/test + explicit UAT confirmation), M5/M6 UAT direct pools (local UAT guard), `verify-staging-bootstrap-target.ts` (shared fail-closed staging guard), and the two ad hoc read-only diagnostics `check-merchant-rbac.ts` / `check-staging-users.ts`.
+- Both diagnostics require CA TLS but do not establish environment/database/role identity or actor context. `check-staging-users.ts` additionally prints user phone/email/full name. Treat it as a sensitive manual-diagnostic hardening candidate before shared staging use; no code or DB operation was performed.
+- Inventory remains provisional: the API tree is 648 source files; exhaustive blob and indirect factory scan is still outstanding.
