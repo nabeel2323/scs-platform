@@ -9,13 +9,14 @@
 - PR #179 source review confirmed that global atomic claims/leases remain platform-worker operations; each claimed shipment resolves authoritative `stores.id → stores.org_id`, verifies `shipment.order_id → orders.store_id = shipment.store_id`, and performs per-shipment event/status/retry-outbox/delivery-bridge work in an exact-org worker context. Updates are constrained by shipment + store, and retry outbox events carry organization/store attribution.
 - Vercel Web/Admin previews for the merge commit succeeded. No staging release, deployment, provider call, worker activation, DB/Render mutation, credential/grant/default-ACL/RLS change occurred.
 
-## PR #177 — carrier credential actor-context hardening
+## PR #180 — carrier credential actor-context hardening
 
-- PR #177 remains OPEN / DRAFT / UNMERGED; branch `fix/g002-carrier-actor-context-20261128`.
-- Original head `1e79ebac50fb50109d254bca71b94bf7a805242f` failed only at API typecheck after lint and mobile passed. TypeScript errors were four assignments to a test double's `currentActorContext`, inferred too narrowly as literal `null`, in `carrier-configurations.service.spec.ts` lines 101, 114, 126 and 138.
-- Corrected the fixture declaration from `currentActorContext: null` to `currentActorContext: null as any` in test-only code. Fix commit: `2274cf4f93ef95c23a616be84cb8812d86e738f9`.
-- Added an empty CI-trigger commit `58fd53aa55fec538019669af9ea412b120e89a2a` to the same branch. The GitHub connector has not surfaced a new Actions run for this head yet; do not claim the corrected head is CI-verified or merge PR #177 until mandatory exact-head CI passes.
-- Keep the Vercel Web/Admin previews green; do not run redundant previews. No reviewers requested.
+- PR #180 is OPEN / DRAFT / UNMERGED; branch `implementation/g002-carrier-credential-actor-context-20261128`; base `develop` at `ea4792a3806309f0199973806d282bf82c460da5`; head `d0c3639f0c3820fa44bbadbb9c8b62264cd62413`.
+- It carries forward the same six source/test files from PR #177 on top of the current `develop` baseline; this is a direct blob/tree integration, not a reimplementation. It includes the test fixture typing correction.
+- PR #177's original exact-head run `46131141943` failed only at API typecheck: four assignments to a test double's `currentActorContext`, inferred too narrowly as literal `null`, in `carrier-configurations.service.spec.ts` lines 101, 114, 126 and 138. Lint and mobile passed; downstream jobs were skipped.
+- Test-only correction: change the fixture initializer to `currentActorContext: null as any`. Fix commit on the old branch: `2274cf4f93ef95c23a616be84cb8812d86e738f9`; PR #180 carries the corrected file.
+- No GitHub Actions run has been surfaced for PR #180's head yet. Its Web/Admin Vercel checks currently report external free-plan build-rate-limit failures; do not trigger redundant previews. Do not mark CI green or merge until mandatory exact-head Actions checks pass.
+- PR #177 was closed as superseded by PR #180; its source branch was preserved. No reviewers requested.
 
 ## Protected integration and safety constraints
 
