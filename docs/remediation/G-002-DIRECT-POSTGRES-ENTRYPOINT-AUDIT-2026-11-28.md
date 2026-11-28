@@ -98,3 +98,13 @@ A follow-up caller-chain inspection resolved several candidates from the initial
 The interceptor implementation explicitly wraps the full awaited HTTP handler in `DatabaseService.withActorContext`, and the `DatabaseService.db` getter resolves to that transaction-bound Drizzle handle while the async actor scope is active. Nested calls with the same actor reuse the active transaction; actor switching fails closed.
 
 This spot check closes these specific candidate callsites only. It does **not** establish that every production publisher is safe: remaining publishers must be traced to their controller/interceptor or explicit worker/system context, with special attention to scheduled jobs, event listeners, callbacks detached from request lifetime, and direct service invocations that bypass HTTP controllers.
+
+
+## Migration crosswalk continuity check — 28 November 2026
+
+The existing `docs/remediation/G-002-MIGRATION-OBJECT-CROSSWALK.md` already contains a source review of the complete numbered migration set. I compared the Git tree blob identities for every numbered SQL migration at that document's recorded baseline (`c37c4d94f728b2806e7efb59d0380adb24472597`) with current `develop` (`5356cd182cb41fc8f2266a0b75eb60056c43675d`):
+
+- Both refs contain exactly 77 numbered migration files, `0001` through `0077`, with no numbering gaps.
+- No numbered migration file was added, removed or changed between those two refs (77 matching paths and blob SHAs).
+- Therefore the existing 77-migration source crosswalk remains applicable to the current `develop` migration files. This does not validate live database state, migration ledger state, physical object ownership, or runtime grants/ACLs; those remain separate live-catalog questions and were not queried.
+- Do not repeat the full 77-file static review unless a migration changes. Focus follow-up effort on reconciling the existing object/FK map with the source-level operation predicates and the direct entrypoint findings above.
