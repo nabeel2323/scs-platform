@@ -63,7 +63,7 @@ async function main(): Promise<void> {
     await client.query('COMMIT');
     transactionStarted = false;
   } catch (error) {
-    if (transactionStarted) {
+    if (transactionStarted && client) {
       try {
         await client.query('ROLLBACK');
       } catch {
