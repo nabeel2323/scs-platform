@@ -566,7 +566,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     // Increment reconciliation attempt counter and defer or escalate.
     const newAttempts = reconciliationAttempts + 1;
     if (newAttempts >= CarrierReconciliationService.MAX_CANCEL_RECONCILIATION_ATTEMPTS) {
-      await this.escalateCancelReconciliation(shipment, 'budget exhausted after attempt');
+      await this.escalateCancelReconciliation(shipment, 'budget exhausted after attempt', orgId, storeId);
       return { shipmentId, outcome: 'cancel_budget_exhausted', detail: `${newAttempts} attempts` };
     }
 
@@ -629,7 +629,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     const newAttempts = currentAttempts + 1;
 
     if (newAttempts >= CarrierReconciliationService.MAX_CANCEL_RECONCILIATION_ATTEMPTS) {
-      await this.escalateCancelReconciliation(shipment, 'transport error + budget exhausted');
+      await this.escalateCancelReconciliation(shipment, 'transport error + budget exhausted', orgId, storeId);
       return {
         shipmentId: shipment.id,
         outcome: 'cancel_budget_exhausted',

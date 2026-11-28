@@ -23,7 +23,7 @@ interface CarrierTenantContextDependencies {
     db: {
       query: {
         orders: {
-          findFirst(args: unknown): Promise<{ storeId: string } | undefined>;
+          findFirst(args: any): Promise<{ storeId: string } | undefined>;
         };
       };
     };
