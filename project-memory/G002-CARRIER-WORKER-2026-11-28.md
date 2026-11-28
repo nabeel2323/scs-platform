@@ -112,3 +112,11 @@ No database, staging, Render, provider, credential, grants/default-ACL/RLS, work
 - Existing nested paths remain compatible: `OrdersService.rejectOrder` already wraps merchant-rejection refund creation in the exact caller actor; return-driven refund creation is inside `ReturnsController`'s class-level interceptor. Same-actor nested scopes reuse the active transaction.
 - A metadata regression test asserts both methods retain the interceptor. No runtime DB, staging, worker, provider, Render, deployment, credential, grants/default ACL or RLS action occurred.
 - Continue tracing remaining non-HTTP publisher callsites and complete the direct Client/Pool inventory before declaring G-002 exhaustive. Do not infer a callsite for `expirePayment` or activate workers without evidence.
+
+
+## G-002 current-source correction and CI — 28 November 2026
+
+- Exact-head CI #1753 / run ID `46163157475` passed all mandatory jobs for the payment refund actor-context fix on PR #181. Vercel web/admin preview status remains externally rate-limited on the free plan; no retry was made. Staging release and all database/provider operations remain unapproved.
+- Current `staging-bootstrap-safety.ts` is already fail-closed: exact staging database/approval, session/effective user equality, dangerous-role rejection, public table/schema ownership rejection and TLS verification via `pg_stat_ssl`. The five staging bootstrap scripts also require CA TLS and establish bootstrap actor context. The previous stale crosswalk claim about missing checks has been corrected; no additional helper code is justified.
+- Current `CarrierTrackingPoller` and `CarrierReconciliationService` already use `resolveCarrierShipmentTenantContext` to resolve store org and verify order/store equality. Per-shipment mutations, events, delivery bridge and retry outbox rows use exact org-bound worker context; retries carry org/store metadata. Global atomic claims remain platform-worker lease operations. Corrected the preliminary contradictory crosswalk section; do not reimplement this already-present work.
+- Remaining G-002 scope: complete generic OutboxDispatcher publish caller graph and exhaustive direct PostgreSQL constructor/import inventory. The API tree has 648 source files, but full content/blob scan has not completed; inventory remains provisional.
