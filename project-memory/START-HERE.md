@@ -1,3 +1,111 @@
+## Latest checkpoint — 28 November 2026, CI #1758 complete
+
+- PR #181 branch: `docs/g002-postgres-entrypoint-audit-20261128`; latest verified head `c305539efe47d2242a5b2b2c210c412a6d943268`; base `develop` remains `5356cd182cb41fc8f2266a0b75eb60056c43675d`. Exact compare: 49 commits ahead, 0 behind, nine changed paths. PR has 49 commits, is OPEN, non-draft, unmerged, and GitHub reports mergeable=true. Last source/test head remains `803ce6fe9f5a13c31e62429297b5b89a52e15a9c`; commits after it are documentation-only.
+- Consolidated GitHub Actions CI #1758 / run ID `46175778823` completed SUCCESS on source/test head `803ce6fe9f5a13c31e62429297b5b89a52e15a9c`. All 10 mandatory jobs passed: Mobile, Lint & Typecheck, Unit Tests + Coverage Gates, Web/Admin Tests, Integration Tests, Migration Full Apply on disposable CI PostgreSQL, Boundary Lint, Container Build & Smoke, Contract Spec & Codegen, and Build. k6 Smoke and Trigger Staging Release were skipped. This is CI evidence, not staging-release authorization.
+- New read-only staging-user diagnostic guard and tests passed in the unit/coverage, lint/typecheck, and build campaign. It requires explicit staging environment, exact database and matching approval; verifies session/effective role, privilege/ownership flags and TLS; uses an explicit read-only transaction and audit actor; and emits aggregate counts only. No live database or diagnostic execution was performed.
+- Follow-up source review sampled `AutoCompleteWorker`, `PaymentProofCleanupWorker` / `cleanupStaleProofUploads`, `ReturnExpirationWorker`, `WorkerLeaseService`, `ShippingCarrierWorker`, and `OutboxDispatcher`: worker DB writes in these paths use worker/system actor context and the expected fencing/tenant boundaries. No new confirmed gap was found in this bounded sample; the full outbox caller graph remains incomplete.
+- Vercel admin/web preview checks remain external free-plan build-rate-limit failures. Do not retry previews; they are not GitHub Actions failures.
+- PR #181 remains unmerged while the separately recorded staging-release authorization gate remains unresolved. Do not infer release permission from CI.
+- PR #138 remains OPEN/DRAFT/UNMERGED at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; its preservation branch is identical. Do not touch or wholesale merge it. PR #175 remains separate. `develop` remains `5356cd182cb41fc8f2266a0b75eb60056c43675d`.
+- Direct PostgreSQL entrypoint inventory and OutboxDispatcher publisher caller graph remain provisional, not exhaustive. Continue source-level review of non-HTTP worker/schedule/listener/detached callback callers and indirect connection factories. Do not claim exhaustive coverage.
+- No DB connection/script execution, staging/shared DB write, migration, seed/reset/bootstrap, grant/default ACL/RLS change, Render mutation, deployment, provider call, credential change, worker activation or release operation was performed.
+
+---
+
+## Latest continuation checkpoint — 28 November 2026, outbox caller-chain coverage
+
+- Extended source review of `OutboxDispatcher.publish` callers across CatalogService/ProductGovernance, InventoryService, MerchantService, StoreMembershipService, ReturnsService/commission reversal/settlement adjustments, ReviewsService and DisputesService. Reviewed controller boundaries provide tenant actor context (method-level or class-level); selected service paths also explicitly establish user actor context. No new confirmed unscoped publisher was found in this sample.
+- The buyer refund-request and admin refund-approval payment endpoints remain the only confirmed gap in the reviewed HTTP publisher paths; PR #181 adds the interceptor to both and CI #1753 passed all mandatory jobs on that code/test head.
+- OutboxDispatcher remains intentionally non-polling: publish creates PENDING intent; no generic consumer, ack/retry adapter or worker was added. The broad caller inventory remains incomplete until direct service calls, detached callbacks, workers/schedules and all source files are covered.
+- Current branch tree compare: PR #181 branch is 23 commits ahead and 0 behind develop, with six changed files. PR #181 is open, non-draft, GitHub mergeable=true / mergeable_state=unstable. Vercel admin/web checks still fail solely due free-plan preview rate limit. CI #1753 succeeded; k6 and staging release were skipped. Keep merge gated by the separate release authorization policy.
+- PR #138 remains open/draft/unmerged; its source head and `preservation/pr138-remediation-2026-11-25` remain identical at `81f30f5c30654b233ef373c15fd3f2cb867aba01`. Do not touch or wholesale merge PR #138.
+- Direct PostgreSQL inventory now includes targeted extra local UAT/check scripts; remains provisional because full source-blob and indirect factory scan is not complete. `check-staging-users.ts` remains a sensitive read-only diagnostic candidate due to missing exact-target preflight and PII console output; no script was executed.
+
+---
+
+## Latest continuation checkpoint — 28 November 2026, expanded PostgreSQL entrypoint inventory
+
+- Extended the direct PostgreSQL audit by enumerating the current API tree (648 source files) and inspecting additional database/UAT/check scripts. Newly recorded direct constructors include `b1-migration-test.js`, `p311-migration-verify.js`, `check-merchant-rbac.ts`, `check-staging-users.ts`, M5/M6 UAT scripts, and `verify-staging-bootstrap-target.ts`.
+- B1/P311 migration harnesses are fixed-localhost disposable DB tools gated to development/test plus explicit UAT confirmation. M5/M6 scripts use the local UAT guard for DB/API/Redis hosts. `verify-staging-bootstrap-target.ts` uses the shared fail-closed staging guard and CA TLS.
+- `check-merchant-rbac.ts` and `check-staging-users.ts` require a CA-verified connection but lack explicit environment/database/role preflight and actor context. Both are SELECT-only. The staging-users diagnostic prints phone/email/full name, so record it as a sensitive manual-diagnostic hardening candidate (read-only exact-staging target gate + output minimization) before any shared staging use. No script was executed.
+- The inventory is still provisional: API tree enumeration is complete (648 source files), but exhaustive content/blob scan and indirect/dynamic connection factory search remain outstanding. Do not claim completeness.
+- PR #181 exact-head CI #1753 passed all mandatory GitHub Actions jobs. Vercel previews remain free-plan rate limited. PR #181 stays open; no merge because project memory retains a separate staging-release authorization gate. PR #138 remains protected and untouched.
+
+---
+
+## Latest continuation checkpoint — 28 November 2026, CI and source-crosswalk reconciliation
+
+- Exact-head CI #1753 / run ID `46163157475` completed SUCCESS on the payment refund actor-context correction; all mandatory jobs passed, including lint/typecheck, mobile, unit/coverage, integration, full migration apply on disposable CI PostgreSQL, boundary lint, web/admin, build, contract/codegen and container smoke. k6 and staging release were skipped by workflow conditions. This is CI validation only, not authorization for a staging release or database mutation.
+- PR #181 remains open against `develop`, source/test and audit branch `docs/g002-postgres-entrypoint-audit-20261128`. The buyer refund-request and admin refund-approval endpoints now apply `TenantDatabaseContextInterceptor`; focused metadata regression tests are included. CI #1753 passed this source/test head.
+- Vercel admin/web preview statuses remain external free-plan build-rate-limit failures; do not retry preview builds or classify these as failing GitHub Actions tests.
+- Reconciled stale G-002 migration crosswalk notes against current `develop`: the staging bootstrap helper already enforces exact DB + staging approval, session/effective role equality, rejects superuser/BYPASSRLS/CREATEROLE/CREATEDB, rejects public table/schema ownership and verifies TLS through `pg_stat_ssl`. The five mutating scripts also require CA material and set bootstrap actor context. No extra helper change is justified.
+- Corrected preliminary carrier-worker findings: tracking poller and create/cancel reconciliation paths already resolve authoritative store org and verify order/store equality; per-shipment writes, events, delivery bridge and retry outbox writes use the exact org-bound worker context, with retry rows carrying org/store. Global SKIP LOCKED claims remain separate platform-worker lease operations. Do not duplicate this implementation or cherry-pick stale worker changes.
+- Direct PostgreSQL constructor inventory remains provisional: GitHub tree confirms 648 API source files; exhaustive content/blob and indirect factory scan remains unfinished. Keep the report explicit about this limit. Generic OutboxDispatcher publisher caller graph also remains incomplete beyond reviewed controller/service spot checks.
+- PR #138 remains OPEN/DRAFT/UNMERGED and untouched; PR #175 remains separate. No reviewers requested. Do not merge PR #181 while the recorded staging-release authorization gate remains unresolved; merging to develop may trigger release workflow. No DB, staging, migration, seed/reset/bootstrap execution, grants/default ACL/RLS, Render mutation, deployment, provider call, credential change, worker activation or release was performed.
+
+---
+
+## Latest continuation checkpoint — 28 November 2026, payment refund actor-context correction
+
+- Continued from the G-002 source audit on PR #181; the branch remains based on current `develop` at `5356cd182cb41fc8f2266a0b75eb60056c43675d`. PR #138 remains OPEN/DRAFT/UNMERGED and untouched; PR #175 remains separate.
+- A focused source review found two authenticated payment endpoints missing `TenantDatabaseContextInterceptor`: `POST /payments/:id/refund` and `POST /admin/refunds/:id/approve`. Their service methods write payment events and outbox rows but do not create an actor context themselves. Transaction-client propagation alone is not actor attribution.
+- Added the existing tenant actor interceptor to both routes. Existing nested internal paths remain compatible: merchant-rejection refund creation already runs inside `OrdersService.rejectOrder`'s caller actor scope, and return-driven refund creation runs under `ReturnsController`'s class-level interceptor; identical nested actors reuse the active transaction.
+- Added a focused controller metadata regression test for both endpoints. The same PR now carries the source/test correction plus the updated G-002 audit evidence; one exact-head mandatory CI campaign should validate the combined change.
+- Remaining audit is still bounded: complete the non-HTTP outbox caller graph and exhaustive direct PostgreSQL Client/Pool source inventory. `PaymentsService.expirePayment` has no verified caller in this pass; do not infer a scheduler or activate any worker.
+- PR #181's Vercel preview failures were external free-plan rate limits; the earlier documentation-only branch had no GitHub Actions runs. This new source/test head should be judged only by its own exact-head CI. Do not rerun previews or dispatch duplicate CI.
+- Safety remains unchanged: no database connection/script execution, DB writes, migrations, seed/reset/bootstrap, grants/default ACL/RLS changes, Render mutation, deployment, provider call, credential change, worker activation or release. PR #138 source and preservation refs remain protected.
+
+---
+
+## Latest continuation checkpoint — 28 November 2026, migration crosswalk reconciliation
+
+- PR #181 remains open against `develop`: https://github.com/nabeel2323/scs-platform/pull/181. Audit document latest source commit before this memory update: `9e15d22cb9a06b1d0063524abcbe7a1500ca2079`.
+- Verified the existing `docs/remediation/G-002-MIGRATION-OBJECT-CROSSWALK.md` against current migration files: both its recorded baseline `c37c4d94f728b2806e7efb59d0380adb24472597` and current develop `5356cd182cb41fc8f2266a0b75eb60056c43675d` contain exactly 77 numbered migrations (0001–0077), with no added/removed/changed migration blobs. Existing static crosswalk remains applicable; do not repeat the same 77-file review. This does not prove live catalog/ledger/owner/ACL state.
+- Outbox spot checks: inventory, merchant verification, reviews, returns and settlement adjustment handlers inherit verified tenant interceptor actor context; return commission reversal/refund event and settlement adjustment event preserve transaction-client propagation. These sampled callers are not confirmed gaps. Continue with remaining publishers invoked from non-HTTP jobs/listeners/callbacks/direct service paths.
+- Direct PostgreSQL entrypoint audit has been expanded to bootstrap-token, read-only staging verifier and migration-ledger verifier. Inventory remains provisional until the complete source/call-graph scan is finished.
+- PR #181 has no GitHub Actions checks surfaced; Vercel admin/web statuses fail due free-plan preview rate limiting only. No code changed; do not retry previews or launch redundant CI. Keep PR open until merge-check status is known.
+- Next: finish remaining outbox publisher caller chains and the complete direct Client/Pool call graph; reconcile existing FK/ownership crosswalk against current service predicates; then implement only proven gaps in one source/test batch.
+- No database connection/script execution, DB writes, migrations, seeds, reset/bootstrap, grants/default ACL/RLS, Render, deployment, provider, credential, worker activation or release actions. PR #138 remains protected and untouched.
+
+---
+
+## Latest continuation checkpoint — 28 November 2026, outbox caller spot check
+
+- PR #181 remains open: https://github.com/nabeel2323/scs-platform/pull/181. Latest audit source commit: `efeae7adea936755b4a2b81dae6ae62d6ae55d92`; memory update follows this commit.
+- Outbox caller-chain spot checks confirmed actor context for inventory stock adjust/transfer/low-stock through class-level `TenantDatabaseContextInterceptor`; merchant verification through method-level interceptor; review creation through class-level interceptor; and returns/settlement-adjustment through class-level interceptor with explicit tx propagation for commission reversal and refund outbox writes. These sampled candidates are not confirmed actor-context gaps.
+- The interceptor awaits the full HTTP handler inside `DatabaseService.withActorContext`; `DatabaseService.db` resolves to the transaction-bound handle in that scope. Same-actor nested calls reuse the active transaction; actor changes fail closed.
+- Remaining outbox audit must focus on non-HTTP entrypoints, scheduled jobs, listeners, detached callbacks and direct service invocation. Do not assume every publisher is safe based on these samples.
+- PR #181 has no GitHub Actions run/checks surfaced. Two Vercel preview statuses fail only with the external free-plan deployment rate limit ("retry in 24 hours"); no app code changed. Do not retry previews or launch redundant CI. Leave the documentation PR open until required merge checks are available/mergeability is known.
+- Direct PostgreSQL inventory remains provisional pending exhaustive search of all 648 API source files and helper/import graph. See `docs/remediation/G-002-DIRECT-POSTGRES-ENTRYPOINT-AUDIT-2026-11-28.md`.
+- Next: finish the all-source direct Client/Pool search, trace remaining outbox publishers, then complete migration 0001–0077 ownership crosswalk. Only then prepare one bounded source/test PR for proven gaps.
+- Safety unchanged: no database connection/script execution, DB writes, migrations, seed/reset/bootstrap, grants/default-ACL/RLS, Render mutation, deployments, provider calls, credential changes, worker activation or release. PR #138 remains protected and untouched.
+
+---
+
+## Latest continuation checkpoint — 28 November 2026, follow-up audit pass
+
+- The direct PostgreSQL audit PR #181 is open against `develop`: https://github.com/nabeel2323/scs-platform/pull/181. Current head after the expanded entrypoint inventory: `11c3e34803c725a936a4ea01f39780bf5802bdc0`.
+- Follow-up verified `src/scripts/bootstrap-issue-token.ts`: explicit environment, production confirmation, verified TLS and production-like role/ownership identity checks, plus bootstrap actor context. Also verified `check-staging-merchant-bootstrap.ts` as guarded, read-only staging verification; `verify-migration-ledger.mjs` as a direct Pool read-only verifier with optional CA and no local target/actor preflight in the reviewed file.
+- Do not misclassify `bootstrap-issue-token.ts` with weak seeders or the read-only staging checker as a mutating bootstrap. Helper modules that accept a PoolClient are not independent connection constructors.
+- The direct connection inventory remains provisional: 648 API source files exist; known scripts were checked but exhaustive search of every source blob and indirect factory remains outstanding.
+- Next: finish direct Client/Pool repository-wide call graph, then outbox publisher caller chain and migration 0001–0077 crosswalk. Only implement proven gaps in one bounded source/test batch; one consolidated CI.
+- No database or script execution, DB writes, migrations, seed/reset/bootstrap execution, grants/default-ACL/RLS changes, Render mutation, deployment, provider call, credential change, worker activation or release occurred. PR #138 remains protected and untouched.
+
+---
+
+## Latest continuation checkpoint — 28 November 2026, after 18:05 UTC
+
+- Read the current `project-memory/START-HERE.md` and the G-002 continuation record before proceeding. The prior carrier worker and credential actor-context integrations are complete; do not repeat them.
+- New read-only direct PostgreSQL entrypoint audit committed on branch `docs/g002-postgres-entrypoint-audit-20261128`: `docs/remediation/G-002-DIRECT-POSTGRES-ENTRYPOINT-AUDIT-2026-11-28.md`, commit `b444eff8a7e3e21a6d777654e0f42548bdfd17dd`.
+- Confirmed source-level assurance differences: API runtime `DatabaseService` enforces verified TLS and fatal production-like identity checks; `migrate-pg.ts` treats identity diagnostics as non-fatal and configures CA verification only when `PGSSLROOTCERT` is supplied; standalone platform/catalog seed CLIs also make CA optional and lack the same exact staging target/role guard. This is not proof of an active insecure connection; URL/environment TLS behavior must be verified without exposing secrets.
+- All five `bootstrap-staging-*` scripts reviewed call the shared fail-closed `assertStagingBootstrapTarget` and establish bootstrap actor context. The reset utility has separate explicit destructive target approvals. The read-only audit CLI has optional CA posture. Local create-admin utility has a development/test boundary and is not a staging tool.
+- Outbox dispatcher is a transactional writer only; no generic poller/consumer is active. Carrier event family remains exclusively owned by `ShippingCarrierWorker`. Caller-chain actor/transaction audit is still incomplete; publisher presence alone is not proof of context.
+- Current audit branch has a documentation commit only so far. Next: complete repository-wide direct `pg.Client`/`pg.Pool` and helper/import scan (including `src/scripts/bootstrap-issue-token.ts`), trace every production outbox publisher through controller/service boundaries, and finish migration 0001–0077 DDL/object ownership crosswalk. Then make one bounded source/test PR for proven gaps and one consolidated exact-head CI.
+- PR #138 remains OPEN/DRAFT/UNMERGED and protected. PR #175 remains separate. Do not merge/cherry-pick stale worker branch wholesale.
+- Safety unchanged: no DB connection or script execution during this audit; no shared/staging DB writes, migrations, seed/reset/bootstrap execution, grants/default-ACL/RLS changes, Render mutation, deployments/restarts, provider calls, credential changes, worker activation or release. CI success is not staging/release authorization.
+
+---
+
 ## Latest continuation checkpoint — 28 November 2026, 18:05 UTC
 
 - PR #180 remains merged into `develop` by squash at `a56b77ba09a8e185c9ecdf8649d6602cb3a94143`.
@@ -612,3 +720,51 @@ A three-way Git tree comparison was run using merge base `f74eb588cc58fc99b105e7
 The 28 November source review also identified null-org actor-context reuse in the internal credential/configuration helpers and Aramex provider helper. See the detailed callsite analysis and required test/refactor sequence in `docs/remediation/IMPLEMENTATION-PROGRESS.md` under “G-002 follow-up: carrier helper actor-context edge cases”. Treat this as a high-priority tenant-boundary correctness gap pending focused regression tests; do not claim exploitability without proof. The refactor must separate unscoped store-owner discovery from org-bound credential access because nested actor switching is intentionally forbidden by DatabaseService.
 
 - Follow-up audit completed after the checkpoint above: `OutboxDispatcher` is intentionally non-polling and never marks rows DISPATCHED; `publish` only writes PENDING rows, using a supplied transaction client or the shared DatabaseService handle. Carrier retry outbox writes are credential-/org-scoped; reconciliation retry rows are written in the resolved org context with explicit organization/store attribution. Generic publish caller/transaction-context inventory remains open. Detailed evidence and corrected worker-lineage findings are in `docs/remediation/G-002-MIGRATION-OBJECT-CROSSWALK.md` (commit `aaa0bc697694bebb6dab525cfd14ff3205c748ee`).
+
+
+## Latest source continuation — staging diagnostic hardening
+
+- Added a separate exact-target read-only staging audit guard, focused regression tests and a safer `check-staging-users.ts` diagnostic on the G-002 branch. It now requires explicit staging environment/database approval, verifies restricted session/effective role and TLS identity, uses a read-only transaction with audit actor context, and emits aggregate counts without personal data.
+- The guard/test/script changes are source code; tests have not yet been run. No DB connection or diagnostic execution occurred. Do not treat this as live staging verification.
+- The bootstrap helper remains unchanged and retains its separate mutating-bootstrap approval contract. PR #181 remains unmerged pending exact-head validation and the separate release authorization gate. PR #138 remains protected and untouched.
+
+
+## Exact-head source checkpoint — 28 November 2026, 21:22 UTC
+
+- PR #181 current head after the staging diagnostic hardening batch: `803ce6fe9f5a13c31e62429297b5b89a52e15a9c`; base `develop` remains `5356cd182cb41fc8f2266a0b75eb60056c43675d`. Exact compare: 38 commits ahead, 0 behind, nine changed paths. PR #181 remains open, non-draft, and GitHub reports mergeable=true; it is not merged.
+- New source files: `apps/api/scripts/staging-read-only-audit-safety.ts` and `.spec.ts`. Updated `apps/api/check-staging-users.ts` to use the purpose-specific exact-target guard, verified CA TLS, restricted role identity, explicit `BEGIN READ ONLY`, transaction-local audit actor context and aggregate-only output. Connection cleanup and rollback are guarded if pool connection acquisition fails.
+- The guard tests cover non-staging environment, exact database/approval, wrong target, role switching, privileged roles, ownership, TLS, successful restricted identity and audit actor setup. These tests have **not** been executed. No exact-head GitHub Actions run is associated with `803ce6f`; do not treat CI #1753 as validation of these later additions.
+- CI #1753 / run `46163157475` remains successful for all 10 mandatory jobs on earlier source/test head `f6be9ca18157c391842b55168616975c10f3b67e`; k6 and staging-release jobs were skipped. The latest source head reports only the two external Vercel free-plan preview rate-limit failures. Do not retry previews or start duplicate CI runs.
+- PR description now records the new scope and explicitly marks exact-head validation pending. Keep PR #181 unmerged until the new source/test batch has one consolidated exact-head CI and the separate staging-release authorization gate is resolved. No reviewers requested.
+- PR #138 remains open/draft/unmerged and untouched at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; its preservation branch remains protected. PR #175 remains separate.
+- No database connection or script execution, staging/shared DB write, migration, seed/reset/bootstrap, grants/default ACL/RLS change, Render mutation, deployment, provider call, credential change, worker activation or release occurred.
+
+
+## CI continuation checkpoint — 28 November 2026, 21:22 UTC
+
+- The consolidated GitHub Actions CI #1758 / run ID `46175778823` is associated with the new staging-diagnostic source/test head `803ce6fe9f5a13c31e62429297b5b89a52e15a9c`. At the latest poll, `Lint & Typecheck` and `Mobile (flutter analyze · test)` were both `in_progress`; no completion result is claimed. Recheck this same run rather than dispatching another CI campaign.
+- The run was discovered from the source/test commit. Later `[skip ci]` documentation commits do not change the code being tested. Current PR #181 head at this memory checkpoint is `8b978b061a8f550034e46fe7d464d365d106f0bd`, with code/test head `803ce6f`; compare to `develop` is 41 commits ahead / 0 behind with nine changed paths.
+- PR #181 description now records the diagnostic hardening and CI #1758 in-progress status. PR remains open, non-draft and unmerged; GitHub last reported mergeable=true. Do not merge until the consolidated run completes and the separate staging-release authorization gate is resolved.
+- No database connection/script execution, staging mutation, migration, seed/reset/bootstrap, grants/default ACL/RLS, Render mutation, deployment, provider call, credential change, worker activation or release operation occurred. PR #138 remains protected and untouched.
+
+
+## Non-HTTP worker caller-chain follow-up — 28 November 2026
+
+- Reviewed `OutboxDispatcher` implementation and its delivery-boundary unit tests: `publish()` is a writer only, persists `PENDING`, accepts optional transaction client, and does not poll, ack, retry or dispatch generic events. The carrier worker remains the separately owned consumer for `shipping.carrier.*` only.
+- Reviewed `AutoCompleteWorker`: order claim and completion are both run inside `DatabaseService.withActorContext({ actorKind: 'worker', workerId })`; the claim-release call is nested in the same awaited completion scope. No unscoped write gap was confirmed in this path.
+- Reviewed `PaymentProofCleanupWorker` → `PaymentsService.cleanupStaleProofUploads`: worker activation is explicitly opt-in; DB claim and each state transition use the dedicated `runWithProofCleanupActor` scope. Provider object head/delete calls occur outside DB actor transactions; no DB actor context is required for those external calls.
+- Reviewed `ReturnExpirationWorker`: lease operations, pause checks, claim, per-item processing and escalation are enclosed in worker actor context and fenced by the P13 lease epoch. No new actor-context gap confirmed in this sample.
+- Reviewed `WorkerLeaseService`: lease writes and reads use worker actor context; `forceExpire` uses explicit system actor context. These are platform worker/lease operations, not tenant business writes.
+- This is a bounded worker sample, not a complete all-source caller graph. Continue tracing every outbox publisher and indirect DB connection factory before calling the audit exhaustive. No worker was enabled or run; no database/provider call occurred.
+
+
+## PR #138 extraction reconciliation — 28 November 2026
+
+- Verified PR #170 merged on 27 November 2026 (merge commit `d078fe0124ac04fb0da3fc26f3ff02306c45a33f`) and is an ancestor of current `develop` `5356cd182cb41fc8f2266a0b75eb60056c43675d`. PR #170's exact code head passed CI #1707: all 10 mandatory jobs passed; k6 and staging release were skipped. PRs #157, #158 and #169 are also merged. Do not reimplement their actor-context, identity or worker foundations.
+- Current PR #138 remains OPEN/DRAFT/UNMERGED, source head `81f30f5c30654b233ef373c15fd3f2cb867aba01`, and GitHub reports mergeable=false. Preserve the source and preservation refs; never merge this broad PR wholesale.
+- Reconciled the current 1,943 changed paths against PRs #170/#157/#158/#169: 622 paths overlap those already merged. The residual 1,321 paths include 1,280 scratch paths; 41 non-scratch paths remain in the bounded path-set review. Those 41 consist of 19 API/workflow paths, 11 migration/verifier paths, nine historical project-memory files and one token-named artifact.
+- Within the 19 API/workflow paths, the workflow file and 14 API/test files are blob-identical to current `develop`. The remaining four differences are not candidates for blind extraction: the PR #138 OutboxDispatcher reintroduces generic polling/false DISPATCHED acknowledgement (keep develop's safe writer-only implementation); its bootstrap-token issuer is weaker than develop's current runtime identity/TLS/role guard (keep develop); its orders schema differs only by a one-character normalized formatting/token delta with no additional schema field identified; and its catalog-governance integration test differs only in fixture construction (review as a test-only reconciliation, not a new feature).
+- The two remaining SQL migrations are superseded: PR #138's 0070 combines G-020 function search-path hardening with broad client-role revocations, while current develop has the canonical narrow `0070_normalize_arabic_search_path.sql` plus `0076_public_api_role_privilege_hardening.sql`; PR #138's 0071 lease DDL is duplicated by canonical develop `0071_auto_complete_claim_leases.sql`. Current develop also contains migrations 0072–0076. Do not import duplicate/colliding 0070/0071 files.
+- Extracted the remaining nine verification-script safety/runner paths into this G-002 branch: `assert-verification-target.sh`, `_p12_verify_runner.sh`, `a2_apply_migrations.sh`, `a2_verify_all.sh`, `a2_verify_part2.sh`, `run_all.sh`, `verify_aggregation.sh`, `verify_m73a.sh`, and `verify_m73a_v2.sh`. They now require `SCS_ENVIRONMENT=test`, exact `SCS_MIGRATION_VERIFY_CONFIRM`, local host/server address and exact connected database/user. The legacy `run_all.sh` delegates to the guarded atomic runner; the P12 runner wraps each migration transactionally and removes its temporary file on failure.
+- Added a fake-psql regression suite that proves wrong environment, missing/wrong confirmation, remote routing, wrong database/user/server are rejected before real DB access and a confirmed local disposable target is accepted. It never opens a real DB. CI #1769 is the consolidated exact-head run for these changes; wait for its result.
+- Historical project-memory files on PR #138 are not copied because their snapshots are stale and conflict with the current `project-memory/START-HERE.md` handoff. The token-named artifact and all scratch paths remain excluded. No database/script execution or staging operation occurred.

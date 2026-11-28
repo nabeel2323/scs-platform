@@ -115,6 +115,7 @@ export class PaymentsController {
 
   /** POST /v1/payments/:id/refund — buyer requests a refund. */
   @Post('payments/:id/refund')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('orders:write')
   async requestRefund(
@@ -160,6 +161,7 @@ export class PaymentsController {
 
   /** POST /v1/admin/refunds/:id/approve — admin approves a refund. */
   @Post('admin/refunds/:id/approve')
+  @UseInterceptors(TenantDatabaseContextInterceptor)
   @UseGuards(PermissionsGuard)
   @RequirePermission('admin:refunds:approve')
   async approveRefund(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
