@@ -1,3 +1,15 @@
+## Latest continuation checkpoint — 28 November 2026, CI and source-crosswalk reconciliation
+
+- Exact-head CI #1753 / run ID `46163157475` completed SUCCESS on the payment refund actor-context correction; all mandatory jobs passed, including lint/typecheck, mobile, unit/coverage, integration, full migration apply on disposable CI PostgreSQL, boundary lint, web/admin, build, contract/codegen and container smoke. k6 and staging release were skipped by workflow conditions. This is CI validation only, not authorization for a staging release or database mutation.
+- PR #181 remains open against `develop`, source/test and audit branch `docs/g002-postgres-entrypoint-audit-20261128`. The buyer refund-request and admin refund-approval endpoints now apply `TenantDatabaseContextInterceptor`; focused metadata regression tests are included. CI #1753 passed this source/test head.
+- Vercel admin/web preview statuses remain external free-plan build-rate-limit failures; do not retry preview builds or classify these as failing GitHub Actions tests.
+- Reconciled stale G-002 migration crosswalk notes against current `develop`: the staging bootstrap helper already enforces exact DB + staging approval, session/effective role equality, rejects superuser/BYPASSRLS/CREATEROLE/CREATEDB, rejects public table/schema ownership and verifies TLS through `pg_stat_ssl`. The five mutating scripts also require CA material and set bootstrap actor context. No extra helper change is justified.
+- Corrected preliminary carrier-worker findings: tracking poller and create/cancel reconciliation paths already resolve authoritative store org and verify order/store equality; per-shipment writes, events, delivery bridge and retry outbox writes use the exact org-bound worker context, with retry rows carrying org/store. Global SKIP LOCKED claims remain separate platform-worker lease operations. Do not duplicate this implementation or cherry-pick stale worker changes.
+- Direct PostgreSQL constructor inventory remains provisional: GitHub tree confirms 648 API source files; exhaustive content/blob and indirect factory scan remains unfinished. Keep the report explicit about this limit. Generic OutboxDispatcher publisher caller graph also remains incomplete beyond reviewed controller/service spot checks.
+- PR #138 remains OPEN/DRAFT/UNMERGED and untouched; PR #175 remains separate. No reviewers requested. Do not merge PR #181 while the recorded staging-release authorization gate remains unresolved; merging to develop may trigger release workflow. No DB, staging, migration, seed/reset/bootstrap execution, grants/default ACL/RLS, Render mutation, deployment, provider call, credential change, worker activation or release was performed.
+
+---
+
 ## Latest continuation checkpoint — 28 November 2026, payment refund actor-context correction
 
 - Continued from the G-002 source audit on PR #181; the branch remains based on current `develop` at `5356cd182cb41fc8f2266a0b75eb60056c43675d`. PR #138 remains OPEN/DRAFT/UNMERGED and untouched; PR #175 remains separate.
