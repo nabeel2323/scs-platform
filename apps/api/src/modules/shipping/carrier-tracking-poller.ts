@@ -30,7 +30,7 @@ import {
   Inject,
   forwardRef,
 } from '@nestjs/common';
-import { eq, and, sql, isNull } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
 import { ShippingProviderRegistry } from './shipping-registry';
 import { shipments, shipmentEvents } from '../orders/shipment.schema';
@@ -289,6 +289,8 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
     const activeOrgId = tenantContext.orgId;
 
     const providerKey = shipment.shippingProviderKey || shipment.shipping_provider_key || 'aramex';
+    const trackingId = shipment.carrierTrackingId ?? shipment.carrier_tracking_id;
+    const carrierStatusMapped = shipment.carrierStatusMapped ?? shipment.carrier_status_mapped;
     const provider = this.registry.findProvider(providerKey);
     if (!provider) return;
 
@@ -298,8 +300,8 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
 
     try {
       const trackingInfo = await provider.getTrackingInfo(
-        shipment.carrierTrackingId,
-        shipment.store_id,
+        trackingId,
+        storeId,
       );
       this.circuitBreaker.recordSuccess(cbScope);
 
@@ -345,7 +347,7 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
       if (
         !deliveredAfterCancel &&
         latestStatus &&
-        canTransition(shipment.carrierStatusMapped, latestStatus)
+        canTransition(carrierStatusMapped, latestStatus)
       ) {
         await this.withWorkerContext(() => this.db.db
           .update(shipments)
@@ -358,16 +360,16 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
           .where(and(eq(shipments.id, shipment.id), eq(shipments.storeId, storeId))), activeOrgId);
 
         // M7.3-A: Bridge carrier DELIVERED → order DELIVERED
-        if (latestStatus === 'DELIVERED' && shipment.order_id) {
+        if (latestStatus === 'DELIVERED' && orderId) {
           try {
             await this.withWorkerContext(() => this.ordersService.processCarrierDelivery(
-              shipment.order_id,
-              shipment.carrier_shipment_id,
+              orderId,
+              shipment.carrierShipmentId ?? shipment.carrier_shipment_id,
               'tracking_poll',
             ), activeOrgId);
           } catch (bridgeErr: any) {
             this.logger.warn(
-              `Carrier delivery bridge failed for order ${shipment.order_id}: ${bridgeErr?.message}`,
+              `Carrier delivery bridge failed for order ${orderId}: ${bridgeErr?.message}`,
             );
           }
         }
@@ -494,7 +496,7 @@ export class CarrierTrackingPoller implements OnModuleInit, OnModuleDestroy {
     );
 
     // Order guard: don't insert events that would move state backward
-    if (!canTransition(shipment.carrierStatusMapped, event.status)) {
+    if (!canTransition(shipment.carrierStatusMapped ?? shipment.carrier_status_mapped, event.status)) {
       this.logger.log(
         `Tracking event ${event.status} would move shipment ${shipment.id} backward ` +
           `(current: ${shipment.carrierStatusMapped}) — persisting as metadata only.`,

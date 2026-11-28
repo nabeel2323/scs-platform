@@ -22,7 +22,7 @@
  */
 
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { eq, and, isNull, lte, or, sql, ne } from 'drizzle-orm';
+import { eq, and, or, sql } from 'drizzle-orm';
 import { DatabaseService } from '../../common/database/database.service';
 import { ShippingProviderRegistry } from './shipping-registry';
 import { shipments } from '../orders/shipment.schema';
@@ -34,7 +34,6 @@ import {
   CreateShipmentRequest,
   CancelPickupRequest,
 } from './shipping.types';
-import { classifyCarrierError } from './carrier-errors';
 import { MerchantService } from '../merchant/merchant.service';
 import { resolveCarrierShipmentTenantContext } from './carrier-shipment-tenant-context';
 
@@ -267,13 +266,19 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     }
 
     // B.3.3.3: Route cancel reconciliation if shipment has pending cancel state
-    const cancelStatus = shipment.carrierCancelStatus as string | null;
+    const cancelStatus = (shipment.carrierCancelStatus ?? shipment.carrier_cancel_status ?? null) as string | null;
     if (cancelStatus && ['UNKNOWN', 'RECONCILIATION_REQUIRED'].includes(cancelStatus)) {
       return this.reconcileCancelShipment(shipment);
     }
 
     // Case A: Already complete
-    if (shipment.carrierCreateStatus === 'SUCCESS' && shipment.carrierShipmentId) {
+    const carrierCreateStatus = shipment.carrierCreateStatus ?? shipment.carrier_create_status;
+    const carrierShipmentId = shipment.carrierShipmentId ?? shipment.carrier_shipment_id;
+    const trackingId = shipment.carrierTrackingId ?? shipment.carrier_tracking_id ?? carrierShipmentId;
+    const idempotencyKey = shipment.idempotencyKey ?? shipment.idempotency_key;
+    const carrierCreateRetries = shipment.carrierCreateRetries ?? shipment.carrier_create_retries ?? 0;
+
+    if (carrierCreateStatus === 'SUCCESS' && carrierShipmentId) {
       return { shipmentId, outcome: 'already_complete' };
     }
 
@@ -284,8 +289,6 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
     }
 
     // Try to look up the shipment via carrier tracking
-    const trackingId = shipment.carrierTrackingId || shipment.carrierShipmentId;
-
     if (trackingId) {
       try {
         const trackingInfo = await provider.getTrackingInfo(trackingId, storeId);
@@ -325,11 +328,11 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
 
     // Case C: Carrier doesn't have it — can we safely retry?
     if (
-      shipment.carrierCreateStatus === 'PENDING' ||
-      shipment.carrierCreateStatus === 'RECOVERY_REQUIRED'
+      carrierCreateStatus === 'PENDING' ||
+      carrierCreateStatus === 'RECOVERY_REQUIRED'
     ) {
       // Check if it's safe to retry (idempotency key exists)
-      if (shipment.idempotencyKey) {
+      if (idempotencyKey) {
         // Schedule a retry via outbox
         await this.scheduleRetry(shipment, orgId, storeId);
 
@@ -358,7 +361,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
         id: randomUUID(),
         eventType: 'shipping.carrier.create',
         aggregateId: shipment.id,
-        payload: { source: 'reconciliation', retryCount: (shipment.carrierCreateRetries || 0) + 1 },
+        payload: { source: 'reconciliation', retryCount: carrierCreateRetries + 1 },
         status: 'PENDING',
         organizationId: orgId,
         storeId,
@@ -381,7 +384,7 @@ export class CarrierReconciliationService implements OnModuleInit, OnModuleDestr
    */
   private async deferReconciliation(shipment: any, orgId: string, storeId: string): Promise<void> {
     // Exponential backoff for reconciliation: 10min, 20min, 40min, 1h, 2h, 4h (max)
-    const currentRetries = shipment.carrierCreateRetries || 0;
+    const currentRetries = shipment.carrierCreateRetries ?? shipment.carrier_create_retries ?? 0;
     const delayMs = Math.min(10 * 60 * 1000 * Math.pow(2, currentRetries), 4 * 60 * 60 * 1000);
 
     await this.withWorkerContext(() => this.db.db
