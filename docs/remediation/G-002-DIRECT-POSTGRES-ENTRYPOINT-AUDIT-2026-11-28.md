@@ -180,3 +180,11 @@ The change is source-only. No database connection or diagnostic execution was pe
 - PR description now records the new scope and explicitly marks exact-head validation pending. Keep PR #181 unmerged until the new source/test batch has one consolidated exact-head CI and the separate staging-release authorization gate is resolved. No reviewers requested.
 - PR #138 remains open/draft/unmerged and untouched at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; its preservation branch remains protected. PR #175 remains separate.
 - No database connection or script execution, staging/shared DB write, migration, seed/reset/bootstrap, grants/default ACL/RLS change, Render mutation, deployment, provider call, credential change, worker activation or release occurred.
+
+
+## CI #1758 completion — 28 November 2026
+
+- Rechecked workflow run `46175778823` against the source/test head `803ce6fe9f5a13c31e62429297b5b89a52e15a9c`: completed SUCCESS. All 10 mandatory jobs passed, including `pnpm --filter @scs/api test:coverage`, integration tests, lint/typecheck/format, migration full apply on disposable CI PostgreSQL, boundary lint, web/admin tests, container smoke, contract/codegen and build. k6 Smoke and Trigger Staging Release were skipped.
+- This run validates the new read-only audit safety spec and updated diagnostic on that source/test head. It does not prove a live staging target or authorize a release. No database connection or staging script execution occurred.
+- PR #181 latest fetched metadata: head `ab21cdd8fca01e6e5bb29a0f8a61f71863fb3587`, 43 commits, nine changed files, open/non-draft/unmerged, mergeable=true. Base remains `develop` at `5356cd182cb41fc8f2266a0b75eb60056c43675d`. Keep merge gated by the separate staging-release authorization.
+- PR #138 remains protected and untouched. Direct PostgreSQL constructor inventory and OutboxDispatcher caller graph remain provisional; continue targeted source review without repeated CI.
