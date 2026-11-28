@@ -467,3 +467,14 @@ A three-way Git tree comparison was run using merge base `f74eb588cc58fc99b105e7
 ## PR #175 CI progress — 28 November 2026
 
 - Exact-head run #1724 (`46087426872`) on `b48e2a463c28eb7bcb1c880634c4f4f388ad5b5b`: Lint & Typecheck, Mobile analyze/test, Web & Admin App Tests, Migration Full Apply and E6 Boundary Lint have passed. API Unit Tests/Coverage and Integration Tests remain in progress. Build/container/contract gates have not yet reported at this poll. PR #175 stays draft; do not merge until all mandatory checks complete successfully.
+
+
+## G-002 migration object crosswalk — 28 November 2026
+
+- Added [G-002 Migration Object and Tenant-Ownership Crosswalk](../docs/remediation/G-002-MIGRATION-OBJECT-CROSSWALK.md), source-reviewed against all 77 numbered migrations on develop. The scan found the single application-defined function `public.normalize_arabic(TEXT)` in 0007 (IMMUTABLE, not SECURITY DEFINER); migration 0070 pins its function-local search_path to pg_catalog and verifies the catalog config. Analytics partitioning is introduced in 0002 and re-established/configured with pg_partman in 0013, with retention in 0018.
+- No CREATE TRIGGER, CREATE PROCEDURE, CREATE RULE, explicit OWNER TO, or migration-authored SECURITY DEFINER declaration was found in the numbered migrations. This is source evidence only; it does not prove the live catalog contains no externally-created objects or ownership overrides.
+- Migration 0076 is the only numbered migration changing table/sequence grants and default ACLs; it revokes anon/authenticated privileges and applies future-object revocations for object-creating roles. Actual object creators/owners and the migration principal still require protected read-only catalog verification.
+- The migration FK scan shows predominantly single-column references; these provide referential integrity but do not by themselves enforce same-tenant ownership. Complete the sensitive operation→authoritative tenant predicate matrix before any RLS/role transition.
+- Reconfirmed source-level entrypoint distinctions: API runtime pool has a fail-closed production-like identity/TLS gate; standalone migrate-pg remains diagnostic/non-fatal with optional CA TLS and no transaction-local migration actor; seed/catalog, reset, and five manual bootstrap scripts have distinct guard/actor-context behavior. Do not execute seed/reset/bootstrap scripts during this audit.
+- PR #175 exact-head CI #1724 (run 46087426872) is now SUCCESS: all 10 mandatory jobs passed (lint/typecheck, mobile, Web/Admin, unit/coverage, integration, migration full apply, E6, build, container smoke, contract/codegen); k6 and staging release skipped. It remains a separate draft PR; no merge or staging action was taken.
+- Current develop documentation update starts from the previously verified develop baseline. No application code, staging DB, Render configuration, role, credential, grant, RLS, worker, provider or deployment state was changed.
