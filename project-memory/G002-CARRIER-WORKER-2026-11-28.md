@@ -175,3 +175,11 @@ The change is source-only. No database connection or diagnostic execution was pe
 - The run was discovered from the source/test commit. Later `[skip ci]` documentation commits do not change the code being tested. Current PR #181 head at this memory checkpoint is `8b978b061a8f550034e46fe7d464d365d106f0bd`, with code/test head `803ce6f`; compare to `develop` is 41 commits ahead / 0 behind with nine changed paths.
 - PR #181 description now records the diagnostic hardening and CI #1758 in-progress status. PR remains open, non-draft and unmerged; GitHub last reported mergeable=true. Do not merge until the consolidated run completes and the separate staging-release authorization gate is resolved.
 - No database connection/script execution, staging mutation, migration, seed/reset/bootstrap, grants/default ACL/RLS, Render mutation, deployment, provider call, credential change, worker activation or release operation occurred. PR #138 remains protected and untouched.
+
+
+## CI #1758 completion — 28 November 2026
+
+- Rechecked workflow run `46175778823` against the source/test head `803ce6fe9f5a13c31e62429297b5b89a52e15a9c`: completed SUCCESS. All 10 mandatory jobs passed, including `pnpm --filter @scs/api test:coverage`, integration tests, lint/typecheck/format, migration full apply on disposable CI PostgreSQL, boundary lint, web/admin tests, container smoke, contract/codegen and build. k6 Smoke and Trigger Staging Release were skipped.
+- This run validates the new read-only audit safety spec and updated diagnostic on that source/test head. It does not prove a live staging target or authorize a release. No database connection or staging script execution occurred.
+- PR #181 latest fetched metadata: head `ab21cdd8fca01e6e5bb29a0f8a61f71863fb3587`, 43 commits, nine changed files, open/non-draft/unmerged, mergeable=true. Base remains `develop` at `5356cd182cb41fc8f2266a0b75eb60056c43675d`. Keep merge gated by the separate staging-release authorization.
+- PR #138 remains protected and untouched. Direct PostgreSQL constructor inventory and OutboxDispatcher caller graph remain provisional; continue targeted source review without repeated CI.
