@@ -68,6 +68,7 @@ import { carrierEndpointAllowlistRegistry } from '../ssrf-protection';
 import { shipments } from '../../orders/shipment.schema';
 import { stores } from '../../merchant/merchant.schema';
 import { carrierCredentials } from '../shipping.schema';
+import { assertCarrierTenantActorContext } from '../carrier-tenant-context';
 import { buildClientInfo } from './aramex-clientinfo.builder';
 import { mapAramexStatus } from './aramex-status.mapper';
 import {
@@ -978,10 +979,25 @@ export class AramexProvider extends ShippingProvider {
     storeId: string,
     explicitCredentialId?: string,
   ): Promise<{ payload: AramexCredentialPayload; primaryUrl: string | null }> {
+    // When already inside a tenant transaction, resolve only within that
+    // transaction's organization. Unscoped discovery is reserved for a fresh
+    // provider call so its short worker transaction can close before the
+    // organization-bound configuration/credential transactions begin.
+    const active = this.db.currentActorContext;
+    if (active && active.activeOrgId === null) {
+      throw new NonRetryableCarrierError(
+        'Aramex credential resolution requires an organization-bound actor context',
+        { providerKey: this.key, operation: 'resolveCredentials' },
+      );
+    }
+    const ownerOrgId = active?.activeOrgId ?? null;
     const store = await this.withCredentialDatabaseContext(
-      'aramex-store-owner-resolution', null,
+      'aramex-store-owner-resolution', ownerOrgId,
       () => this.db.db.query.stores.findFirst({
-        where: eq(stores.id, storeId), columns: { orgId: true },
+        where: ownerOrgId
+          ? and(eq(stores.id, storeId), eq(stores.orgId, ownerOrgId))
+          : eq(stores.id, storeId),
+        columns: { orgId: true },
       }),
     );
     if (!store?.orgId) {
@@ -1081,9 +1097,15 @@ export class AramexProvider extends ShippingProvider {
   ): Promise<T> {
     const active = this.db.currentActorContext;
     if (active) {
-      if (activeOrgId && (active.actorKind === 'user' || active.actorKind === 'worker') &&
-          active.activeOrgId !== null && active.activeOrgId !== activeOrgId) {
-        throw new Error('Aramex credential lookup crossed the active organization context');
+      if (activeOrgId === null) {
+        if (active.actorKind !== 'worker' || active.activeOrgId !== null) {
+          throw new NonRetryableCarrierError(
+            'Unscoped Aramex store discovery requires a dedicated unscoped worker transaction',
+            { providerKey: this.key, operation: 'resolveCredentials' },
+          );
+        }
+      } else {
+        assertCarrierTenantActorContext(active, activeOrgId, 'Aramex credential lookup');
       }
       return operation();
     }

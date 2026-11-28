@@ -78,6 +78,36 @@ describe('CarrierConfigurationsService provider binding', () => {
     expect(mocks.credentialFind).toHaveBeenCalledOnce();
   });
 
+  it('rejects a null-org actor before querying tenant configuration', async () => {
+    const mocks = makeDatabase();
+    mocks.db.currentActorContext = {
+      actorKind: 'worker',
+      activeOrgId: null,
+    };
+    const service = new CarrierConfigurationsService(mocks.db as any);
+
+    await expect(service.resolveForStore(ORG_ID, STORE_ID, 'aramex')).rejects.toThrow(
+      'Carrier configuration access requires a trusted actor context bound to the requested organization',
+    );
+    expect(mocks.storeFind).not.toHaveBeenCalled();
+    expect(mocks.db.withActorContext).not.toHaveBeenCalled();
+  });
+
+  it('reuses a trusted actor only when it is bound to the exact requested organization', async () => {
+    const mocks = makeDatabase();
+    mocks.db.currentActorContext = {
+      actorKind: 'worker',
+      activeOrgId: ORG_ID,
+    };
+    mocks.storeFind.mockResolvedValue({ id: STORE_ID, orgId: ORG_ID });
+    mocks.configurationFind.mockResolvedValue(null);
+    const service = new CarrierConfigurationsService(mocks.db as any);
+
+    await expect(service.resolveForStore(ORG_ID, STORE_ID, 'aramex')).resolves.toBeNull();
+    expect(mocks.db.withActorContext).not.toHaveBeenCalled();
+    expect(mocks.storeFind).toHaveBeenCalledOnce();
+  });
+
   it('resolves the provider-matching active configuration and credential', async () => {
     const mocks = makeDatabase();
     const config = {
