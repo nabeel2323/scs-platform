@@ -20,7 +20,7 @@ function makeHarness() {
 
   mkdirSync(bin, { recursive: true });
   const fakePsql = resolve(bin, 'psql');
-  writeFileSync(fakePsql, '#!/bin/sh\nprintf "called\\n" >> "$PSQL_MARKER"\ncase "$*" in\n  *"current_database()"*) printf "%s" "\${FAKE_DATABASE:-m73a_verify}" ;;\n  *"current_user"*) printf "%s" "\${FAKE_USER:-postgres}" ;;\n  *"inet_server_addr()"*) printf "%s" "\${FAKE_SERVER_ADDR:-127.0.0.1}" ;;\n  *) exit 2 ;;\nesac\n');
+  writeFileSync(fakePsql, '#!/bin/sh\nprintf "called\\n" >> "$PSQL_MARKER"\ncase "$*" in\n  *"current_database()"*) printf "%s" "${FAKE_DATABASE:-m73a_verify}" ;;\n  *"current_user"*) printf "%s" "${FAKE_USER:-postgres}" ;;\n  *"inet_server_addr()"*) printf "%s" "${FAKE_SERVER_ADDR:-127.0.0.1}" ;;\n  *) exit 2 ;;\nesac\n');
   chmodSync(fakePsql, 0o755);
   return { helper, marker, env: {
     ...process.env,
