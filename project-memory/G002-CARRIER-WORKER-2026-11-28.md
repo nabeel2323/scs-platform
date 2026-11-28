@@ -1,3 +1,14 @@
+## Direct PostgreSQL entrypoint audit — 28 November 2026
+
+- Read-only source audit recorded in `docs/remediation/G-002-DIRECT-POSTGRES-ENTRYPOINT-AUDIT-2026-11-28.md` on branch `docs/g002-postgres-entrypoint-audit-20261128` (initial audit commit `b444eff8a7e3e21a6d777654e0f42548bdfd17dd`).
+- API runtime pool has stronger production-like identity/TLS startup gates than the standalone migration and seed CLIs. Migration identity diagnostics are currently non-fatal; migration runner CA verification is conditional on `PGSSLROOTCERT`. Platform and catalog seed CLIs likewise make CA optional and do not show the exact staging target/role preflight used by staging bootstrap tools.
+- All five staging bootstrap scripts reviewed use shared fail-closed target, role, ownership and TLS verification and establish bootstrap actor context. Reset utility has a distinct explicit destructive target approval. Audit CLI is read-only and actor-attributed but its CA is optional. Local create-admin script is restricted to development/test.
+- These are source-level assurance differences, not proof of an active insecure connection. No database was connected and no script was run.
+- Outbox writer is intentionally non-polling; generic events remain pending. Publisher actor-context and transaction-nesting review remains open. Next: complete full Client/Pool call graph, trace each publisher through its caller chain, finish migrations 0001–0077 ownership crosswalk, then submit one bounded source/test PR for proven gaps.
+- No staging/shared DB, migration, seed, reset, bootstrap, grant/default-ACL/RLS, Render, deployment, provider, credential, worker activation or release action occurred.
+
+---
+
 ## PR #180 merged — 28 November 2026, 13:43 UTC
 
 - PR #180 merged into `develop` by squash; merge commit `a56b77ba09a8e185c9ecdf8649d6602cb3a94143`; exact source head `d0c3639f0c3820fa44bbadbb9c8b62264cd62413`.
