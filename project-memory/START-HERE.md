@@ -735,3 +735,11 @@ The 28 November source review also identified null-org actor-context reuse in th
 - PR description now records the new scope and explicitly marks exact-head validation pending. Keep PR #181 unmerged until the new source/test batch has one consolidated exact-head CI and the separate staging-release authorization gate is resolved. No reviewers requested.
 - PR #138 remains open/draft/unmerged and untouched at `81f30f5c30654b233ef373c15fd3f2cb867aba01`; its preservation branch remains protected. PR #175 remains separate.
 - No database connection or script execution, staging/shared DB write, migration, seed/reset/bootstrap, grants/default ACL/RLS change, Render mutation, deployment, provider call, credential change, worker activation or release occurred.
+
+
+## CI continuation checkpoint — 28 November 2026, 21:22 UTC
+
+- The consolidated GitHub Actions CI #1758 / run ID `46175778823` is associated with the new staging-diagnostic source/test head `803ce6fe9f5a13c31e62429297b5b89a52e15a9c`. At the latest poll, `Lint & Typecheck` and `Mobile (flutter analyze · test)` were both `in_progress`; no completion result is claimed. Recheck this same run rather than dispatching another CI campaign.
+- The run was discovered from the source/test commit. Later `[skip ci]` documentation commits do not change the code being tested. Current PR #181 head at this memory checkpoint is `8b978b061a8f550034e46fe7d464d365d106f0bd`, with code/test head `803ce6f`; compare to `develop` is 41 commits ahead / 0 behind with nine changed paths.
+- PR #181 description now records the diagnostic hardening and CI #1758 in-progress status. PR remains open, non-draft and unmerged; GitHub last reported mergeable=true. Do not merge until the consolidated run completes and the separate staging-release authorization gate is resolved.
+- No database connection/script execution, staging mutation, migration, seed/reset/bootstrap, grants/default ACL/RLS, Render mutation, deployment, provider call, credential change, worker activation or release operation occurred. PR #138 remains protected and untouched.
