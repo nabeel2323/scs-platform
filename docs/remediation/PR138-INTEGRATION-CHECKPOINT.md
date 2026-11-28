@@ -418,3 +418,31 @@
 - PR #138 remains OPEN / DRAFT / UNMERGED at unchanged head `81f30f5c30654b233ef373c15fd3f2cb867aba01`; preservation ref is verified identical. The bulk implementation is now recovered through bounded merges or superseded by safer current-develop implementations. No further bulk extraction is justified. Any newly identified missing behavior must be a fresh, bounded PR from current develop with exact path provenance and focused tests.
 - CI run #1723 / `46085878528` is on PR #174 merge commit `4c5c755571385b346902c74c9f4f0578f48d9433`. At the latest poll, Mobile, Lint/Typecheck, Web/Admin, Migration Full Apply and Boundary Lint had passed; Integration Tests and Unit/Coverage were still running. No staging release was triggered.
 - G-002 remains IN PROGRESS / NOT VERIFIED. The standalone migration runner's non-fatal identity diagnostic and optional TLS remain gated until the protected read-only staging catalog audit establishes the actual migration principal, ownership, default ACLs and TLS state. No database writes/migrations, grants/default ACL changes, RLS, provider calls, worker activation, Render changes, deployment, restart or release occurred.
+
+
+## G-002 Render runtime identity and migration-entrypoint audit — 28 November 2026
+
+Read-only evidence gathered after the user approved inspection of Render workspace `My Workspace`:
+
+- Render service `scs-api-staging` is the single listed API web service, connected to `nabeel2323/scs-platform` branch `develop`, Frankfurt, Free plan, one configured instance, auto-deploy disabled, and not suspended. No Render PostgreSQL service exists in the workspace; Supabase remains the documented staging database.
+- Render application logs dated 26 November contain the API's own `DatabaseService` runtime identity diagnostic from the live API process: `session_user=current_user=postgres`, database `postgres`, `rolsuper=false`, `rolbypassrls=true`, `rolcreaterole=true`, `rolcreatedb=true`, and `pg_stat_ssl.ssl=false`. Earlier startup attempts logged the fail-closed message for unsafe role/TLS in a production-like environment. This is direct API-process evidence, not merely the separate MCP migration session. Credentials were not exposed and no Render environment values were read or changed.
+- No Render environment mutation, restart, deployment or release was performed. The live API is using an over-privileged PostgreSQL role without TLS; treat runtime role/TLS remediation as a high-priority controlled workstream. Do not enable RLS or change the live role until a dedicated least-privilege principal, grants/object ownership, TLS CA configuration, migration principal, rollback and controlled deployment plan are reconciled and separately authorized.
+
+### Source review of direct PostgreSQL entrypoints
+
+- `apps/api/infra/drizzle/migrate-pg.ts` uses a standalone `pg.Pool`; its exact migration-session identity is diagnostic and non-fatal, TLS is enabled only when `PGSSLROOTCERT` is supplied, and it runs migration SQL through a direct `PoolClient` without transaction-local migration actor context. The advisory lock and per-migration transaction/ledger behavior are already present and must be preserved. Do not weaken or duplicate the lock.
+- `migration-identity.ts` reports session/effective role flags, database name and TLS state from the exact migration connection, but the caller currently only logs this data.
+- `seed-pg.ts` and `seed-catalog.ts` use standalone PostgreSQL pools and describe `PGSSLROOTCERT` as optional. They set an operator/system actor context within their transactions; do not run them as part of this audit. Catalog seed defaults to the production profile and its demo-offer path can create demo tenant/business records, so never run it against staging without a separately reviewed explicit profile/target guard.
+- `reset-pg.ts` has stronger CA-verified TLS, environment allowlisting, exact database confirmation and a second staging-reset approval, but remains destructive and lacks full session/effective role capability/ownership validation and transaction-local actor attribution. It was not run.
+- Existing source inventory also records five manual staging bootstrap scripts with TLS, target and actor-context guards, but their shared guard checks only database/current_user and needs review for session/effective role flags, object ownership and TLS evidence.
+- Next bounded source work: finish the repository-wide direct `pg.Client`/`Pool` callsite list; crosswalk all 0001–0077 migration-created functions, triggers, partitions, FKs, object owners and default-ACL effects; map each operation to its actor principal and exact tenant/ownership predicate. Keep seed/reset/migration credential hardening changes gated until actual migration principal and object ownership are verified.
+
+### PR #138 preservation / integration rule reaffirmed
+
+The complete three-way extraction reconciliation already recorded above remains authoritative: 533 identical paths; 95 both-changed paths integrated through PR #170; 12 remaining both-changed paths covered by focused merged follow-ups; two deliberate exclusions; and 20 source-only paths consisting of legacy scripts, a conflicting migration and historical docs. No missing application source was identified in the remaining source-only set. Preserve PR #138 and its preservation ref unchanged. Do not reimplement already merged work or attempt another bulk merge. Any newly discovered gap must be proven against current `develop` and delivered as a bounded change with path provenance and focused tests.
+
+### Safety / execution status
+
+- Render inspection and log review were read-only. No env vars, services, deployments, restarts, workflows, providers or workers were changed or activated.
+- The user has authorised staging forward migrations, and migrations 0072–0077 are already applied; this does not authorise RLS activation, grant/default-ACL changes, runtime/migration credential rotation, seed/reset execution, or a Render rollout.
+- No new CI was triggered for this audit/documentation update. Batch source/test work before one consolidated exact-head CI campaign.
