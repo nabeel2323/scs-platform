@@ -6,11 +6,13 @@ function invoke(activeActor: any, requestedOrgId: string | null) {
   const withActorContext = vi.fn(async (_context: unknown, callback: () => Promise<unknown>) => callback());
   const db = { currentActorContext: activeActor, withActorContext };
   const receiver = { db };
-  const result = (AramexProvider.prototype as any).withCredentialDatabaseContext.call(
-    receiver,
-    'aramex-test-worker',
-    requestedOrgId,
-    operation,
+  const result = Promise.resolve().then(() =>
+    (AramexProvider.prototype as any).withCredentialDatabaseContext.call(
+      receiver,
+      'aramex-test-worker',
+      requestedOrgId,
+      operation,
+    ),
   );
   return { result, operation, withActorContext };
 }
