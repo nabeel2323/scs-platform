@@ -71,3 +71,16 @@ No generic notification consumer should be introduced as part of this audit: eve
 ## Safety and evidence boundary
 
 This is a read-only source audit. No database connection was opened. No migration, seed, reset, bootstrap or audit script was run. No staging/shared database, Render service, provider, credential, grant, default ACL, RLS policy, worker, deployment or release was changed. CI success is not authorization for any of those operations.
+
+
+## Additional verified entrypoints (follow-up pass)
+
+The wider tree review found three more direct PostgreSQL tools that must be included in the operational inventory:
+
+- `src/scripts/bootstrap-issue-token.ts` creates a direct `pg.Client`. It requires an explicit `SCS_ENVIRONMENT`, never infers the environment from the URL, requires `--confirm-production` for production, enforces verified TLS for production-like environments (system trust store or supplied CA), checks session/effective role equality, rejects superuser/BYPASSRLS/CREATEROLE/CREATEDB and public-table/schema ownership, and sets a bootstrap actor in its transaction. This is materially stronger than the seed CLI boundary; retain its separate one-time bootstrap purpose and do not treat the existence of the token flow as routine application runtime.
+- `check-staging-merchant-bootstrap.ts` creates a direct `pg.Pool`, requires a CA file, invokes the same staging target/role/ownership/TLS preflight, then runs a `READ ONLY` transaction under bootstrap actor context. Classify it as a guarded staging verification tool, not one of the five mutating staging bootstrap scripts.
+- `scripts/verify-migration-ledger.mjs` creates a direct `pg.Pool`, requires `DATABASE_URL`, and makes CA verification conditional on `PGSSLROOTCERT`. It reads migration ledger state but has no explicit environment/target identity preflight or operator actor context in the reviewed file. Its release-pipeline caller/environment must be checked before assigning a final risk classification.
+
+The direct-connection source set also includes `create-admin-user.ts` (development/test-only, local-target restriction; no TLS option on its pool) and `audit-db-access.ts` (read-only transaction, audit actor, optional CA). Do not count helper files that accept a `PoolClient`—for example `migration-lock.ts` and `migration-identity.ts`—as new connection constructors.
+
+**Inventory status remains provisional:** the repository tree contains 648 API source files; this pass inspected known database/bootstrap/migration/seed scripts and targeted connection constructors, but has not yet exhaustively searched every source blob for dynamic imports or indirect connection factories. The report must not be represented as a complete proof until that scan and the outbox caller-chain review finish.
